@@ -164,6 +164,9 @@ namespace
             if (botAI->GetMaster() && IsRealPlayer(botAI->GetMaster()))
                 return false;
 
+            // Arrived from another continent: told again what it came for.
+            ResumeJourney(bot, botAI);
+
             AuctionHouseId houseId;
             if (!FindHouse(bot, botAI, houseId))
             {

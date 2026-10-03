@@ -17,7 +17,7 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
 
 - **Going there.** A bot decides for itself when it is time: when its bags are getting full, or when it has
   enough to sell - and every bot draws those lines somewhere else. A bot in town walks to the auctioneers. A
-  bot out in the world takes its hearth to a capital, arrives at the bank or inn, walks to the auctioneers,
+  bot out in the world takes its hearth to a capital of its faction, arrives at the bank or inn, walks to the auctioneers,
   stays a while and returns. Some bots never use the auction house at all. In the evening and at the weekend
   more is going on than at night.
 - **Selling.** Only what the bot does not need. One that knows the market goes just below the cheapest offer;

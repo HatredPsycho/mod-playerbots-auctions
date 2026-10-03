@@ -221,6 +221,9 @@ namespace pba
     bool IsInTown(Player* bot);
     /// Sends a bot to the auctioneers: on foot if it is in town, by hearth and then on foot if not.
     Journey SendToAuctionHouse(Player* bot, PlayerbotAI* botAI);
+    /// A bot that took its hearth to another continent arrives without knowing why it came: mod-playerbots
+    /// clears its head on the way. Here it is told again - where the auctioneers are and where to return to.
+    void ResumeJourney(Player* bot, PlayerbotAI* botAI);
     /// Lets a bot that is in town walk to a place in it.
     bool WalkInTown(Player* bot, PlayerbotAI* botAI, float x, float y, float z);
     /// Can this bot be sent anywhere at all?

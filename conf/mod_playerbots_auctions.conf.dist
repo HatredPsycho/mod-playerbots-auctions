@@ -116,10 +116,9 @@ PlayerbotsAuctions.VisitCooldownMinutesMax = 60
 #    or when it has collected enough to sell. Where it draws these lines follows from its character.
 #    A bot that is in a capital anyway goes for less, but not every time.
 #
-#    A bot in town walks to the auctioneers. A bot out in the world takes its hearth to a capital of
-#    its faction on the same continent (picked at random), arrives at the bank or inn, walks to the
-#    auctioneers, stays in town for a while and returns to where it was. Bots in Northrend do not
-#    travel.
+#    A bot in town walks to the auctioneers. A bot out in the world - Northrend and Outland
+#    included - takes its hearth to a capital of its faction (picked at random), arrives at the bank
+#    or inn, walks to the auctioneers, stays in town for a while and returns to where it was.
 #
 #    Needs the city visits of the CoA Playerbots fork; with other versions of mod-playerbots the
 #    bots are not sent anywhere and only do their business when they happen to pass an auctioneer.

@@ -37,6 +37,16 @@ namespace pba
 
         std::vector<Focus> cityFocus[CityCount];
 
+        /// A trip to a capital on another map, under way.
+        struct Pending
+        {
+            City const* city = nullptr;
+            uint32 mapId = 0;           // where the bot set out from
+            float x = 0.0f, y = 0.0f, z = 0.0f;
+            time_t until = 0;
+        };
+        std::unordered_map<ObjectGuid::LowType, Pending> pending;
+
         City const* TownOf(Player* bot)
         {
             for (City const& city : Cities)
@@ -60,11 +70,10 @@ namespace pba
                     return JOURNEY_NONE;
                 auto& info = botAI->rpgInfo;
 
-                // Capitals of the bot's faction on the same map. A trip to another map would make mod-playerbots
-                // forget the visit and the way back, so bots in Northrend stay where they are.
+                // Any capital of the bot's faction will do.
                 std::vector<City const*> reachable;
                 for (City const& city : Cities)
-                    if (city.team == bot->GetTeamId() && city.mapId == bot->GetMapId())
+                    if (city.team == bot->GetTeamId())
                         reachable.push_back(&city);
                 if (reachable.empty())
                     return JOURNEY_NONE;
@@ -79,6 +88,24 @@ namespace pba
                 {
                     if (info.cityStayMs || info.cityReturnPos != WorldPosition())
                         return JOURNEY_NONE;        // mod-playerbots is already taking it to a city
+
+                    if (city->mapId != bot->GetMapId())
+                    {
+                        // To another continent. mod-playerbots clears the bot's head when it changes maps, so
+                        // the errand and the way back are kept here and given to it again on arrival.
+                        Pending trip;
+                        trip.city = city;
+                        trip.mapId = bot->GetMapId();
+                        trip.x = bot->GetPositionX();
+                        trip.y = bot->GetPositionY();
+                        trip.z = bot->GetPositionZ();
+                        trip.until = GameTime::GetGameTime().count() + 3 * MINUTE;
+                        if (!bot->TeleportTo(city->mapId, city->ax + frand(-3.0f, 3.0f), city->ay + frand(-3.0f, 3.0f), city->az, bot->GetOrientation()))
+                            return JOURNEY_NONE;
+                        pending[bot->GetGUID().GetCounter()] = trip;
+                        return JOURNEY_HEARTH;
+                    }
+
                     info.cityReturnPos = WorldPosition(bot);
                     if (!bot->TeleportTo(city->mapId, city->ax + frand(-3.0f, 3.0f), city->ay + frand(-3.0f, 3.0f), city->az, bot->GetOrientation()))
                     {
@@ -92,6 +119,33 @@ namespace pba
             else
             {
                 return JOURNEY_NONE;
+            }
+        }
+
+        template <typename AI>
+        void Resume(Player* bot, AI* botAI)
+        {
+            if constexpr (HasCityLife<AI>)
+            {
+                auto found = pending.find(bot->GetGUID().GetCounter());
+                if (found == pending.end())
+                    return;
+                Pending const trip = found->second;
+                if (trip.until < GameTime::GetGameTime().count())
+                {
+                    pending.erase(found);       // never arrived
+                    return;
+                }
+                if (bot->GetMapId() != trip.city->mapId || bot->IsBeingTeleported() || !bot->IsInWorld())
+                    return;                     // still on its way
+                pending.erase(found);
+
+                float const angle = frand(0.0f, 6.2831853f);
+                float const radius = frand(2.0f, 6.0f);
+                auto& info = botAI->rpgInfo;
+                info.cityReturnPos = WorldPosition(trip.mapId, trip.x, trip.y, trip.z);
+                info.ChangeToGoCity(WorldPosition(trip.city->mapId, trip.city->x + radius * std::cos(angle),
+                    trip.city->y + radius * std::sin(angle), trip.city->z));
             }
         }
 
@@ -155,6 +209,12 @@ namespace pba
     Journey SendToAuctionHouse(Player* bot, PlayerbotAI* botAI)
     {
         return Send(bot, botAI);
+    }
+
+    void ResumeJourney(Player* bot, PlayerbotAI* botAI)
+    {
+        if (!pending.empty())
+            Resume(bot, botAI);
     }
 
     bool WalkInTown(Player* bot, PlayerbotAI* botAI, float x, float y, float z)
