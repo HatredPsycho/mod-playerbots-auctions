@@ -19,7 +19,7 @@
 #    PlayerbotsAuctions.AuctioneerRange
 #        Description: Bots sell and buy at an auctioneer, like a player. This is how close (yards)
 #                     they have to stand.
-#        Default:     25
+#        Default:     35
 #
 #    PlayerbotsAuctions.MinBotLevel
 #        Description: Bots below this level do not sell.
@@ -43,7 +43,7 @@
 #                     1 - Enabled
 
 PlayerbotsAuctions.Enable = 0
-PlayerbotsAuctions.AuctioneerRange = 25
+PlayerbotsAuctions.AuctioneerRange = 35
 PlayerbotsAuctions.MinBotLevel = 1
 PlayerbotsAuctions.CollectAuctionMail = 1
 PlayerbotsAuctions.ChargeDeposit = 0
@@ -364,12 +364,56 @@ PlayerbotsAuctions.CityTrip.CooldownMinutesMax = 180
 # CRAFTING
 #
 #    mod-playerbots gives the bots professions and recipes, but the bots do not craft on their own.
-#    With this option a bot that is in town for the auction house makes something with its
-#    profession from the materials it carries - preferring what it can use itself or what raises its
-#    skill - and sells what it does not need.
+#    With this option a bot that stands at the auctioneers works like a crafter: it thinks through
+#    some of its recipes, compares what the product would bring with what the materials cost - those
+#    it carries, those on offer in the auction house, those a vendor sells - and for a recipe that
+#    pays it buys what is missing and makes the item. What it does not need itself it sells.
+#
+#    Bots also buy materials for their professions when they are on offer at a good price, like any
+#    other item they have a use for (see BUYING).
+#
+#    Recipes that need a forge, an anvil or a fire, or a tool the bot does not carry, are left out:
+#    the bots craft where they stand.
 #
 #    PlayerbotsAuctions.Crafting.Enable
+#        Description: Bots craft.
 #        Default:     1 - Enabled
 #                     0 - Disabled
+#
+#    PlayerbotsAuctions.Crafting.BuyMaterials
+#        Description: Bots buy the materials a recipe is missing when the product is worth it.
+#        Default:     1 - Enabled
+#                     0 - Disabled (bots only craft from what they carry)
+#
+#    PlayerbotsAuctions.Crafting.MinProfitPercent
+#        Description: The product has to be worth this many percent more than its materials.
+#        Default:     10
+#
+#    PlayerbotsAuctions.Crafting.MaxMaterialPriceFactor
+#        Description: A bot does not pay any price for a material just because the product is worth
+#                     a lot: offers above this factor times the usual price of the material are left
+#                     alone.
+#        Default:     1.5
+#
+#    PlayerbotsAuctions.Crafting.SkillUpBonusPercent
+#        Description: A recipe that still raises the bot's skill is worth this many percent more to
+#                     it, so bots also craft at a small loss to get better.
+#        Default:     30
+#
+#    PlayerbotsAuctions.Crafting.RecipesPerVisit
+#        Description: How many of its recipes a bot thinks through per visit.
+#        Default:     40
+#
+#    PlayerbotsAuctions.Crafting.BuyVendorMaterials
+#        Description: Materials a vendor sells for money in any quantity (thread, vials, flux, ...)
+#                     the bot buys from the vendor at the vendor's price when it crafts.
+#        Default:     1 - Enabled
+#                     0 - Disabled (recipes that need such materials only work if the bot carries them)
 
 PlayerbotsAuctions.Crafting.Enable = 1
+PlayerbotsAuctions.Crafting.BuyMaterials = 1
+PlayerbotsAuctions.Crafting.MinProfitPercent = 10
+PlayerbotsAuctions.Crafting.MaxMaterialPriceFactor = 1.5
+PlayerbotsAuctions.Crafting.SkillUpBonusPercent = 30
+PlayerbotsAuctions.Crafting.RecipesPerVisit = 40
+PlayerbotsAuctions.Crafting.BuyVendorMaterials = 1

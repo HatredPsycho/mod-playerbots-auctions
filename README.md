@@ -8,7 +8,7 @@ It adds to mod-playerbots and does not change or replace it. Nothing is added to
 
 **Status: test version.** Built and run on the Conquest of Azeroth core (`jealous-sound/azerothcore-wotlk-coa`)
 with the CoA Playerbots fork (`Zyth45/mod-playerbots`, branch `coa`). Selling has been seen working on a
-server; going there on purpose, buying and crafting are new and have only been compiled.
+server; going there on purpose, buying, and crafting with bought materials are new and have only been compiled.
 
 ## What the bots do
 
@@ -42,8 +42,12 @@ limits, and only sales a bot took part in count.
 **Character.** Every bot has its own idea of when its bags are full and how much is enough to sell, and its own price level - a little
 above or below the others. A bot that finds no other offer of its item asks for more.
 
-**Crafting.** mod-playerbots gives the bots professions and recipes, but nothing makes them craft. In town
-a bot now makes something from the materials it carries and sells what it does not need.
+**Crafting.** mod-playerbots gives the bots professions and recipes, but nothing makes them craft. At the
+auction house a crafter now thinks through its recipes: what would the product bring, what do the materials
+cost - those it carries, those on offer, those a vendor sells? For a recipe that pays it buys what is missing,
+makes the item and sells what it does not need. A recipe that still raises its skill is worth a little more to
+it. Bots also stock up on materials for their professions when the price is right. Recipes that need a forge,
+an anvil or a fire are left out: the bots craft where they stand.
 
 **Mail.** A bot empties its auction mail when it is at the auction house: money for sold items, items nobody
 bought (offered again later) and what it bought.
