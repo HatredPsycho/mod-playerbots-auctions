@@ -21,6 +21,7 @@
 #include "Creature.h"
 #include "DBCStores.h"
 #include "DatabaseEnv.h"
+#include "Event.h"
 #include "GameTime.h"
 #include "Item.h"
 #include "ItemUsageValue.h"
@@ -101,6 +102,10 @@ namespace
         uint32 bargainChance = 10;             // percent of the auctions that are clearly cheap
         uint32 overpricedChance = 10;          // ... and clearly expensive
         float  overpricedMax = 3.0f;
+        float  aloneMin = 1.15f;               // price factor when nobody else offers the item
+        float  aloneMax = 1.6f;
+        uint32 temperPercent = 15;             // how far a bot's own price level is from the average
+        bool   craftEnabled = true;
 
         bool   buyEnabled = true;
         uint32 buyChance = 60;                 // percent of the visits in which a bot looks at the offers
@@ -118,7 +123,8 @@ namespace
         uint32 buyVendorItemPercent = 75;
 
         bool   cityTrips = true;
-        uint32 cityBagPercent = 80;
+        uint32 cityBagMin = 50;                // every bot has its own idea of "full" between these two
+        uint32 cityBagMax = 95;
         uint32 cityMinItems = 3;
         uint32 cityCooldownMin = 60 * 60;      // seconds
         uint32 cityCooldownMax = 180 * 60;
@@ -195,6 +201,11 @@ namespace
         cfg.overpricedChance    = std::min<uint32>(100 - cfg.bargainChance, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.OverpricedChance", 10));
         cfg.overpricedMax       = std::max(1.5f, sConfigMgr->GetOption<float>("PlayerbotsAuctions.Price.OverpricedMaxFactor", 3.0f));
 
+        cfg.aloneMin            = std::max(1.0f, sConfigMgr->GetOption<float>("PlayerbotsAuctions.Price.NoCompetitionFactorMin", 1.15f));
+        cfg.aloneMax            = std::max(cfg.aloneMin, sConfigMgr->GetOption<float>("PlayerbotsAuctions.Price.NoCompetitionFactorMax", 1.6f));
+        cfg.temperPercent       = std::min<uint32>(50, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.SellerTemperPercent", 15));
+        cfg.craftEnabled        = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Crafting.Enable", true);
+
         cfg.buyEnabled          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Buy.Enable", true);
         cfg.buyChance           = std::min<uint32>(100, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Buy.ChancePerVisit", 60));
         cfg.buyCandidates       = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Buy.OffersPerVisit", 40), 1, 500);
@@ -211,7 +222,8 @@ namespace
         cfg.buyVendorItemPercent = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Buy.VendorItemMaxPercent", 75), 1, 100);
 
         cfg.cityTrips           = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.CityTrip.Enable", true);
-        cfg.cityBagPercent      = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.BagsFullPercent", 80), 10, 100);
+        cfg.cityBagMin          = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.BagsFullPercentMin", 50), 10, 100);
+        cfg.cityBagMax          = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.BagsFullPercentMax", 95), cfg.cityBagMin, 100);
         cfg.cityMinItems        = std::max<uint32>(1, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.MinItemsToSell", 3));
         cfg.cityCooldownMin     = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.CooldownMinutesMin", 60) * MINUTE;
         cfg.cityCooldownMax     = std::max(cfg.cityCooldownMin, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.CooldownMinutesMax", 180) * MINUTE);
@@ -314,6 +326,20 @@ namespace
         houseId = bot->GetTeamId() == TEAM_ALLIANCE ? AuctionHouseId::Alliance : AuctionHouseId::Horde;
         return true;
     }
+
+    /// A number from 0 to 1 that belongs to one bot and never changes: its character. One bot finds its
+    /// bags full when they are half full, another only when nothing fits any more; one always asks a
+    /// little more than the others, another a little less.
+    float Trait(Player* bot, uint32 which)
+    {
+        uint32 hash = bot->GetGUID().GetCounter() * 2654435761u + which * 40503u;
+        hash ^= hash >> 15;
+        hash *= 2246822519u;
+        hash ^= hash >> 13;
+        return float(hash & 0xFFFF) / 65535.0f;
+    }
+
+    enum Traits { TRAIT_BAGS = 1, TRAIT_PRICE = 2 };
 
     /// What an item is worth. The starting point is the vendor value times the factor of its quality;
     /// what auctions really sold for moves the value, within limits, so one odd sale cannot bend the market.
@@ -539,6 +565,11 @@ namespace
             if (cfg.collectMail)
                 CollectMail(bot, now);
 
+            // In town a bot with a crafting profession makes something from what it carries. The result is
+            // sold at the next look, a moment later.
+            if (Craft(bot, botAI, now))
+                _arrivals[bot->GetGUID()] = now + 3 * MINUTE;
+
             if (Buy(bot, botAI, house) && cfg.collectMail)
                 CollectMail(bot, now);          // what it bought outright arrives by mail at once
 
@@ -584,6 +615,26 @@ namespace
             return true;
         }
 
+        /// mod-playerbots gives the bots professions and recipes and knows how to craft, but nothing makes the
+        /// bots do it. Here they do: with their own materials, preferring what they can use or what raises
+        /// their skill. What they do not need themselves they sell.
+        bool Craft(Player* bot, PlayerbotAI* botAI, time_t now)
+        {
+            if (!cfg.craftEnabled || cfg.place == PLACE_ANYWHERE || bot->IsNonMeleeSpellCast(false) || bot->isMoving())
+                return false;
+
+            auto next = _nextCraft.find(bot->GetGUID().GetCounter());
+            if (next != _nextCraft.end() && next->second > now)
+                return false;
+            _nextCraft[bot->GetGUID().GetCounter()] = now + urand(cfg.visitCooldownMin, cfg.visitCooldownMax);
+
+            if (!botAI->DoSpecificAction("craft random item", Event(), true))
+                return false;
+            if (cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: {} crafts something with its profession.", bot->GetName());
+            return true;
+        }
+
         /// Bags nearly full and far from an auction house: the bot takes its hearth to one, sells there and
         /// comes back when its city visit is over. The travelling itself is done by mod-playerbots.
         bool TryCityTrip(Player* bot, PlayerbotAI* botAI, time_t now)
@@ -595,7 +646,9 @@ namespace
             if (next != _nextTrip.end() && next->second > now)
                 return false;
 
-            if (botAI->GetAiObjectContext()->GetValue<uint8>("bag space")->Get() < cfg.cityBagPercent)
+            // Every bot decides for itself when its bags are too full.
+            uint32 const full = cfg.cityBagMin + uint32(Trait(bot, TRAIT_BAGS) * float(cfg.cityBagMax - cfg.cityBagMin));
+            if (botAI->GetAiObjectContext()->GetValue<uint8>("bag space")->Get() < full)
                 return false;
 
             std::vector<Item*> items;
@@ -960,7 +1013,9 @@ namespace
             // Price of one piece: the vendor value times a factor per quality, a little up or down.
             // Price of one piece: what the item is worth, a little up or down. Now and then a seller wants to be
             // rid of it quickly, or dreams of getting rich - those are the bargains and the overpriced offers.
-            double const regular = market.Value(proto);
+            // Each bot has its own price level, a little above or below the others.
+            double const temper = 1.0 + (double(Trait(bot, TRAIT_PRICE)) * 2.0 - 1.0) * cfg.temperPercent / 100.0;
+            double const regular = market.Value(proto) * temper;
             double each;
             uint32 const roll = urand(0, 99);
             if (roll < cfg.bargainChance)
@@ -974,7 +1029,9 @@ namespace
                 // Like a player, the bot goes a little below the cheapest offer. A limit keeps the bots from
                 // underbidding each other down to nothing.
                 auto found = cheapest.find(proto->ItemId);
-                if (found != cheapest.end() && cfg.undercutPercent && double(found->second) <= each)
+                if (found == cheapest.end())
+                    each *= frand(cfg.aloneMin, cfg.aloneMax);      // nobody else offers it: the seller asks for more
+                else if (cfg.undercutPercent && double(found->second) <= each)
                     each = double(found->second) * (100 - cfg.undercutPercent) / 100.0;
                 each = std::max(each, regular * (100 - cfg.maxUndercutPercent) / 100.0);
             }
@@ -1044,6 +1101,7 @@ namespace
         ObjectGuid _last;
         std::unordered_map<ObjectGuid::LowType, time_t> _nextVisit;
         std::unordered_map<ObjectGuid::LowType, time_t> _nextTrip;
+        std::unordered_map<ObjectGuid::LowType, time_t> _nextCraft;
         std::map<ObjectGuid, time_t> _arrivals;                        // bot on its way -> give up after
         std::unordered_map<ObjectGuid::LowType, std::unordered_set<uint32>> _bought;
     };

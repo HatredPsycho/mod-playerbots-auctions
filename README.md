@@ -8,7 +8,7 @@ It adds to mod-playerbots and does not change or replace it. Nothing is added to
 
 **Status: test version.** Built and run on the Conquest of Azeroth core (`jealous-sound/azerothcore-wotlk-coa`)
 with the CoA Playerbots fork (`Zyth45/mod-playerbots`, branch `coa`). Selling has been seen working on a
-server; buying and the trips to the city are new and have only been compiled.
+server; buying, the trips to the city and crafting are new and have only been compiled.
 
 ## What the bots do
 
@@ -34,6 +34,12 @@ limits, and only sales a bot took part in count.
 **Trips to the city.** A bot whose bags fill up far from an auction house takes its hearth to a capital of its
 faction on the same continent, sells there, stays a while and returns. This uses the city visits of the CoA
 Playerbots fork; with other versions of mod-playerbots the bots are simply not sent to town.
+
+**Character.** Every bot has its own idea of when its bags are full, and its own price level - a little
+above or below the others. A bot that finds no other offer of its item asks for more.
+
+**Crafting.** mod-playerbots gives the bots professions and recipes, but nothing makes them craft. In town
+a bot now makes something from the materials it carries and sells what it does not need.
 
 **Mail.** A bot empties its auction mail when it is at the auction house: money for sold items, items nobody
 bought (offered again later) and what it bought.
