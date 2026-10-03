@@ -1,7 +1,8 @@
 #
 # mod-playerbots-auctions
 #
-# Lets the random bots of mod-playerbots put their loot up for auction in their own name.
+# Lets the random bots of mod-playerbots use the auction house in their own name: they put their
+# loot up for auction, buy and bid on what they can use, and travel to a city when their bags fill up.
 # Needs mod-playerbots. Nothing is added to the databases.
 #
 
@@ -11,7 +12,7 @@
 # GENERAL
 #
 #    PlayerbotsAuctions.Enable
-#        Description: Bots put items they do not need up for auction.
+#        Description: Switches the module on: bots use the auction house.
 #        Default:     0 - Disabled
 #                     1 - Enabled
 #
@@ -148,8 +149,28 @@ PlayerbotsAuctions.ExcludedNameParts = "monster -,deprecated,[ph],(test), test ,
 #        Default:     1.5, 3, 6, 12, 25, 50
 #
 #    PlayerbotsAuctions.Price.VariationPercent
-#        Description: Prices vary by this much up and down.
+#        Description: Normal prices vary by this much up and down.
 #        Default:     20
+#
+#    PlayerbotsAuctions.Price.BargainChance
+#        Description: Percent of the auctions that are clearly cheap (55 to 85 percent of the usual
+#                     price): a seller who wants to be rid of it.
+#        Default:     10
+#
+#    PlayerbotsAuctions.Price.OverpricedChance
+#    PlayerbotsAuctions.Price.OverpricedMaxFactor
+#        Description: Percent of the auctions that are clearly expensive, from 1.5 times the usual
+#                     price up to OverpricedMaxFactor times.
+#        Default:     10 and 3
+#
+#    PlayerbotsAuctions.Price.LearnFromSales
+#        Description: What auctions really sold for moves what the bots consider the usual price of
+#                     an item, for selling and for buying. Only sales a bot took part in count, an
+#                     item needs three sales before its price is "known", and every sale is cut
+#                     down to between half and three times the calculated price. The learned prices
+#                     are forgotten when the server restarts.
+#        Default:     1 - Enabled
+#                     0 - Disabled (always vendor value times quality factor)
 #
 #    PlayerbotsAuctions.Price.BidPercent
 #        Description: The starting bid, in percent of the buyout price.
@@ -171,7 +192,7 @@ PlayerbotsAuctions.ExcludedNameParts = "monster -,deprecated,[ph],(test), test ,
 #
 #    PlayerbotsAuctions.Price.MaxBuyoutGold
 #        Description: Highest buyout price of one auction, in gold. A bot keeps an item that would
-#                     be worth more. 0 = no limit.
+#                     be worth more, and does not pay more than this for an auction. 0 = no limit.
 #        Default:     5000
 
 PlayerbotsAuctions.Price.Poor = 1.5
@@ -181,8 +202,125 @@ PlayerbotsAuctions.Price.Rare = 12
 PlayerbotsAuctions.Price.Epic = 25
 PlayerbotsAuctions.Price.Legendary = 50
 PlayerbotsAuctions.Price.VariationPercent = 20
+PlayerbotsAuctions.Price.BargainChance = 10
+PlayerbotsAuctions.Price.OverpricedChance = 10
+PlayerbotsAuctions.Price.OverpricedMaxFactor = 3
+PlayerbotsAuctions.Price.LearnFromSales = 1
 PlayerbotsAuctions.Price.BidPercent = 70
 PlayerbotsAuctions.Price.UndercutPercent = 5
 PlayerbotsAuctions.Price.MaxUndercutPercent = 25
 PlayerbotsAuctions.Price.MinVendorFactor = 1.5
 PlayerbotsAuctions.Price.MaxBuyoutGold = 5000
+
+###################################################################################################
+# BUYING
+#
+#    A bot that is at the auction house also looks through some of the offers - those of players
+#    and of other bots. What an offer is worth to it depends on the usual price of the item, on how
+#    much this bot wants it (an upgrade for itself most, things it uses up next) and on its mood.
+#    It buys outright if the buyout price is within that, otherwise it may place a bid.
+#
+#    PlayerbotsAuctions.Buy.Enable
+#        Description: Bots buy and bid.
+#        Default:     1 - Enabled
+#                     0 - Disabled (bots only sell)
+#
+#    PlayerbotsAuctions.Buy.ChancePerVisit
+#        Description: Percent of the visits in which a bot looks at the offers at all.
+#        Default:     60
+#
+#    PlayerbotsAuctions.Buy.OffersPerVisit
+#        Description: How many randomly picked offers a bot looks at per visit.
+#        Default:     40
+#
+#    PlayerbotsAuctions.Buy.MaxPerVisit
+#        Description: How many auctions a bot buys or bids on per visit at most.
+#        Default:     2
+#
+#    PlayerbotsAuctions.Buy.FromPlayers
+#    PlayerbotsAuctions.Buy.FromBots
+#        Description: Whose auctions the bots buy.
+#        Default:     1 and 1
+#
+#    PlayerbotsAuctions.Buy.PlaceBids
+#        Description: Bots also bid instead of only buying outright. A bid can outbid a player.
+#        Default:     1 - Enabled
+#                     0 - Disabled
+#
+#    PlayerbotsAuctions.Buy.UseBotMoney
+#        Description: Bots pay with their own money and cannot buy what they cannot afford.
+#        Default:     1 - Enabled
+#                     0 - Disabled (bots always have enough money; this brings new gold into the world)
+#
+#    PlayerbotsAuctions.Buy.MaxMoneySharePercent
+#        Description: The share of its money a bot spends on one auction at most.
+#        Default:     50
+#
+#    PlayerbotsAuctions.Buy.ImpulseChance
+#    PlayerbotsAuctions.Buy.ImpulseMaxFactor
+#        Description: Percent of the offers a bot looks at in a spending mood: it then pays from 1.5
+#                     times the usual price up to ImpulseMaxFactor times. This is how overpriced
+#                     auctions find a buyer now and then.
+#        Default:     5 and 3
+#
+#    PlayerbotsAuctions.Buy.SpeculateChance
+#        Description: Percent chance that a bot considers an item it has no use for (to sell it on).
+#        Default:     15
+#
+#    PlayerbotsAuctions.Buy.MinVendorFactor
+#        Description: A bot is always willing to pay at least the vendor value times this factor, so
+#                     selling to the bots is never worse than selling to a vendor.
+#        Default:     1.2
+#
+#    PlayerbotsAuctions.Buy.VendorItemMaxPercent
+#        Description: For items a vendor sells, bots pay at most this percent of the vendor's price.
+#                     Otherwise players could buy from a vendor and sell to the bots for a profit.
+#        Default:     75
+
+PlayerbotsAuctions.Buy.Enable = 1
+PlayerbotsAuctions.Buy.ChancePerVisit = 60
+PlayerbotsAuctions.Buy.OffersPerVisit = 40
+PlayerbotsAuctions.Buy.MaxPerVisit = 2
+PlayerbotsAuctions.Buy.FromPlayers = 1
+PlayerbotsAuctions.Buy.FromBots = 1
+PlayerbotsAuctions.Buy.PlaceBids = 1
+PlayerbotsAuctions.Buy.UseBotMoney = 1
+PlayerbotsAuctions.Buy.MaxMoneySharePercent = 50
+PlayerbotsAuctions.Buy.ImpulseChance = 5
+PlayerbotsAuctions.Buy.ImpulseMaxFactor = 3
+PlayerbotsAuctions.Buy.SpeculateChance = 15
+PlayerbotsAuctions.Buy.MinVendorFactor = 1.2
+PlayerbotsAuctions.Buy.VendorItemMaxPercent = 75
+
+###################################################################################################
+# TRIPS TO THE CITY
+#
+#    A bot whose bags fill up far from an auction house takes its hearth to the auction house of a
+#    capital of its faction on the same continent, stays in the city for a while and returns to
+#    where it was. Bots in Northrend do not travel. Needs the city visits of the CoA Playerbots
+#    fork; with other versions of mod-playerbots this part does nothing. Has no effect with
+#    PlayerbotsAuctions.Place = 0.
+#
+#    PlayerbotsAuctions.CityTrip.Enable
+#        Default:     1 - Enabled
+#                     0 - Disabled
+#
+#    PlayerbotsAuctions.CityTrip.BagsFullPercent
+#        Description: How full the bags have to be.
+#        Default:     80
+#
+#    PlayerbotsAuctions.CityTrip.MinItemsToSell
+#        Description: The bot only travels if it carries at least this many things it can auction.
+#        Default:     3
+#
+#    PlayerbotsAuctions.CityTrip.CooldownMinutesMin
+#    PlayerbotsAuctions.CityTrip.CooldownMinutesMax
+#        Description: After a trip a bot waits a random time between these two values before the
+#                     next one.
+#        Default:     60 and 180
+
+PlayerbotsAuctions.CityTrip.Enable = 1
+PlayerbotsAuctions.CityTrip.BagsFullPercent = 80
+PlayerbotsAuctions.CityTrip.MinItemsToSell = 3
+PlayerbotsAuctions.CityTrip.CooldownMinutesMin = 60
+PlayerbotsAuctions.CityTrip.CooldownMinutesMax = 180

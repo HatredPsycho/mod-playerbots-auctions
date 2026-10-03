@@ -4,13 +4,16 @@
  *
  * The bots already decide for every item whether they need it. What they do not need and may trade
  * they sell to a vendor. This module steps in before that: a bot that is in a capital city or near
- * an auctioneer puts those items up for auction in its own name, like a player would.
+ * an auctioneer puts those items up for auction in its own name, like a player would. It also looks
+ * through the offers and bids on or buys what it can use, and a bot whose bags fill up far from a city
+ * takes its hearth to an auction house.
  *
- * Nothing in mod-playerbots is changed; the module only reads from it.
+ * Nothing in mod-playerbots is changed; the module only uses what it offers.
  */
 
 #include "AiObjectContext.h"
 #include "AuctionHouseMgr.h"
+#include "AuctionHouseSearcher.h"
 #include "Bag.h"
 #include "CharacterCache.h"
 #include "Config.h"
@@ -28,12 +31,14 @@
 #include "ObjectMgr.h"
 #include "Player.h"
 #include "PlayerbotAI.h"
+#include "PlayerbotAIConfig.h"
 #include "Playerbots.h"
 #include "Random.h"
 #include "RandomPlayerbotMgr.h"
 #include "ScriptMgr.h"
 #include "StringConvert.h"
 #include "Tokenize.h"
+#include "TravelMgr.h"
 #include "World.h"
 
 // The CoA core counts mail through its own manager; a stock AzerothCore does it in the character cache.
@@ -46,6 +51,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
+#include <iterator>
+#include <map>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -89,6 +97,31 @@ namespace
         uint32 maxBuyout = 5000 * GOLD;          // 0 = no limit
         bool   chargeDeposit = false;
         bool   collectMail = true;
+        bool   learnPrices = true;
+        uint32 bargainChance = 10;             // percent of the auctions that are clearly cheap
+        uint32 overpricedChance = 10;          // ... and clearly expensive
+        float  overpricedMax = 3.0f;
+
+        bool   buyEnabled = true;
+        uint32 buyChance = 60;                 // percent of the visits in which a bot looks at the offers
+        uint32 buyCandidates = 40;
+        uint32 buyMaxPerVisit = 2;
+        bool   buyFromBots = true;
+        bool   buyFromPlayers = true;
+        bool   buyBids = true;
+        bool   buyUseBotMoney = true;
+        uint32 buyMoneyShare = 50;             // percent of its money a bot spends on one auction at most
+        uint32 buyImpulseChance = 5;
+        float  buyImpulseMax = 3.0f;
+        uint32 buySpeculateChance = 15;
+        float  buyMinVendorFactor = 1.2f;
+        uint32 buyVendorItemPercent = 75;
+
+        bool   cityTrips = true;
+        uint32 cityBagPercent = 80;
+        uint32 cityMinItems = 3;
+        uint32 cityCooldownMin = 60 * 60;      // seconds
+        uint32 cityCooldownMax = 180 * 60;
     };
 
     Settings cfg;
@@ -147,6 +180,8 @@ namespace
         cfg.priceMultiplier[ITEM_QUALITY_LEGENDARY] = sConfigMgr->GetOption<float>("PlayerbotsAuctions.Price.Legendary", 50.0f);
         cfg.priceMultiplier[ITEM_QUALITY_ARTIFACT]  = cfg.priceMultiplier[ITEM_QUALITY_LEGENDARY];
         cfg.priceMultiplier[ITEM_QUALITY_HEIRLOOM]  = cfg.priceMultiplier[ITEM_QUALITY_EPIC];
+        for (float& factor : cfg.priceMultiplier)
+            factor = std::max(factor, 0.1f);
         cfg.priceVariation      = std::min<uint32>(90, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.VariationPercent", 20));
         cfg.bidPercent          = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.BidPercent", 70), 1, 100);
         cfg.undercutPercent     = std::min<uint32>(50, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.UndercutPercent", 5));
@@ -155,6 +190,31 @@ namespace
         cfg.maxBuyout           = uint32(std::min<uint64>(uint64(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.MaxBuyoutGold", 5000)) * GOLD, MAX_MONEY_AMOUNT));
         cfg.chargeDeposit       = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.ChargeDeposit", false);
         cfg.collectMail         = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.CollectAuctionMail", true);
+        cfg.learnPrices         = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Price.LearnFromSales", true);
+        cfg.bargainChance       = std::min<uint32>(100, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.BargainChance", 10));
+        cfg.overpricedChance    = std::min<uint32>(100 - cfg.bargainChance, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.OverpricedChance", 10));
+        cfg.overpricedMax       = std::max(1.5f, sConfigMgr->GetOption<float>("PlayerbotsAuctions.Price.OverpricedMaxFactor", 3.0f));
+
+        cfg.buyEnabled          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Buy.Enable", true);
+        cfg.buyChance           = std::min<uint32>(100, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Buy.ChancePerVisit", 60));
+        cfg.buyCandidates       = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Buy.OffersPerVisit", 40), 1, 500);
+        cfg.buyMaxPerVisit      = std::max<uint32>(1, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Buy.MaxPerVisit", 2));
+        cfg.buyFromBots         = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Buy.FromBots", true);
+        cfg.buyFromPlayers      = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Buy.FromPlayers", true);
+        cfg.buyBids             = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Buy.PlaceBids", true);
+        cfg.buyUseBotMoney      = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Buy.UseBotMoney", true);
+        cfg.buyMoneyShare       = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Buy.MaxMoneySharePercent", 50), 1, 100);
+        cfg.buyImpulseChance    = std::min<uint32>(100, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Buy.ImpulseChance", 5));
+        cfg.buyImpulseMax       = std::max(1.5f, sConfigMgr->GetOption<float>("PlayerbotsAuctions.Buy.ImpulseMaxFactor", 3.0f));
+        cfg.buySpeculateChance  = std::min<uint32>(100, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Buy.SpeculateChance", 15));
+        cfg.buyMinVendorFactor  = std::max(1.0f, sConfigMgr->GetOption<float>("PlayerbotsAuctions.Buy.MinVendorFactor", 1.2f));
+        cfg.buyVendorItemPercent = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Buy.VendorItemMaxPercent", 75), 1, 100);
+
+        cfg.cityTrips           = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.CityTrip.Enable", true);
+        cfg.cityBagPercent      = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.BagsFullPercent", 80), 10, 100);
+        cfg.cityMinItems        = std::max<uint32>(1, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.MinItemsToSell", 3));
+        cfg.cityCooldownMin     = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.CooldownMinutesMin", 60) * MINUTE;
+        cfg.cityCooldownMax     = std::max(cfg.cityCooldownMin, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.CooldownMinutesMax", 180) * MINUTE);
     }
 
     bool IsEquipment(ItemTemplate const* proto)
@@ -255,6 +315,137 @@ namespace
         return true;
     }
 
+    /// What an item is worth. The starting point is the vendor value times the factor of its quality;
+    /// what auctions really sold for moves the value, within limits, so one odd sale cannot bend the market.
+    class Market
+    {
+    public:
+        static double Regular(ItemTemplate const* proto)
+        {
+            return double(proto->SellPrice) * cfg.priceMultiplier[proto->Quality];
+        }
+
+        double Value(ItemTemplate const* proto) const
+        {
+            double const regular = Regular(proto);
+            if (!cfg.learnPrices)
+                return regular;
+            auto found = _sold.find(proto->ItemId);
+            if (found == _sold.end() || found->second.sales < 3)
+                return regular;         // a price is only "known" after a few sales
+            return (regular + found->second.each) / 2.0;
+        }
+
+        void RecordSale(uint32 itemId, uint32 price, uint32 count)
+        {
+            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId);
+            if (!proto || !price || !count || !proto->SellPrice || proto->Quality >= MAX_ITEM_QUALITY)
+                return;
+            // Every sale is cut down to between half and three times the calculated price before it counts,
+            // so a single absurd sale cannot move the market.
+            double const regular = Regular(proto);
+            double const each = std::clamp(double(price) / count, regular * 0.5, regular * 3.0);
+            Learned& learned = _sold[itemId];
+            learned.each = learned.sales ? learned.each * 0.8 + each * 0.2 : each;      // newer sales count more
+            ++learned.sales;
+        }
+
+        void LoadVendorItems()
+        {
+            _vendorItems.clear();
+            if (QueryResult result = WorldDatabase.Query("SELECT DISTINCT item FROM npc_vendor WHERE item > 0"))
+                do
+                    _vendorItems.insert(result->Fetch()[0].Get<uint32>());
+                while (result->NextRow());
+        }
+
+        bool IsVendorItem(uint32 itemId) const { return _vendorItems.find(itemId) != _vendorItems.end(); }
+
+    private:
+        struct Learned
+        {
+            double each = 0.0;      // price of one piece
+            uint32 sales = 0;
+        };
+        std::unordered_map<uint32, Learned> _sold;      // item -> what it really sold for
+        std::unordered_set<uint32> _vendorItems;
+    };
+
+    Market market;
+
+    struct CityPoint
+    {
+        TeamId team;
+        uint32 mapId;
+        float x, y, z;
+    };
+
+    // The auction houses of the eight old capitals.
+    CityPoint const AuctionHouses[] =
+    {
+        { TEAM_ALLIANCE, 0,   -8820.1f,    662.0f,   97.2f },    // Stormwind
+        { TEAM_ALLIANCE, 0,   -4959.7f,   -907.9f,  505.2f },    // Ironforge
+        { TEAM_ALLIANCE, 1,    9864.5f,   2341.7f, 1326.8f },    // Darnassus
+        { TEAM_ALLIANCE, 530, -4025.5f, -11736.0f, -151.8f },    // Exodar
+        { TEAM_HORDE,    1,    1683.6f,  -4461.3f,   20.4f },    // Orgrimmar
+        { TEAM_HORDE,    1,   -1204.7f,    102.8f,  134.7f },    // Thunder Bluff
+        { TEAM_HORDE,    0,    1612.3f,    199.8f,  -56.8f },    // Undercity
+        { TEAM_HORDE,    530,  9648.4f,  -7135.7f,   16.9f },    // Silvermoon
+    };
+
+    // The CoA Playerbots fork lets bots visit a city and return afterwards. Other versions of
+    // mod-playerbots do not have that; there the bots simply are not sent to town.
+    template <typename Info>
+    concept HasCityLife = requires(Info& info, WorldPosition pos) { info.ChangeToGoCity(pos); info.cityReturnPos = pos; info.cityStayMs = 0u; };
+
+    template <typename AI>
+    bool SendToAuctionHouse(Player* bot, AI* botAI)
+    {
+        if constexpr (HasCityLife<decltype(botAI->rpgInfo)>)
+        {
+            if (!botAI->HasStrategy("new rpg", BOT_STATE_NON_COMBAT))
+                return false;
+            auto& info = botAI->rpgInfo;
+            if (info.cityStayMs || info.cityReturnPos != WorldPosition())
+                return false;       // already on a city visit
+
+            // The nearest auction house of the bot's faction on the same map. A trip to another map would
+            // make mod-playerbots forget the visit and the way back, so bots in Northrend stay where they are.
+            CityPoint const* best = nullptr;
+            float bestDistance = 0.0f;
+            for (CityPoint const& point : AuctionHouses)
+            {
+                if (point.team != bot->GetTeamId() || point.mapId != bot->GetMapId())
+                    continue;
+                float const distance = bot->GetExactDist2d(point.x, point.y);
+                if (!best || distance < bestDistance)
+                {
+                    best = &point;
+                    bestDistance = distance;
+                }
+            }
+            if (!best)
+                return false;
+
+            float const angle = frand(0.0f, 6.2831853f);
+            float const radius = frand(2.0f, 6.0f);
+            WorldPosition const target(best->mapId, best->x + radius * std::cos(angle), best->y + radius * std::sin(angle), best->z);
+
+            info.cityReturnPos = WorldPosition(bot);
+            if (!bot->TeleportTo(best->mapId, target.GetPositionX(), target.GetPositionY(), target.GetPositionZ(), bot->GetOrientation()))
+            {
+                info.cityReturnPos = WorldPosition();
+                return false;
+            }
+            info.ChangeToGoCity(target);
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
     class AuctionSeller
     {
     public:
@@ -274,6 +465,20 @@ namespace
                 return;
 
             time_t const now = GameTime::GetGameTime().count();
+
+            // Bots that just travelled to an auction house come first, before they sell their load to a vendor.
+            for (auto arrival = _arrivals.begin(); arrival != _arrivals.end();)
+            {
+                auto found = bots.find(arrival->first);
+                bool done = found == bots.end() || arrival->second < now;
+                if (!done && found->second && found->second->IsInWorld() && !found->second->IsBeingTeleported())
+                {
+                    _nextVisit.erase(arrival->first.GetCounter());
+                    done = Visit(found->second, now);
+                }
+                arrival = done ? _arrivals.erase(arrival) : std::next(arrival);
+            }
+
             uint32 visits = 0, looked = 0;
             auto itr = bots.upper_bound(_last);
             uint32 const lookLimit = std::min<uint32>(uint32(bots.size()), cfg.botsPerCycle * 25);
@@ -318,6 +523,8 @@ namespace
             {
                 // Not in a place to sell: look again in a while, not at every pass.
                 _nextVisit[bot->GetGUID().GetCounter()] = now + urand(2 * MINUTE, 4 * MINUTE);
+                if (TryCityTrip(bot, botAI, now))
+                    _arrivals[bot->GetGUID()] = now + 3 * MINUTE;      // watched until it has arrived and sold
                 return false;
             }
 
@@ -331,6 +538,9 @@ namespace
 
             if (cfg.collectMail)
                 CollectMail(bot, now);
+
+            if (Buy(bot, botAI, house) && cfg.collectMail)
+                CollectMail(bot, now);          // what it bought outright arrives by mail at once
 
             if (house->Getcount() >= cfg.maxAuctionsPerHouse)
                 return true;
@@ -371,6 +581,246 @@ namespace
 
             if (cfg.debug && posted)
                 LOG_INFO("module", "PlayerbotsAuctions: {} put {} item(s) up for auction.", bot->GetName(), posted);
+            return true;
+        }
+
+        /// Bags nearly full and far from an auction house: the bot takes its hearth to one, sells there and
+        /// comes back when its city visit is over. The travelling itself is done by mod-playerbots.
+        bool TryCityTrip(Player* bot, PlayerbotAI* botAI, time_t now)
+        {
+            if (!cfg.cityTrips || cfg.place == PLACE_ANYWHERE || bot->GetGroup())
+                return false;
+
+            auto next = _nextTrip.find(bot->GetGUID().GetCounter());
+            if (next != _nextTrip.end() && next->second > now)
+                return false;
+
+            if (botAI->GetAiObjectContext()->GetValue<uint8>("bag space")->Get() < cfg.cityBagPercent)
+                return false;
+
+            std::vector<Item*> items;
+            Collect(bot, botAI, items);
+            if (items.size() < cfg.cityMinItems)
+            {
+                _nextTrip[bot->GetGUID().GetCounter()] = now + 10 * MINUTE;      // full of things it keeps
+                return false;
+            }
+
+            if (!SendToAuctionHouse(bot, botAI))
+            {
+                _nextTrip[bot->GetGUID().GetCounter()] = now + 10 * MINUTE;
+                return false;
+            }
+
+            _nextTrip[bot->GetGUID().GetCounter()] = now + urand(cfg.cityCooldownMin, cfg.cityCooldownMax);
+            if (cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: {} has full bags ({} items to sell) and travels to an auction house.",
+                    bot->GetName(), items.size());
+            return true;
+        }
+
+        /// The bot looks through some of the offers and buys or bids on what is worth it to this bot.
+        /// Returns true if it bought something outright.
+        bool Buy(Player* bot, PlayerbotAI* botAI, AuctionHouseObject* house)
+        {
+            if (!cfg.buyEnabled || urand(0, 99) >= cfg.buyChance)
+                return false;
+            // With bags this full the bot has to sell first; a purchase would only wait in the mail.
+            if (botAI->GetAiObjectContext()->GetValue<uint8>("bag space")->Get() >= 90)
+                return false;
+
+            // A random handful of the offers, like a player who browses a few pages.
+            std::vector<uint32> offers;
+            uint32 seen = 0;
+            for (auto const& entry : house->GetAuctions())
+            {
+                AuctionEntry const* auction = entry.second;
+                if (!auction || auction->owner == bot->GetGUID() || auction->bidder == bot->GetGUID())
+                    continue;
+                ++seen;
+                if (offers.size() < cfg.buyCandidates)
+                    offers.push_back(auction->Id);
+                else
+                {
+                    uint32 const slot = urand(0, seen - 1);
+                    if (slot < cfg.buyCandidates)
+                        offers[slot] = auction->Id;
+                }
+            }
+            Acore::Containers::RandomShuffle(offers);
+
+            uint32 deals = 0;
+            bool bought = false;
+            for (uint32 const id : offers)
+            {
+                if (deals >= cfg.buyMaxPerVisit)
+                    break;
+                // Looked up again by its number: an auction bought a moment ago no longer exists.
+                AuctionEntry* auction = house->GetAuction(id);
+                if (!auction)
+                    continue;
+                switch (Consider(bot, botAI, house, auction))
+                {
+                    case DEAL_BOUGHT: bought = true; ++deals; break;
+                    case DEAL_BID: ++deals; break;
+                    default: break;
+                }
+            }
+            return bought;
+        }
+
+        enum Deal { DEAL_NONE, DEAL_BID, DEAL_BOUGHT };
+
+        Deal Consider(Player* bot, PlayerbotAI* botAI, AuctionHouseObject* house, AuctionEntry* auction)
+        {
+            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(auction->item_template);
+            if (!proto || !auction->itemCount || !proto->SellPrice || proto->Quality >= MAX_ITEM_QUALITY)
+                return DEAL_NONE;
+
+            // The server does not let anyone bid on the auctions of the own account.
+            uint32 const ownerAccount = sCharacterCache->GetCharacterAccountIdByGuid(auction->owner);
+            if (!ownerAccount || ownerAccount == bot->GetSession()->GetAccountId())
+                return DEAL_NONE;
+            if (sPlayerbotAIConfig.IsInRandomAccountList(ownerAccount) ? !cfg.buyFromBots : !cfg.buyFromPlayers)
+                return DEAL_NONE;
+
+            // One of a kind is enough until the server restarts; otherwise a bot would buy the same
+            // "upgrade" again before it has put the first one on.
+            std::unordered_set<uint32>& had = _bought[bot->GetGUID().GetCounter()];
+            if (had.find(proto->ItemId) != had.end())
+                return DEAL_NONE;
+
+            // How much the bot wants it: an upgrade for itself most, things it uses up next,
+            // and now and then something it has no use for - to sell it on.
+            double interest = 0.0;
+            switch (botAI->GetAiObjectContext()->GetValue<ItemUsage>("item usage", proto->ItemId)->Get())
+            {
+                case ITEM_USAGE_EQUIP:
+                case ITEM_USAGE_REPLACE:
+                    interest = 1.5;
+                    break;
+                case ITEM_USAGE_USE:
+                case ITEM_USAGE_SKILL:
+                case ITEM_USAGE_AMMO:
+                    interest = 1.2;
+                    break;
+                case ITEM_USAGE_AH:
+                case ITEM_USAGE_VENDOR:
+                case ITEM_USAGE_NONE:
+                    if (urand(0, 99) >= cfg.buySpeculateChance)
+                        return DEAL_NONE;
+                    interest = 0.85;
+                    break;
+                default:
+                    return DEAL_NONE;
+            }
+
+            // What one piece is worth to this bot today. Mostly around the going price, sometimes far above:
+            // the bot that simply has to have it.
+            double const mood = urand(0, 99) < cfg.buyImpulseChance ? frand(1.5f, cfg.buyImpulseMax) : frand(0.7f, 1.2f);
+            double each = market.Value(proto) * interest * mood;
+            // Always more than a vendor pays, or nobody would bother with the auction house ...
+            each = std::max(each, double(proto->SellPrice) * cfg.buyMinVendorFactor);
+            // ... but less than a vendor asks, or buying from a vendor and selling to the bots would print money.
+            if (proto->BuyPrice > 0 && market.IsVendorItem(proto->ItemId))
+                each = std::min(each, double(proto->BuyPrice) / std::max<uint32>(1, proto->BuyCount) * cfg.buyVendorItemPercent / 100.0);
+
+            double limit = std::min(each * auction->itemCount, cfg.maxBuyout ? double(cfg.maxBuyout) : double(MAX_MONEY_AMOUNT));
+            if (cfg.buyUseBotMoney)
+                limit = std::min(limit, double(bot->GetMoney()) * cfg.buyMoneyShare / 100.0);
+            if (limit < 1.0)
+                return DEAL_NONE;
+
+            if (auction->buyout && double(auction->buyout) <= limit)
+            {
+                if (!Buyout(bot, house, auction, proto))
+                    return DEAL_NONE;
+                had.insert(proto->ItemId);
+                return DEAL_BOUGHT;
+            }
+
+            if (!cfg.buyBids)
+                return DEAL_NONE;
+            // A bid is a bet on getting it cheaper, so the bot stays a little below what it would pay outright.
+            uint32 const nextBid = std::max(auction->startbid, auction->bid ? auction->bid + auction->GetAuctionOutBid() : auction->startbid);
+            if (!nextBid || (auction->buyout && nextBid >= auction->buyout) || double(nextBid) > limit * 0.85)
+                return DEAL_NONE;
+            if (!Bid(bot, auction, proto, nextBid))
+                return DEAL_NONE;
+            had.insert(proto->ItemId);
+            return DEAL_BID;
+        }
+
+        /// With "use bot money" off the purchase costs the bot nothing: it is handed the price first.
+        bool Afford(Player* bot, uint32 price)
+        {
+            if (price > MAX_MONEY_AMOUNT)
+                return false;
+            if (cfg.buyUseBotMoney)
+                return bot->HasEnoughMoney(price);
+            if (bot->GetMoney() > MAX_MONEY_AMOUNT - price)
+                return false;
+            bot->ModifyMoney(int32(price));
+            return true;
+        }
+
+        // The two functions below do what the server does when a player bids or buys out.
+        bool Bid(Player* bot, AuctionEntry* auction, ItemTemplate const* proto, uint32 price)
+        {
+            if (price <= auction->bid || price < auction->startbid || !Afford(bot, price))
+                return false;
+
+            CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+            if (auction->bidder)
+                sAuctionMgr->SendAuctionOutbiddedMail(auction, price, bot, trans);
+            bot->ModifyMoney(-int32(price));
+            auction->bidder = bot->GetGUID();
+            auction->bid = price;
+            sAuctionMgr->GetAuctionHouseSearcher()->UpdateBid(auction);
+
+            CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_AUCTION_BID);
+            stmt->SetData(0, auction->bidder.GetCounter());
+            stmt->SetData(1, auction->bid);
+            stmt->SetData(2, auction->Id);
+            trans->Append(stmt);
+            bot->SaveInventoryAndGoldToDB(trans);
+            CharacterDatabase.CommitTransaction(trans);
+
+            if (cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: {} bids {} copper on {} x{} (item {}).",
+                    bot->GetName(), price, proto->Name1, auction->itemCount, proto->ItemId);
+            return true;
+        }
+
+        bool Buyout(Player* bot, AuctionHouseObject* house, AuctionEntry* auction, ItemTemplate const* proto)
+        {
+            uint32 const price = auction->buyout;
+            if (!Afford(bot, price))
+                return false;
+            uint32 const count = auction->itemCount;
+
+            CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+            bot->ModifyMoney(-int32(price));
+            if (auction->bidder)
+                sAuctionMgr->SendAuctionOutbiddedMail(auction, price, bot, trans);
+            auction->bidder = bot->GetGUID();
+            auction->bid = price;
+
+            sAuctionMgr->SendAuctionSalePendingMail(auction, trans);
+            sAuctionMgr->SendAuctionSuccessfulMail(auction, trans);
+            sAuctionMgr->SendAuctionWonMail(auction, trans);
+            sScriptMgr->OnAuctionSuccessful(house, auction);
+
+            auction->DeleteFromDB(trans);
+            sAuctionMgr->RemoveAItem(auction->item_guid);
+            house->RemoveAuction(auction);          // the auction no longer exists after this line
+
+            bot->SaveInventoryAndGoldToDB(trans);
+            CharacterDatabase.CommitTransaction(trans);
+
+            if (cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: {} buys {} x{} (item {}) for {} copper.",
+                    bot->GetName(), proto->Name1, count, proto->ItemId, price);
             return true;
         }
 
@@ -508,18 +958,28 @@ namespace
                 return false;
 
             // Price of one piece: the vendor value times a factor per quality, a little up or down.
-            double const regular = double(proto->SellPrice) * cfg.priceMultiplier[proto->Quality];
-            double each = regular * frand(1.0f - cfg.priceVariation / 100.0f, 1.0f + cfg.priceVariation / 100.0f);
+            // Price of one piece: what the item is worth, a little up or down. Now and then a seller wants to be
+            // rid of it quickly, or dreams of getting rich - those are the bargains and the overpriced offers.
+            double const regular = market.Value(proto);
+            double each;
+            uint32 const roll = urand(0, 99);
+            if (roll < cfg.bargainChance)
+                each = regular * frand(0.55f, 0.85f);
+            else if (roll < cfg.bargainChance + cfg.overpricedChance)
+                each = regular * frand(1.5f, cfg.overpricedMax);
+            else
+            {
+                each = regular * frand(1.0f - cfg.priceVariation / 100.0f, 1.0f + cfg.priceVariation / 100.0f);
 
-            // Like a player, the bot goes a little below the cheapest offer. Two limits keep the bots from
-            // underbidding each other down to nothing: a share of the regular price, and the vendor value.
-            auto found = cheapest.find(proto->ItemId);
-            if (found != cheapest.end() && cfg.undercutPercent && double(found->second) <= each)
-                each = double(found->second) * (100 - cfg.undercutPercent) / 100.0;
-            double const lowest = std::max(regular * (100 - cfg.maxUndercutPercent) / 100.0,
-                double(proto->SellPrice) * cfg.minVendorFactor);
-            if (each < lowest)
-                each = lowest;
+                // Like a player, the bot goes a little below the cheapest offer. A limit keeps the bots from
+                // underbidding each other down to nothing.
+                auto found = cheapest.find(proto->ItemId);
+                if (found != cheapest.end() && cfg.undercutPercent && double(found->second) <= each)
+                    each = double(found->second) * (100 - cfg.undercutPercent) / 100.0;
+                each = std::max(each, regular * (100 - cfg.maxUndercutPercent) / 100.0);
+            }
+            // Never close to the vendor value: nobody should buy from a bot to sell to a vendor.
+            each = std::max(each, double(proto->SellPrice) * cfg.minVendorFactor);
 
             // An item worth more than the highest allowed price is kept, not given away.
             double const total = each * count;
@@ -583,6 +1043,9 @@ namespace
         uint32 _timer = 0;
         ObjectGuid _last;
         std::unordered_map<ObjectGuid::LowType, time_t> _nextVisit;
+        std::unordered_map<ObjectGuid::LowType, time_t> _nextTrip;
+        std::map<ObjectGuid, time_t> _arrivals;                        // bot on its way -> give up after
+        std::unordered_map<ObjectGuid::LowType, std::unordered_set<uint32>> _bought;
     };
 
     AuctionSeller seller;
@@ -600,6 +1063,7 @@ public:
 
     void OnStartup() override
     {
+        market.LoadVendorItems();
         if (cfg.enabled)
             LOG_INFO("server.loading", ">> PlayerbotsAuctions: the bots put their loot up for auction (place {}, every {} s).",
                 cfg.place, cfg.intervalMs / IN_MILLISECONDS);
@@ -611,7 +1075,27 @@ public:
     }
 };
 
+/// Every sale in the auction house, between whomever, teaches the bots what things go for.
+class PlayerbotsAuctionsHouse : public AuctionHouseScript
+{
+public:
+    PlayerbotsAuctionsHouse() : AuctionHouseScript("PlayerbotsAuctionsHouse") { }
+
+    void OnAuctionSuccessful(AuctionHouseObject* /*house*/, AuctionEntry* auction) override
+    {
+        if (!auction)
+            return;
+        // Only sales a bot took part in count. Two players (or one player with two accounts) trading an
+        // item back and forth at a fantasy price must not teach the bots anything.
+        uint32 const seller = sCharacterCache->GetCharacterAccountIdByGuid(auction->owner);
+        uint32 const buyer = sCharacterCache->GetCharacterAccountIdByGuid(auction->bidder);
+        if ((seller && sPlayerbotAIConfig.IsInRandomAccountList(seller)) || (buyer && sPlayerbotAIConfig.IsInRandomAccountList(buyer)))
+            market.RecordSale(auction->item_template, auction->bid, auction->itemCount);
+    }
+};
+
 void AddSC_playerbots_auctions()
 {
     new PlayerbotsAuctionsWorld();
+    new PlayerbotsAuctionsHouse();
 }
