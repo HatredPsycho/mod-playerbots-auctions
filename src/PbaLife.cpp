@@ -47,6 +47,8 @@ namespace
         time_t until = 0;       // its materials are not for sale until then
         uint32 keep = 0;        // what it makes is a material for its own profession: kept, not sold
         time_t keepUntil = 0;
+        uint32 steps = 0;       // how many steps of a chain lie behind it: ore - bars - sword
+        bool next = false;      // back at the auctioneers it decides what to do with what it made
     };
 
     class Life
@@ -1003,10 +1005,18 @@ namespace
                 return false;
             ObjectGuid::LowType const guid = bot->GetGUID().GetCounter();
             auto existing = _plans.find(guid);
-            if (existing != _plans.end() && (existing->second.left || existing->second.until > _now))
-                return false;       // still busy with the last one
-            if (frand(0.0f, 1.0f) > ActivityNow(_now))
-                return false;
+            // Back from the forge with bars of its own: now it decides whether to work them or to sell them.
+            bool const followUp = existing != _plans.end() && existing->second.next && !existing->second.left;
+            uint32 const steps = followUp ? existing->second.steps + 1 : 0;
+            if (followUp)
+                existing->second.next = false;
+            else
+            {
+                if (existing != _plans.end() && (existing->second.left || existing->second.until > _now))
+                    return false;       // still busy with the last one
+                if (frand(0.0f, 1.0f) > ActivityNow(_now))
+                    return false;
+            }
 
             float const crafting = TraitOf(bot, TRAIT_CRAFTING);
             bool const casual = crafting < 0.25f;
@@ -1049,7 +1059,11 @@ namespace
                     break;      // good enough
             }
             if (!best)
+            {
+                if (followUp)
+                    existing->second.keep = 0;      // nothing worth making of them: they are sold as they are
                 return false;
+            }
 
             // It pays. Buy what is missing; if someone was quicker, the plan is dropped.
             bool bought = false;
@@ -1069,6 +1083,8 @@ namespace
             plan.until = _now + 10 * MINUTE;
             plan.keep = ownMaterials.find(best->product) != ownMaterials.end() ? best->product : 0;
             plan.keepUntil = _now + 3 * HOUR;
+            plan.steps = steps;
+            plan.next = false;
             if (cfg.debug)
                 if (ItemTemplate const* product = sObjectMgr->GetItemTemplate(best->product))
                     LOG_INFO("module", "PlayerbotsAuctions: {} plans to craft {} x{} (item {}): materials worth {} copper, product worth {} copper to it{}.",
@@ -1131,9 +1147,14 @@ namespace
                 plan->second.left = 0;
                 plan->second.until = free;      // the materials of a cast still running stay reserved
             }
+            // What it made goes into its own recipes: at the auctioneers it thinks about the next step.
+            bool const chain = plan != _plans.end() && plan->second.keep && plan->second.steps < 3 &&
+                bot->HasItemCount(plan->second.keep, 1);
+            if (chain)
+                plan->second.next = true;
             if (walked && botAI)
                 SendToAuctionHouse(bot, botAI);
-            SetWatch(bot, free + 1, now + 8 * MINUTE, TASK_SELL);
+            SetWatch(bot, free + 1, now + 8 * MINUTE, chain ? TASK_VISIT : TASK_SELL);
             return true;
         }
 
