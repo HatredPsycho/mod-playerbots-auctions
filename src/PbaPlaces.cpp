@@ -179,6 +179,19 @@ namespace pba
         return nullptr;
     }
 
+    Creature* FindVendor(Player* bot, PlayerbotAI* botAI)
+    {
+        GuidVector const npcs = botAI->GetAiObjectContext()->GetValue<GuidVector>("nearest npcs")->Get();
+        for (ObjectGuid const guid : npcs)
+        {
+            Creature* creature = ObjectAccessor::GetCreature(*bot, guid);
+            if (creature && creature->IsAlive() && creature->HasNpcFlag(UNIT_NPC_FLAG_VENDOR) &&
+                bot->GetDistance(creature) <= cfg.auctioneerRange && !creature->IsHostileTo(bot))
+                return creature;
+        }
+        return nullptr;
+    }
+
     bool FindHouse(Player* bot, PlayerbotAI* botAI, AuctionHouseId& houseId)
     {
         Creature* auctioneer = FindAuctioneer(bot, botAI);
@@ -308,18 +321,31 @@ namespace pba
             if (info->RequiresSpellFocus && (!cfg.craftFocus || !canWalk || !NearestFocus(bot, info->RequiresSpellFocus)))
                 continue;
 
+            // The tools: what it does not carry it buys, if a vendor has it - a hammer, a pick.
             bool tools = true;
+            std::vector<uint32> toBuy;
             for (uint32 i = 0; i < 2; ++i)
             {
                 if (info->Totem[i] && !bot->HasItemCount(info->Totem[i], 1))
-                    tools = false;
+                {
+                    if (market.IsVendorSupply(info->Totem[i]))
+                        toBuy.push_back(info->Totem[i]);
+                    else
+                        tools = false;
+                }
                 if (info->TotemCategory[i] && !bot->HasItemTotemCategory(info->TotemCategory[i]))
-                    tools = false;
+                {
+                    if (uint32 const tool = market.VendorTool(info->TotemCategory[i]))
+                        toBuy.push_back(tool);
+                    else
+                        tools = false;
+                }
             }
-            if (!tools)
+            if (!tools || (!toBuy.empty() && !cfg.matsVendor))
                 continue;
 
             Recipe recipe;
+            recipe.tools = std::move(toBuy);
             recipe.spell = info->Id;
             recipe.product = info->Effects[EFFECT_0].ItemType;
             recipe.made = uint32(std::max<int32>(1, info->Effects[EFFECT_0].BasePoints + 1));

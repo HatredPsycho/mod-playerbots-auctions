@@ -105,13 +105,18 @@ namespace
                     LOG_INFO("module", "PlayerbotsAuctions: last 5 minutes - {} bot(s) online, {} asked themselves whether to go ({} had something to sell, "
                         "the most was {} thing(s)), {} set out, {} wanted to but found no way, {} did business at an auctioneer, {} on an errand now, "
                         "{} time(s) something was kept from a vendor. Of {} thing(s) in their bags {} were not of a kind that is sold, "
-                        "{} soulbound or not tradable, {} needed by the bot itself.",
+                        "{} soulbound or not tradable, {} needed by the bot itself. {} thing(s) went to a vendor as junk.",
                         sRandomPlayerbotMgr.GetAllBots().size(), _stat.asked, _stat.withGoods, _stat.mostGoods, _stat.trips, _stat.noWay, _stat.visits,
-                        _watch.size(), _kept.exchange(0), _stat.seen, _stat.wrongKind, _stat.bound, _stat.needed);
+                        _watch.size(), _kept.exchange(0), _stat.seen, _stat.wrongKind, _stat.bound, _stat.needed, _stat.vendored);
                 if (cfg.debug)
                 {
                     LOG_INFO("module", "PlayerbotsAuctions: most common of a kind that is not sold: {}", MostCommon(_stat.wrongKinds));
                     LOG_INFO("module", "PlayerbotsAuctions: most common the bots need themselves: {}", MostCommon(_stat.neededOnes));
+                    std::string crafts;
+                    for (auto const& skill : _stat.recipes)
+                        crafts += Acore::StringFormat("{}{}: {} recipe(s) thought through, {} lack a material, {} do not pay, {} work out",
+                            crafts.empty() ? "" : "; ", SkillName(skill.first), skill.second[0], skill.second[1], skill.second[2], skill.second[3]);
+                    LOG_INFO("module", "PlayerbotsAuctions: professions at the auctioneers: {}", crafts.empty() ? "-" : crafts);
                 }
                 _stat = Stat();
             }
@@ -232,6 +237,9 @@ namespace
 
             // Arrived from another continent: told again what it came for.
             ResumeJourney(bot, botAI);
+
+            // Next to a vendor: rid of the junk.
+            SellJunk(bot, botAI);
 
             AuctionHouseId houseId;
             if (!FindHouse(bot, botAI, houseId))
@@ -663,9 +671,69 @@ namespace
             return text.empty() ? "-" : text;
         }
 
+        static std::string SkillName(uint32 skill)
+        {
+            switch (skill)
+            {
+                case 0: return "taking apart";
+                case SKILL_ALCHEMY: return "alchemy";
+                case SKILL_BLACKSMITHING: return "blacksmithing";
+                case SKILL_COOKING: return "cooking";
+                case SKILL_ENCHANTING: return "enchanting";
+                case SKILL_ENGINEERING: return "engineering";
+                case SKILL_FIRST_AID: return "first aid";
+                case SKILL_INSCRIPTION: return "inscription";
+                case SKILL_JEWELCRAFTING: return "jewelcrafting";
+                case SKILL_LEATHERWORKING: return "leatherworking";
+                case SKILL_MINING: return "mining";
+                case SKILL_TAILORING: return "tailoring";
+                default: return "skill " + std::to_string(skill);
+            }
+        }
+
         static char const* KindName(Kind kind)
         {
             return kind == KIND_PROSPECT ? "prospect" : kind == KIND_MILL ? "mill" : kind == KIND_DISENCHANT ? "disenchant" : "craft";
+        }
+
+        /// What the bot has no use for and what is not worth an auction goes to the vendor it stands next to,
+        /// for the vendor's price - as a player empties the bags on the way.
+        void SellJunk(Player* bot, PlayerbotAI* botAI)
+        {
+            if (!cfg.sellJunk || !FindVendor(bot, botAI))
+                return;
+
+            std::vector<Item*> junk;
+            auto look = [&](Item* item)
+            {
+                if (!item || !item->GetTemplate() || !item->GetTemplate()->SellPrice || item->GetOwnerGUID() != bot->GetGUID() ||
+                    item->IsNotEmptyBag() || sAuctionMgr->GetAItem(item->GetGUID()) || KeepsFromVendor(bot, item))
+                    return;
+                // The bot's own judgement: nothing it wears, uses, or needs for a quest or a profession.
+                ItemUsage const usage = botAI->GetAiObjectContext()->GetValue<ItemUsage>("item usage", item->GetEntry())->Get();
+                if (usage == ITEM_USAGE_VENDOR || usage == ITEM_USAGE_AH)
+                    junk.push_back(item);
+            };
+            for (uint8 slot = INVENTORY_SLOT_ITEM_START; slot < INVENTORY_SLOT_ITEM_END; ++slot)
+                look(bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot));
+            for (uint8 bagSlot = INVENTORY_SLOT_BAG_START; bagSlot < INVENTORY_SLOT_BAG_END; ++bagSlot)
+                if (Bag* bag = bot->GetBagByPos(bagSlot))
+                    for (uint32 slot = 0; slot < bag->GetBagSize(); ++slot)
+                        look(bag->GetItemByPos(slot));
+            if (junk.empty())
+                return;
+
+            uint64 money = 0;
+            for (Item* item : junk)
+            {
+                money += uint64(item->GetTemplate()->SellPrice) * item->GetCount();
+                bot->DestroyItem(item->GetBagSlot(), item->GetSlot(), true);
+            }
+            bot->ModifyMoney(int32(std::min<uint64>(money, MAX_MONEY_AMOUNT / 2)));
+            _stat.vendored += uint32(junk.size());
+            if (cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: {} sells {} thing(s) it has no use for to a vendor for {} copper.",
+                    bot->GetName(), junk.size(), money);
         }
 
         static bool Keeps(Plan const& plan, uint32 itemId)
@@ -1001,6 +1069,7 @@ namespace
         struct Estimate
         {
             bool ok = false;
+            bool missing = false;       // a material is not to be had
             double worth = 0.0, cost = 0.0, toPay = 0.0;
             std::vector<uint32> toBuy;      // auctions
         };
@@ -1078,7 +1147,10 @@ namespace
                     continue;
                 }
                 if (!mayBuy)
+                {
+                    estimate.missing = true;
                     return estimate;
+                }
 
                 // The bot does not pay any price because the product is valuable: a material that costs far
                 // more than usual is left alone, however well the recipe would pay.
@@ -1098,9 +1170,16 @@ namespace
                         need -= used;
                     }
                 if (need)
+                {
+                    estimate.missing = true;
                     return estimate;
+                }
             }
 
+            // A tool it lacks is bought once and stays: it has to be able to afford it, no more.
+            for (uint32 const tool : recipe.tools)
+                if (ItemTemplate const* proto = sObjectMgr->GetItemTemplate(tool))
+                    estimate.toPay += double(proto->BuyPrice);
             estimate.ok = estimate.toPay <= purse && estimate.worth >= estimate.cost * (1.0 + cfg.matsMinProfit / 100.0);
             return estimate;
         }
@@ -1177,6 +1256,25 @@ namespace
                     Estimate estimate = WorkOut(bot, botAI, recipe, times, index, purse,
                         cfg.matsEnabled && !casual && !intermediate,       // for a step on the way it buys nothing
                         skillBonus, intermediate);
+                    if (times == 1)
+                    {
+                        // For the summary: which professions the bots have, and what comes of their recipes.
+                        uint32 skill = 0;
+                        if (recipe.kind == KIND_CRAFT)
+                        {
+                            SkillLineAbilityMapBounds const bounds = sSpellMgr->GetSkillLineAbilityMapBounds(recipe.spell);
+                            if (bounds.first != bounds.second)
+                                skill = bounds.first->second->SkillLine;
+                        }
+                        uint32* counts = _stat.recipes[skill];
+                        ++counts[0];
+                        if (estimate.ok)
+                            ++counts[3];
+                        else if (estimate.missing)
+                            ++counts[1];
+                        else
+                            ++counts[2];
+                    }
                     if (!estimate.ok)
                         continue;
                     if (!best || estimate.worth - estimate.cost > bestEstimate.worth - bestEstimate.cost)
@@ -1260,6 +1358,18 @@ namespace
         /// vendor and pays the vendor's price.
         bool BuyFromVendor(Player* bot, Recipe const& recipe)
         {
+            for (uint32 const tool : recipe.tools)
+            {
+                if (bot->HasItemCount(tool, 1))
+                    continue;
+                ItemTemplate const* proto = sObjectMgr->GetItemTemplate(tool);
+                ItemPosCountVec dest;
+                if (!proto || !market.IsVendorSupply(tool) || !bot->HasEnoughMoney(uint32(proto->BuyPrice)) ||
+                    bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, tool, 1) != EQUIP_ERR_OK)
+                    return false;
+                bot->ModifyMoney(-int32(proto->BuyPrice));
+                bot->StoreNewItem(dest, tool, true);
+            }
             for (auto const& reagent : recipe.reagents)
             {
                 uint32 const have = bot->GetItemCount(reagent.first);
@@ -1539,8 +1649,9 @@ namespace
         struct Stat
         {
             uint32 asked = 0, withGoods = 0, mostGoods = 0, trips = 0, noWay = 0, visits = 0;
-            uint32 seen = 0, wrongKind = 0, bound = 0, needed = 0;
+            uint32 seen = 0, wrongKind = 0, bound = 0, needed = 0, vendored = 0;
             std::unordered_map<uint32, uint32> wrongKinds, neededOnes;
+            std::map<uint32, uint32[4]> recipes;        // skill -> thought through, material missing, does not pay, works out
         };
         Stat _stat;
         std::atomic<uint32> _kept{0};

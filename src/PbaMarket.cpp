@@ -65,6 +65,18 @@ namespace pba
             do
                 _vendorSupplies.insert(result->Fetch()[0].Get<uint32>());
             while (result->NextRow());
+
+        // The cheapest tool of each kind a vendor sells.
+        _vendorTools.clear();
+        for (uint32 const itemId : _vendorSupplies)
+            if (ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId))
+                if (proto->TotemCategory)
+                {
+                    uint32& tool = _vendorTools[proto->TotemCategory];
+                    ItemTemplate const* other = tool ? sObjectMgr->GetItemTemplate(tool) : nullptr;
+                    if (!other || proto->BuyPrice < other->BuyPrice)
+                        tool = itemId;
+                }
     }
 
     namespace

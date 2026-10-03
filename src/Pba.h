@@ -93,6 +93,7 @@ namespace pba
         std::vector<std::string> excludedNameParts;
         bool   chargeDeposit = true;
         uint32 minListValue = 1 * SILVER;      // an auction worth less than this is not worth the walk
+        bool   sellJunk = true;                // what is not worth an auction goes to a vendor the bot stands next to
         bool   keepFromVendor = true;          // what is meant for the auction house is not sold to a vendor on the way
 
         // prices
@@ -184,6 +185,12 @@ namespace pba
         bool IsVendorItem(uint32 itemId) const { return _vendorItems.find(itemId) != _vendorItems.end(); }
         /// Sold by a vendor for money in any quantity: thread, vials, flux and the like.
         bool IsVendorSupply(uint32 itemId) const { return _vendorSupplies.find(itemId) != _vendorSupplies.end(); }
+        /// A tool of that kind (a blacksmith hammer, a mining pick) any vendor sells, or 0.
+        uint32 VendorTool(uint32 totemCategory) const
+        {
+            auto found = _vendorTools.find(totemCategory);
+            return found != _vendorTools.end() ? found->second : 0;
+        }
 
         // How often a seller's item came back unsold. Remembered per seller and kind of item, because a
         // pack that comes back melts into the stack it was taken from.
@@ -206,6 +213,7 @@ namespace pba
         std::unordered_map<uint64, uint32> _tries;        // seller and item -> times
         std::unordered_set<uint32> _vendorItems;
         std::unordered_set<uint32> _vendorSupplies;
+        std::unordered_map<uint32, uint32> _vendorTools;  // tool category -> item
         bool _tables = false;
     };
 
@@ -224,6 +232,8 @@ namespace pba
     enum Journey { JOURNEY_NONE, JOURNEY_WALK, JOURNEY_HEARTH };
 
     Creature* FindAuctioneer(Player* bot, PlayerbotAI* botAI);
+    /// A vendor the bot stands close to, or nullptr.
+    Creature* FindVendor(Player* bot, PlayerbotAI* botAI);
     /// The auction house the bot does its business in, or false if it is not at an auctioneer.
     bool FindHouse(Player* bot, PlayerbotAI* botAI, AuctionHouseId& houseId);
     bool IsInTown(Player* bot);
@@ -265,6 +275,7 @@ namespace pba
         uint32 made = 1;                                        // pieces per cast
         uint32 focus = 0;                                       // needs an anvil, a forge, a fire
         std::vector<std::pair<uint32, uint32>> reagents;        // item, count
+        std::vector<uint32> tools;                              // a hammer, a pick it still has to buy from a vendor
     };
 
     /// What this bot can craft here: recipes of its professions that turn materials into an item, for which it

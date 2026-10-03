@@ -275,6 +275,17 @@ PlayerbotsAuctions.Sell.MinAuctionValueSilver = 1
 PlayerbotsAuctions.Sell.KeepFromVendor = 1
 
 #
+#    PlayerbotsAuctions.Sell.JunkToVendor
+#        Description: A bot standing next to a vendor sells it what it has no use for and what is
+#                     not worth an auction: grey things, plain equipment, what nobody wanted at
+#                     the auction house. Random bots of mod-playerbots do not sell to vendors by
+#                     themselves; without this their bags fill up with junk.
+#        Default:     1 - Enabled
+#                     0 - Disabled
+
+PlayerbotsAuctions.Sell.JunkToVendor = 1
+
+#
 #    PlayerbotsAuctions.Sell.MaxAuctionsPerHouse
 #        Description: Bots stop selling in an auction house that holds this many auctions.
 #        Default:     20000
