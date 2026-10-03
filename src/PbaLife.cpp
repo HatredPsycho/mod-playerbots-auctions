@@ -92,6 +92,19 @@ namespace
                 }
             }
 
+            // With Debug on: every five minutes a line on what the bots were up to.
+            _statTimer += diff;
+            if (_statTimer >= 5 * MINUTE * IN_MILLISECONDS)
+            {
+                _statTimer = 0;
+                if (cfg.debug)
+                    LOG_INFO("module", "PlayerbotsAuctions: last 5 minutes - {} bot(s) online, {} asked themselves whether to go ({} had something to sell, "
+                        "the most was {} thing(s)), {} set out, {} wanted to but found no way, {} did business at an auctioneer, {} on an errand now.",
+                        sRandomPlayerbotMgr.GetAllBots().size(), _stat.asked, _stat.withGoods, _stat.mostGoods, _stat.trips, _stat.noWay, _stat.visits,
+                        _watch.size());
+                _stat = Stat();
+            }
+
             _timer += diff;
             if (_timer < cfg.intervalMs)
                 return;
@@ -183,6 +196,7 @@ namespace
             if (!house || !houseEntry)
                 return false;
 
+            ++_stat.visits;
             // From here on the bot "was at the auction house". Those who like to trade come back sooner.
             float const trading = TraitOf(bot, TRAIT_TRADING);
             _nextVisit[guid] = now + time_t(float(urand(cfg.visitCooldownMin, cfg.visitCooldownMax)) * (1.6f - 1.2f * trading));
@@ -244,12 +258,16 @@ namespace
             Collect(bot, botAI, items);
             uint32 const goods = uint32(items.size());
             bool const inTown = IsInTown(bot);
+            ++_stat.asked;
+            if (goods)
+                ++_stat.withGoods;
+            _stat.mostGoods = std::max(_stat.mostGoods, goods);
 
             // This bot's own lines. The orderly go early, the others collect until nothing fits.
             float const order = TraitOf(bot, TRAIT_ORDER);
             float const trading = TraitOf(bot, TRAIT_TRADING);
             uint32 const full = uint32(95.0f - order * 45.0f);
-            uint32 const enough = uint32(20.0f - order * 14.0f);
+            uint32 const enough = cfg.cityItemsMax - uint32(order * float(cfg.cityItemsMax - cfg.cityItemsMin) + 0.5f);
             bool const bagsFull = botAI->GetAiObjectContext()->GetValue<uint8>("bag space")->Get() >= full;
 
             bool go;
@@ -267,7 +285,7 @@ namespace
             else
             {
                 // In town with a few things to sell: worth the walk, if it feels like it.
-                go = inTown && goods >= std::max<uint32>(1, enough / 3) && frand(0.0f, 100.0f) < 20.0f + trading * 60.0f;
+                go = inTown && goods >= 1 && frand(0.0f, 100.0f) < 20.0f + trading * 60.0f;
                 why = "it is in town anyway";
             }
 
@@ -280,9 +298,11 @@ namespace
             Journey const journey = SendToAuctionHouse(bot, botAI);
             if (journey == JOURNEY_NONE)
             {
+                ++_stat.noWay;
                 _nextTrip[guid] = now + 10 * MINUTE;
                 return false;
             }
+            ++_stat.trips;
 
             _nextTrip[guid] = now + time_t(float(urand(cfg.cityCooldownMin, cfg.cityCooldownMax)) * (1.5f - trading));
             if (cfg.debug)
@@ -1312,6 +1332,12 @@ namespace
 
         uint32 _timer = 0;
         uint32 _watchTimer = 0;
+        struct Stat
+        {
+            uint32 asked = 0, withGoods = 0, mostGoods = 0, trips = 0, noWay = 0, visits = 0;
+        };
+        Stat _stat;
+        uint32 _statTimer = 0;
         uint32 _saveTimer = 0;
         uint32 _decisions = 0;
         time_t _now = 0;

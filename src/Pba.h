@@ -113,6 +113,8 @@ namespace pba
         bool   cityTrips = true;
         uint32 cityCooldownMin = 60 * 60;      // seconds
         uint32 cityCooldownMax = 180 * 60;
+        uint32 cityItemsMin = 2;               // things to sell the tidiest bot sets out for
+        uint32 cityItemsMax = 8;               // ... and the one that collects the longest
 
         // crafting
         bool   craftEnabled = true;

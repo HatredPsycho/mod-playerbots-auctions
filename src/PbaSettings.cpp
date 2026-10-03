@@ -87,6 +87,8 @@ namespace pba
         cfg.cityTrips           = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.CityTrip.Enable", true);
         cfg.cityCooldownMin     = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.CooldownMinutesMin", 60) * MINUTE;
         cfg.cityCooldownMax     = std::max(cfg.cityCooldownMin, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.CooldownMinutesMax", 180) * MINUTE);
+        cfg.cityItemsMin        = std::max<uint32>(1, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.ItemsMin", 2));
+        cfg.cityItemsMax        = std::max(cfg.cityItemsMin, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.ItemsMax", 8));
 
         cfg.craftEnabled        = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Crafting.Enable", true);
         cfg.matsEnabled         = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Crafting.BuyMaterials", true);

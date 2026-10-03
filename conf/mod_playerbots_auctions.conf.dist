@@ -24,7 +24,7 @@ PlayerbotsAuctions.Enable = 0
 #
 #    PlayerbotsAuctions.Debug
 #        Description: Writes to the server log what the bots do: every trip, auction, bid, purchase
-#                     and crafted item.
+#                     and crafted item, and every five minutes a summary.
 #        Default:     0 - Disabled
 #                     1 - Enabled
 
@@ -160,6 +160,24 @@ PlayerbotsAuctions.CityTrip.Enable = 1
 
 PlayerbotsAuctions.CityTrip.CooldownMinutesMin = 60
 PlayerbotsAuctions.CityTrip.CooldownMinutesMax = 180
+
+#
+#    PlayerbotsAuctions.CityTrip.ItemsMin
+#        Description: A bot sets out when it carries this many different things to sell. Every bot
+#                     draws its own line between ItemsMin (tidy bots) and ItemsMax (bots that
+#                     collect for long). Keep both low: mod-playerbots sells the same things to
+#                     any vendor a bot passes, so bots rarely carry many. A bot that is in town
+#                     anyway goes with a single thing, and full bags always send it off.
+#        Default:     2
+
+PlayerbotsAuctions.CityTrip.ItemsMin = 2
+
+#
+#    PlayerbotsAuctions.CityTrip.ItemsMax
+#        Description: See ItemsMin: the line of the bots that collect the longest.
+#        Default:     8
+
+PlayerbotsAuctions.CityTrip.ItemsMax = 8
 
 ###################################################################################################
 # SELLING
