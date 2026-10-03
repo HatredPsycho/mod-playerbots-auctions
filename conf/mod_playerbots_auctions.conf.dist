@@ -260,6 +260,19 @@ PlayerbotsAuctions.Sell.ChargeDeposit = 1
 PlayerbotsAuctions.Sell.MinAuctionValueSilver = 5
 
 #
+#    PlayerbotsAuctions.Sell.KeepFromVendor
+#        Description: mod-playerbots sells everything a bot does not need to the next vendor it
+#                     passes - also what would be worth an auction. With this the bots keep what
+#                     is meant for the auction house (worth at least MinAuctionValueSilver, not
+#                     offered in vain too often) and the materials they have plans for. Bots that
+#                     never use the auction house and bots travelling with a player are left alone.
+#                     Needs CityTrip.Enable: bots that never get to an auctioneer keep nothing.
+#        Default:     1 - Enabled
+#                     0 - Disabled
+
+PlayerbotsAuctions.Sell.KeepFromVendor = 1
+
+#
 #    PlayerbotsAuctions.Sell.MaxAuctionsPerHouse
 #        Description: Bots stop selling in an auction house that holds this many auctions.
 #        Default:     20000
@@ -486,3 +499,13 @@ PlayerbotsAuctions.Crafting.RecipesPerVisit = 40
 #        Default:     5
 
 PlayerbotsAuctions.Crafting.MaxInARow = 5
+
+#
+#    PlayerbotsAuctions.Crafting.TakeApart
+#        Description: Jewelcrafters prospect ore, scribes mill herbs and enchanters disenchant gear
+#                     they have no use for - when what comes out on average is worth more than
+#                     what goes in, or when they need it for their own recipes.
+#        Default:     1 - Enabled
+#                     0 - Disabled
+
+PlayerbotsAuctions.Crafting.TakeApart = 1

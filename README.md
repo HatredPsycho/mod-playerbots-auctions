@@ -32,6 +32,10 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
   bot compares what a product would bring with what its materials cost - carried, on offer, from a vendor -
   and makes what pays. For some the profession is a sideline, some provide for themselves and work on their
   skill, some produce in batches for the market. For an anvil, a forge or a fire the bot walks there.
+  A miner smelts its ore; a smith then decides at once whether to work the bars or to sell them.
+  Jewelcrafters prospect, scribes mill and enchanters disenchant when that pays or feeds their own recipes.
+- **Keeping.** mod-playerbots sells whatever a bot does not need to the next vendor. What is meant for the
+  auction house and the materials a bot has plans for stay in its bags.
 - **Memory.** The bots learn what things really sell for and remember what did not sell. That survives a
   restart in two small tables of the characters database, which the module creates itself.
 

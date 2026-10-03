@@ -45,7 +45,7 @@ namespace
         uint32 left = 0;        // how many more it is going to make
         uint32 fails = 0;
         time_t until = 0;       // its materials are not for sale until then
-        uint32 keep = 0;        // what it makes is a material for its own profession: kept, not sold
+        std::vector<uint32> keep;   // what it makes is a material for its own profession: kept, not sold
         time_t keepUntil = 0;
         uint32 steps = 0;       // how many steps of a chain lie behind it: ore - bars - sword
         bool next = false;      // back at the auctioneers it decides what to do with what it made
@@ -103,9 +103,10 @@ namespace
                 _statTimer = 0;
                 if (cfg.debug)
                     LOG_INFO("module", "PlayerbotsAuctions: last 5 minutes - {} bot(s) online, {} asked themselves whether to go ({} had something to sell, "
-                        "the most was {} thing(s)), {} set out, {} wanted to but found no way, {} did business at an auctioneer, {} on an errand now.",
+                        "the most was {} thing(s)), {} set out, {} wanted to but found no way, {} did business at an auctioneer, {} on an errand now, "
+                        "{} time(s) something was kept from a vendor.",
                         sRandomPlayerbotMgr.GetAllBots().size(), _stat.asked, _stat.withGoods, _stat.mostGoods, _stat.trips, _stat.noWay, _stat.visits,
-                        _watch.size());
+                        _watch.size(), _stat.kept);
                 _stat = Stat();
             }
 
@@ -138,7 +139,49 @@ namespace
             }
         }
 
+        /// Is this something the bot does not give to a vendor? mod-playerbots sells whatever a bot does not
+        /// need to the next vendor it passes; what is meant for the auction house, and the materials the bot
+        /// has plans for, stay in its bags.
+        bool KeepsFromVendor(Player* bot, Item* item)
+        {
+            if (!cfg.enabled || !cfg.keepFromVendor || !cfg.cityTrips || !bot || !item || !bot->GetSession() ||
+                !sPlayerbotAIConfig.IsInRandomAccountList(bot->GetSession()->GetAccountId()))
+                return false;
+            if (bot->GetLevel() < cfg.minLevel || AvoidsAuctionHouse(bot))
+                return false;
+            PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
+            if (!botAI || !CanTravel(botAI) || (botAI->GetMaster() && IsRealPlayer(botAI->GetMaster())))
+                return false;
+
+            time_t const now = GameTime::GetGameTime().count();
+            auto plan = _plans.find(bot->GetGUID().GetCounter());
+            if (plan != _plans.end())
+            {
+                if (plan->second.keepUntil > now && Keeps(plan->second, item->GetEntry()))
+                    return Kept();
+                if (plan->second.left || plan->second.until > now)
+                    for (auto const& reagent : plan->second.recipe.reagents)
+                        if (reagent.first == item->GetEntry())
+                            return Kept();
+            }
+
+            if (!IsSellable(bot, item) || market.Tries(bot->GetGUID().GetCounter(), item->GetEntry()) >= TryLimit(bot))
+                return false;
+            // What would not be worth an auction may go: all it carries of the kind counts, a stack grows.
+            ItemTemplate const* proto = item->GetTemplate();
+            if (!proto->SellPrice || proto->Quality >= MAX_ITEM_QUALITY ||
+                market.Value(proto) * bot->GetItemCount(proto->ItemId) < double(cfg.minListValue))
+                return false;
+            return Kept();
+        }
+
     private:
+        bool Kept()
+        {
+            ++_stat.kept;
+            return true;
+        }
+
         // =========================================================================================== errands
 
         void SetWatch(Player* bot, time_t from, time_t until, Task task)
@@ -218,7 +261,8 @@ namespace
                 std::unordered_set<uint32> materials;
                 if (cfg.craftEnabled)
                 {
-                    std::vector<Recipe> const recipes = Recipes(bot, CanTravel(botAI));
+                    std::vector<Recipe> recipes = Recipes(bot, CanTravel(botAI));
+                    AddRefining(bot, botAI, recipes);
                     for (Recipe const& recipe : recipes)
                         for (auto const& reagent : recipe.reagents)
                             materials.insert(reagent.first);
@@ -270,7 +314,8 @@ namespace
             // This bot's own lines. The orderly go early, the others collect until nothing fits.
             float const order = TraitOf(bot, TRAIT_ORDER);
             float const trading = TraitOf(bot, TRAIT_TRADING);
-            uint32 const full = uint32(95.0f - order * 45.0f);
+            // mod-playerbots starts throwing things away at 90 percent: every bot is on its way before that.
+            uint32 const full = uint32(85.0f - order * 35.0f);
             uint32 const enough = cfg.cityItemsMax - uint32(order * float(cfg.cityItemsMax - cfg.cityItemsMin) + 0.5f);
             bool const bagsFull = botAI->GetAiObjectContext()->GetValue<uint8>("bag space")->Get() >= full;
 
@@ -599,6 +644,16 @@ namespace
             return patience < 0.3f ? 1 : patience < 0.7f ? 2 : 3;
         }
 
+        static char const* KindName(Kind kind)
+        {
+            return kind == KIND_PROSPECT ? "prospect" : kind == KIND_MILL ? "mill" : kind == KIND_DISENCHANT ? "disenchant" : "craft";
+        }
+
+        static bool Keeps(Plan const& plan, uint32 itemId)
+        {
+            return std::find(plan.keep.begin(), plan.keep.end(), itemId) != plan.keep.end();
+        }
+
         void ConsiderItem(Player* bot, PlayerbotAI* botAI, Item* item, std::vector<Item*>& items)
         {
             if (!IsSellable(bot, item))
@@ -606,7 +661,7 @@ namespace
 
             // Materials for what the bot is about to craft are not for sale.
             auto plan = _plans.find(bot->GetGUID().GetCounter());
-            if (plan != _plans.end() && plan->second.keep == item->GetEntry() && plan->second.keepUntil > _now)
+            if (plan != _plans.end() && plan->second.keepUntil > _now && Keeps(plan->second, item->GetEntry()))
                 return;
             if (plan != _plans.end() && (plan->second.left || plan->second.until > _now))
                 for (auto const& reagent : plan->second.recipe.reagents)
@@ -919,6 +974,20 @@ namespace
             double purse, bool mayBuy, double skillBonus, bool intermediate)
         {
             Estimate estimate;
+            if (recipe.kind != KIND_CRAFT)
+            {
+                // Taking apart: what comes out on average, at its usual price. Gear is disenchanted piece by piece.
+                if (!recipe.yield || (recipe.kind == KIND_DISENCHANT && times > 1))
+                    return estimate;
+                double value = 0.0;
+                for (Yield const& yield : *recipe.yield)
+                    if (ItemTemplate const* got = sObjectMgr->GetItemTemplate(yield.item))
+                        if (got->SellPrice && got->Quality < MAX_ITEM_QUALITY)
+                            value += market.Value(got) * yield.count;
+                estimate.worth = value * (intermediate ? 1.2 : 0.95) * times;
+                return Materials(bot, recipe, times, index, purse, mayBuy, estimate);
+            }
+
             ItemTemplate const* product = sObjectMgr->GetItemTemplate(recipe.product);
             if (!product || !product->SellPrice || product->Quality >= MAX_ITEM_QUALITY)
                 return estimate;
@@ -943,13 +1012,19 @@ namespace
             if (!forItself && !skillUp && value * times < double(cfg.minListValue))
                 return estimate;
 
+            return Materials(bot, recipe, times, index, purse, mayBuy, estimate);
+        }
+
+        /// The other side of the sum: what the materials cost - those it carries, those on offer, those from a vendor.
+        Estimate Materials(Player* bot, Recipe const& recipe, uint32 times, Index const& index, double purse, bool mayBuy, Estimate estimate)
+        {
             for (auto const& reagent : recipe.reagents)
             {
                 ItemTemplate const* material = sObjectMgr->GetItemTemplate(reagent.first);
                 if (!material)
                     return estimate;
                 bool const priced = material->SellPrice && material->Quality < MAX_ITEM_QUALITY;
-                double const usual = priced ? market.Value(material) : 0.0;
+                double const usual = recipe.sourceValue > 0.0 ? recipe.sourceValue : priced ? market.Value(material) : 0.0;
 
                 uint32 const wanted = reagent.second * times;
                 uint32 const have = std::min(bot->GetItemCount(reagent.first), wanted);
@@ -1028,8 +1103,9 @@ namespace
             // What goes into its own recipes. Making one of those - smelting ore into bars - is a step on the way.
             std::unordered_set<uint32> ownMaterials;
             for (Recipe const& recipe : recipes)
-                for (auto const& reagent : recipe.reagents)
-                    ownMaterials.insert(reagent.first);
+                if (recipe.kind == KIND_CRAFT)
+                    for (auto const& reagent : recipe.reagents)
+                        ownMaterials.insert(reagent.first);
 
             Acore::Containers::RandomShuffle(recipes);
             uint32 const look = casual ? std::min<uint32>(10, cfg.matsRecipes) : cfg.matsRecipes;
@@ -1041,10 +1117,17 @@ namespace
             uint32 bestTimes = 0;
             for (Recipe const& recipe : recipes)
             {
+                // Does what comes of it go into another of its recipes?
+                bool intermediate = ownMaterials.find(recipe.product) != ownMaterials.end();
+                if (recipe.kind != KIND_CRAFT && recipe.yield)
+                    for (Yield const& yield : *recipe.yield)
+                        if (ownMaterials.find(yield.item) != ownMaterials.end())
+                            intermediate = true;
+
                 for (uint32 times = most; times >= 1; --times)
                 {
                     Estimate estimate = WorkOut(bot, botAI, recipe, times, index, purse, cfg.matsEnabled && !casual, skillBonus,
-                        ownMaterials.find(recipe.product) != ownMaterials.end());
+                        intermediate);
                     if (!estimate.ok)
                         continue;
                     if (!best || estimate.worth - estimate.cost > bestEstimate.worth - bestEstimate.cost)
@@ -1061,7 +1144,7 @@ namespace
             if (!best)
             {
                 if (followUp)
-                    existing->second.keep = 0;      // nothing worth making of them: they are sold as they are
+                    existing->second.keep.clear();  // nothing worth making of them: they are sold as they are
                 return false;
             }
 
@@ -1081,10 +1164,24 @@ namespace
             plan.left = bestTimes;
             plan.fails = 0;
             plan.until = _now + 10 * MINUTE;
-            plan.keep = ownMaterials.find(best->product) != ownMaterials.end() ? best->product : 0;
+            plan.keep.clear();
+            if (best->kind == KIND_CRAFT)
+            {
+                if (ownMaterials.find(best->product) != ownMaterials.end())
+                    plan.keep.push_back(best->product);
+            }
+            else
+                for (Yield const& yield : *best->yield)
+                    if (ownMaterials.find(yield.item) != ownMaterials.end())
+                        plan.keep.push_back(yield.item);
             plan.keepUntil = _now + 3 * HOUR;
             plan.steps = steps;
             plan.next = false;
+            if (cfg.debug && best->kind != KIND_CRAFT)
+                if (ItemTemplate const* source = sObjectMgr->GetItemTemplate(best->reagents.front().first))
+                    LOG_INFO("module", "PlayerbotsAuctions: {} plans to {} {} x{} (item {}): worth {} copper as it is, {} copper taken apart{}.",
+                        bot->GetName(), KindName(best->kind), source->Name1, bestTimes * best->reagents.front().second, source->ItemId,
+                        uint64(bestEstimate.cost), uint64(bestEstimate.worth), plan.keep.empty() ? "" : ", for its own recipes");
             if (cfg.debug)
                 if (ItemTemplate const* product = sObjectMgr->GetItemTemplate(best->product))
                     LOG_INFO("module", "PlayerbotsAuctions: {} plans to craft {} x{} (item {}): materials worth {} copper, product worth {} copper to it{}.",
@@ -1148,8 +1245,11 @@ namespace
                 plan->second.until = free;      // the materials of a cast still running stay reserved
             }
             // What it made goes into its own recipes: at the auctioneers it thinks about the next step.
-            bool const chain = plan != _plans.end() && plan->second.keep && plan->second.steps < 3 &&
-                bot->HasItemCount(plan->second.keep, 1);
+            bool chain = false;
+            if (plan != _plans.end() && plan->second.steps < 3)
+                for (uint32 const kept : plan->second.keep)
+                    if (bot->HasItemCount(kept, 1))
+                        chain = true;
             if (chain)
                 plan->second.next = true;
             if (walked && botAI)
@@ -1222,6 +1322,24 @@ namespace
                     ready = false;      // the materials have run out, or did not arrive
             if (!ready)
                 return EndWork(bot, botAI, now, now, plan.recipe.focus != 0);
+
+            if (plan.recipe.kind != KIND_CRAFT)
+            {
+                if (!Refine(bot, plan.recipe))
+                    return EndWork(bot, botAI, now, now, false);
+                if (cfg.debug)
+                    if (ItemTemplate const* source = sObjectMgr->GetItemTemplate(plan.recipe.reagents.front().first))
+                        LOG_INFO("module", "PlayerbotsAuctions: {} {}s {} (item {}).", bot->GetName(), KindName(plan.recipe.kind),
+                            source->Name1, source->ItemId);
+                time_t const done = now + 3;
+                if (--plan.left)
+                {
+                    plan.until = now + 10 * MINUTE;
+                    SetWatch(bot, done, done + 4 * MINUTE, TASK_CRAFT);
+                    return true;
+                }
+                return EndWork(bot, botAI, now, done, false);
+            }
 
             if (!botAI->CastSpell(plan.recipe.spell, bot))
             {
@@ -1373,7 +1491,7 @@ namespace
         uint32 _watchTimer = 0;
         struct Stat
         {
-            uint32 asked = 0, withGoods = 0, mostGoods = 0, trips = 0, noWay = 0, visits = 0;
+            uint32 asked = 0, withGoods = 0, mostGoods = 0, trips = 0, noWay = 0, visits = 0, kept = 0;
         };
         Stat _stat;
         uint32 _statTimer = 0;
@@ -1407,6 +1525,7 @@ public:
         // Loaded even if the module is switched off, so it can be switched on while the server runs.
         pba::market.LoadVendorItems();
         pba::LoadFocusObjects();
+        pba::LoadYields();
         pba::market.LoadMemory();
         if (pba::cfg.enabled)
             LOG_INFO("server.loading", ">> PlayerbotsAuctions: the bots use the auction house.");
@@ -1420,6 +1539,17 @@ public:
     void OnShutdown() override
     {
         pba::market.SaveMemory();
+    }
+};
+
+class PlayerbotsAuctionsPlayer : public PlayerScript
+{
+public:
+    PlayerbotsAuctionsPlayer() : PlayerScript("PlayerbotsAuctionsPlayer", { PLAYERHOOK_CAN_SELL_ITEM }) { }
+
+    bool OnPlayerCanSellItem(Player* player, Item* item, Creature* /*vendor*/) override
+    {
+        return !pba::life.KeepsFromVendor(player, item);
     }
 };
 
@@ -1448,4 +1578,5 @@ void AddSC_playerbots_auctions()
 {
     new PlayerbotsAuctionsWorld();
     new PlayerbotsAuctionsHouse();
+    new PlayerbotsAuctionsPlayer();
 }

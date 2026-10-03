@@ -60,6 +60,7 @@ namespace pba
             cfg.excludedNameParts.push_back(Lower(std::string(part)));
         cfg.chargeDeposit       = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Sell.ChargeDeposit", true);
         cfg.minListValue        = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MinAuctionValueSilver", 5) * SILVER;
+        cfg.keepFromVendor      = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Sell.KeepFromVendor", true);
 
         cfg.priceMultiplier[ITEM_QUALITY_POOR]      = sConfigMgr->GetOption<float>("PlayerbotsAuctions.Price.Poor", 1.5f);
         cfg.priceMultiplier[ITEM_QUALITY_NORMAL]    = sConfigMgr->GetOption<float>("PlayerbotsAuctions.Price.Normal", 3.0f);
@@ -99,6 +100,7 @@ namespace pba
         cfg.matsMaxPrice        = std::max(0.5f, sConfigMgr->GetOption<float>("PlayerbotsAuctions.Crafting.MaxMaterialPriceFactor", 1.5f));
         cfg.craftFocus          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Crafting.WalkToAnvilForgeFire", true);
         cfg.craftBatch          = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Crafting.MaxInARow", 5), 1, 20);
+        cfg.refine              = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Crafting.TakeApart", true);
     }
 
     // ------------------------------------------------------------------------------------------ character

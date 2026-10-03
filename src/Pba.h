@@ -92,6 +92,7 @@ namespace pba
         std::vector<std::string> excludedNameParts;
         bool   chargeDeposit = true;
         uint32 minListValue = 5 * SILVER;      // an auction worth less than this is not worth the walk
+        bool   keepFromVendor = true;          // what is meant for the auction house is not sold to a vendor on the way
 
         // prices
         float  priceMultiplier[MAX_ITEM_QUALITY] = { };
@@ -126,6 +127,7 @@ namespace pba
         float  matsMaxPrice = 1.5f;            // a material costing more than this times its usual price is left alone
         bool   craftFocus = true;              // walk to an anvil, a forge or a fire when a recipe needs one
         uint32 craftBatch = 5;                 // the most a producer makes of one thing in a row
+        bool   refine = true;                  // prospecting, milling, disenchanting
     };
 
     extern Settings cfg;
@@ -239,9 +241,21 @@ namespace pba
 
     // ------------------------------------------------------------------------------------------ recipes
 
+    enum Kind : uint8 { KIND_CRAFT, KIND_PROSPECT, KIND_MILL, KIND_DISENCHANT };
+
+    /// What comes of taking something apart, on average.
+    struct Yield
+    {
+        uint32 item = 0;
+        float count = 0.0f;
+    };
+
     /// One thing a bot can make with a profession.
     struct Recipe
     {
+        Kind kind = KIND_CRAFT;
+        std::vector<Yield> const* yield = nullptr;             // prospecting, milling, disenchanting: what comes out
+        double sourceValue = 0.0;                               // ... and what the thing is worth to it as it is, if not its usual price
         uint32 spell = 0;
         uint32 product = 0;
         uint32 made = 1;                                        // pieces per cast
@@ -252,6 +266,12 @@ namespace pba
     /// What this bot can craft here: recipes of its professions that turn materials into an item, for which it
     /// carries the tools, and - if they need an anvil, a forge or a fire - for which the town has one.
     std::vector<Recipe> Recipes(Player* bot, bool canWalk);
+
+    void LoadYields();
+    /// Adds what the bot could take apart: ore to prospect, herbs to mill, gear to disenchant.
+    void AddRefining(Player* bot, PlayerbotAI* botAI, std::vector<Recipe>& recipes);
+    /// Takes it apart: the source is gone, what comes out is in the bags.
+    bool Refine(Player* bot, Recipe const& recipe);
 }
 
 #endif
