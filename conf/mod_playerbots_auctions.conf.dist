@@ -254,10 +254,11 @@ PlayerbotsAuctions.Sell.ChargeDeposit = 1
 
 #
 #    PlayerbotsAuctions.Sell.MinAuctionValueSilver
-#        Description: An auction that would bring less than this is not created.
-#        Default:     5
+#        Description: An auction that would bring less than this is not created. Low-level bots
+#                     carry little of value: with a higher value they hardly sell anything.
+#        Default:     1
 
-PlayerbotsAuctions.Sell.MinAuctionValueSilver = 5
+PlayerbotsAuctions.Sell.MinAuctionValueSilver = 1
 
 #
 #    PlayerbotsAuctions.Sell.KeepFromVendor

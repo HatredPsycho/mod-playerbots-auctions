@@ -59,7 +59,7 @@ namespace pba
         for (std::string_view part : Acore::Tokenize(names, ',', false))
             cfg.excludedNameParts.push_back(Lower(std::string(part)));
         cfg.chargeDeposit       = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Sell.ChargeDeposit", true);
-        cfg.minListValue        = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MinAuctionValueSilver", 5) * SILVER;
+        cfg.minListValue        = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MinAuctionValueSilver", 1) * SILVER;
         cfg.keepFromVendor      = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Sell.KeepFromVendor", true);
 
         cfg.priceMultiplier[ITEM_QUALITY_POOR]      = sConfigMgr->GetOption<float>("PlayerbotsAuctions.Price.Poor", 1.5f);

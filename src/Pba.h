@@ -92,7 +92,7 @@ namespace pba
         std::unordered_set<uint32> excludedItems;
         std::vector<std::string> excludedNameParts;
         bool   chargeDeposit = true;
-        uint32 minListValue = 5 * SILVER;      // an auction worth less than this is not worth the walk
+        uint32 minListValue = 1 * SILVER;      // an auction worth less than this is not worth the walk
         bool   keepFromVendor = true;          // what is meant for the auction house is not sold to a vendor on the way
 
         // prices

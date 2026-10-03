@@ -104,9 +104,10 @@ namespace
                 if (cfg.debug)
                     LOG_INFO("module", "PlayerbotsAuctions: last 5 minutes - {} bot(s) online, {} asked themselves whether to go ({} had something to sell, "
                         "the most was {} thing(s)), {} set out, {} wanted to but found no way, {} did business at an auctioneer, {} on an errand now, "
-                        "{} time(s) something was kept from a vendor.",
+                        "{} time(s) something was kept from a vendor. Of {} thing(s) in their bags {} were not of a kind that is sold, "
+                        "{} soulbound or not tradable, {} needed by the bot itself.",
                         sRandomPlayerbotMgr.GetAllBots().size(), _stat.asked, _stat.withGoods, _stat.mostGoods, _stat.trips, _stat.noWay, _stat.visits,
-                        _watch.size(), _kept.exchange(0));
+                        _watch.size(), _kept.exchange(0), _stat.seen, _stat.wrongKind, _stat.bound, _stat.needed);
                 _stat = Stat();
             }
 
@@ -656,8 +657,17 @@ namespace
 
         void ConsiderItem(Player* bot, PlayerbotAI* botAI, Item* item, std::vector<Item*>& items)
         {
-            if (!IsSellable(bot, item))
+            if (!item)
                 return;
+            ++_stat.seen;
+            if (!IsSellable(bot, item))
+            {
+                if (item->GetTemplate() && !IsAllowedKind(item->GetTemplate()))
+                    ++_stat.wrongKind;
+                else
+                    ++_stat.bound;
+                return;
+            }
 
             // Materials for what the bot is about to craft are not for sale.
             auto plan = _plans.find(bot->GetGUID().GetCounter());
@@ -677,6 +687,8 @@ namespace
             // mod-playerbots has no opinion on what a vendor gives nothing for: dusts, essences, some gems.
             if (usage == ITEM_USAGE_AH || usage == ITEM_USAGE_VENDOR || (usage == ITEM_USAGE_NONE && !item->GetTemplate()->SellPrice))
                 items.push_back(item);
+            else
+                ++_stat.needed;
         }
 
         void Collect(Player* bot, PlayerbotAI* botAI, std::vector<Item*>& items)
@@ -1503,6 +1515,7 @@ namespace
         struct Stat
         {
             uint32 asked = 0, withGoods = 0, mostGoods = 0, trips = 0, noWay = 0, visits = 0;
+            uint32 seen = 0, wrongKind = 0, bound = 0, needed = 0;
         };
         Stat _stat;
         std::atomic<uint32> _kept{0};
