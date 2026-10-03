@@ -632,8 +632,9 @@ namespace
             CharacterDatabase.CommitTransaction(trans);
 
             if (cfg.debug)
-                LOG_INFO("module", "PlayerbotsAuctions: {} offers {} x{} (item {}) for {} copper, bid {} copper, {} h{}.",
+                LOG_INFO("module", "PlayerbotsAuctions: {} offers {} x{} (item {}) for {} copper, bid {} copper, {} h, {} auction house{}.",
                     bot->GetName(), proto->Name1, pack, proto->ItemId, buyout, bid, etime / HOUR,
+                    houseId == AuctionHouseId::Alliance ? "Alliance" : houseId == AuctionHouseId::Horde ? "Horde" : "neutral",
                     tries ? ", not for the first time" : "");
             return true;
         }
