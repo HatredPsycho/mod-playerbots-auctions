@@ -62,21 +62,13 @@
 
 namespace
 {
-    enum SellPlace
-    {
-        PLACE_ANYWHERE   = 0,   // wherever the bot is (not realistic, fills the auction house fastest)
-        PLACE_CITY       = 1,   // in a capital city, or near an auctioneer elsewhere
-        PLACE_AUCTIONEER = 2    // only near an auctioneer
-    };
-
     struct Settings
     {
         bool   enabled = false;
         bool   debug = false;
         uint32 intervalMs = 30000;
         uint32 botsPerCycle = 10;
-        uint32 place = PLACE_CITY;
-        float  auctioneerRange = 40.0f;
+        float  auctioneerRange = 25.0f;
         uint32 visitCooldownMin = 20 * 60;     // seconds
         uint32 visitCooldownMax = 60 * 60;
         uint32 itemsPerVisit = 4;
@@ -126,6 +118,9 @@ namespace
         uint32 cityBagMin = 50;                // every bot has its own idea of "full" between these two
         uint32 cityBagMax = 95;
         uint32 cityMinItems = 3;
+        uint32 goodsMin = 6;                   // every bot has its own idea of "enough to sell" between these two
+        uint32 goodsMax = 20;
+        uint32 inTownChance = 50;              // percent: a bot in town with something to sell bothers to go
         uint32 cityCooldownMin = 60 * 60;      // seconds
         uint32 cityCooldownMax = 180 * 60;
     };
@@ -158,8 +153,7 @@ namespace
         cfg.debug               = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Debug", false);
         cfg.intervalMs          = std::max<uint32>(5, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.IntervalSeconds", 30)) * IN_MILLISECONDS;
         cfg.botsPerCycle        = std::max<uint32>(1, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.BotsPerCycle", 10));
-        cfg.place               = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Place", PLACE_CITY);
-        cfg.auctioneerRange     = sConfigMgr->GetOption<float>("PlayerbotsAuctions.AuctioneerRange", 40.0f);
+        cfg.auctioneerRange     = sConfigMgr->GetOption<float>("PlayerbotsAuctions.AuctioneerRange", 25.0f);
         cfg.visitCooldownMin    = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.VisitCooldownMinutesMin", 20) * MINUTE;
         cfg.visitCooldownMax    = std::max(cfg.visitCooldownMin, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.VisitCooldownMinutesMax", 60) * MINUTE);
         cfg.itemsPerVisit       = std::max<uint32>(1, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.ItemsPerVisit", 4));
@@ -225,6 +219,9 @@ namespace
         cfg.cityBagMin          = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.BagsFullPercentMin", 50), 10, 100);
         cfg.cityBagMax          = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.BagsFullPercentMax", 95), cfg.cityBagMin, 100);
         cfg.cityMinItems        = std::max<uint32>(1, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.MinItemsToSell", 3));
+        cfg.goodsMin            = std::max<uint32>(1, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.EnoughItemsMin", 6));
+        cfg.goodsMax            = std::max(cfg.goodsMin, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.EnoughItemsMax", 20));
+        cfg.inTownChance        = std::min<uint32>(100, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.InTownChance", 50));
         cfg.cityCooldownMin     = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.CooldownMinutesMin", 60) * MINUTE;
         cfg.cityCooldownMax     = std::max(cfg.cityCooldownMin, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.CityTrip.CooldownMinutesMax", 180) * MINUTE);
     }
@@ -283,32 +280,12 @@ namespace
         return nullptr;
     }
 
-    bool IsInCapital(Player* bot)
-    {
-        // Shattrath and Dalaran count as capitals but have no auction house for everyone.
-        if (bot->GetZoneId() == 3703 || bot->GetZoneId() == 4395)
-            return false;
-
-        if (AreaTableEntry const* area = sAreaTableStore.LookupEntry(bot->GetAreaId()))
-            if (area->flags & AREA_FLAG_CAPITAL)
-                return true;
-        if (AreaTableEntry const* zone = sAreaTableStore.LookupEntry(bot->GetZoneId()))
-            if (zone->flags & AREA_FLAG_CAPITAL)
-                return true;
-        return false;
-    }
-
-    /// The auction house the bot sells in, or false if the bot is in no place to sell.
+    /// The auction house the bot does its business in, or false if it is not at an auctioneer.
     bool FindHouse(Player* bot, PlayerbotAI* botAI, AuctionHouseId& houseId)
     {
-        // The cheap test first: only outside a capital the surroundings are searched for an auctioneer.
-        Creature* auctioneer = nullptr;
-        if (cfg.place == PLACE_AUCTIONEER || (cfg.place == PLACE_CITY && !IsInCapital(bot)))
-        {
-            auctioneer = FindAuctioneer(bot, botAI);
-            if (!auctioneer)
-                return false;
-        }
+        Creature* auctioneer = FindAuctioneer(bot, botAI);
+        if (!auctioneer)
+            return false;
 
         if (sWorld->getBoolConfig(CONFIG_ALLOW_TWO_SIDE_INTERACTION_AUCTION))
         {
@@ -316,8 +293,7 @@ namespace
             return true;
         }
 
-        if (auctioneer)
-            if (AuctionHouseEntry const* entry = AuctionHouseMgr::GetAuctionHouseEntryFromFactionTemplate(auctioneer->GetFaction()))
+        if (AuctionHouseEntry const* entry = AuctionHouseMgr::GetAuctionHouseEntryFromFactionTemplate(auctioneer->GetFaction()))
             {
                 houseId = AuctionHouseId(entry->houseId);
                 return true;
@@ -339,7 +315,7 @@ namespace
         return float(hash & 0xFFFF) / 65535.0f;
     }
 
-    enum Traits { TRAIT_BAGS = 1, TRAIT_PRICE = 2 };
+    enum Traits { TRAIT_BAGS = 1, TRAIT_PRICE = 2, TRAIT_GOODS = 3 };
 
     /// What an item is worth. The starting point is the vendor value times the factor of its quality;
     /// what auctions really sold for moves the value, within limits, so one odd sale cannot bend the market.
@@ -399,77 +375,95 @@ namespace
 
     Market market;
 
-    struct CityPoint
+    struct City
     {
         TeamId team;
         uint32 mapId;
-        float x, y, z;
+        float x, y, z;              // the auctioneers
+        float ax, ay, az;           // where a bot arrives by hearth: bank or inn, a walk away
     };
 
-    // The auction houses of the eight old capitals.
-    CityPoint const AuctionHouses[] =
+    // The eight old capitals.
+    City const Cities[] =
     {
-        { TEAM_ALLIANCE, 0,   -8820.1f,    662.0f,   97.2f },    // Stormwind
-        { TEAM_ALLIANCE, 0,   -4959.7f,   -907.9f,  505.2f },    // Ironforge
-        { TEAM_ALLIANCE, 1,    9864.5f,   2341.7f, 1326.8f },    // Darnassus
-        { TEAM_ALLIANCE, 530, -4025.5f, -11736.0f, -151.8f },    // Exodar
-        { TEAM_HORDE,    1,    1683.6f,  -4461.3f,   20.4f },    // Orgrimmar
-        { TEAM_HORDE,    1,   -1204.7f,    102.8f,  134.7f },    // Thunder Bluff
-        { TEAM_HORDE,    0,    1612.3f,    199.8f,  -56.8f },    // Undercity
-        { TEAM_HORDE,    530,  9648.4f,  -7135.7f,   16.9f },    // Silvermoon
+        { TEAM_ALLIANCE, 0,   -8820.1f,    662.0f,   97.2f,  -8935.3f,    613.2f,   99.6f },    // Stormwind
+        { TEAM_ALLIANCE, 0,   -4959.7f,   -907.9f,  505.2f,  -4840.7f,   -857.1f,  502.0f },    // Ironforge
+        { TEAM_ALLIANCE, 1,    9864.5f,   2341.7f, 1326.8f,   9942.0f,   2519.7f, 1317.7f },    // Darnassus
+        { TEAM_ALLIANCE, 530, -4025.5f, -11736.0f, -151.8f,  -3919.0f, -11544.7f, -150.1f },    // Exodar
+        { TEAM_HORDE,    1,    1683.6f,  -4461.3f,   20.4f,   1627.5f,  -4375.7f,   12.1f },    // Orgrimmar
+        { TEAM_HORDE,    1,   -1204.7f,    102.8f,  134.7f,  -1300.3f,     38.5f,  129.3f },    // Thunder Bluff
+        { TEAM_HORDE,    0,    1612.3f,    199.8f,  -56.8f,   1635.4f,    223.3f,  -43.0f },    // Undercity
+        { TEAM_HORDE,    530,  9648.4f,  -7135.7f,   16.9f,   9663.3f,  -7303.7f,   17.5f },    // Silvermoon
     };
+
+    constexpr float CityRadius = 1500.0f;       // closer than this to its auction house a bot is "in town"
 
     // The CoA Playerbots fork lets bots visit a city and return afterwards. Other versions of
-    // mod-playerbots do not have that; there the bots simply are not sent to town.
+    // mod-playerbots do not have that; there the bots are not sent anywhere and only do their
+    // business when they happen to stand at an auctioneer.
     template <typename Info>
     concept HasCityLife = requires(Info& info, WorldPosition pos) { info.ChangeToGoCity(pos); info.cityReturnPos = pos; info.cityStayMs = 0u; };
 
+    enum Journey { JOURNEY_NONE, JOURNEY_WALK, JOURNEY_HEARTH };
+
+    /// Sends a bot to the auctioneers. A bot that is in town walks there. A bot out in the world takes its
+    /// hearth to a capital of its faction, arrives at the bank or inn and walks the rest; when its visit is
+    /// over, mod-playerbots brings it back to where it was.
     template <typename AI>
-    bool SendToAuctionHouse(Player* bot, AI* botAI)
+    Journey SendToAuctionHouse(Player* bot, AI* botAI)
     {
         if constexpr (HasCityLife<decltype(botAI->rpgInfo)>)
         {
             if (!botAI->HasStrategy("new rpg", BOT_STATE_NON_COMBAT))
-                return false;
+                return JOURNEY_NONE;
             auto& info = botAI->rpgInfo;
-            if (info.cityStayMs || info.cityReturnPos != WorldPosition())
-                return false;       // already on a city visit
 
-            // The nearest auction house of the bot's faction on the same map. A trip to another map would
-            // make mod-playerbots forget the visit and the way back, so bots in Northrend stay where they are.
-            CityPoint const* best = nullptr;
-            float bestDistance = 0.0f;
-            for (CityPoint const& point : AuctionHouses)
+            // Capitals of the bot's faction on the same map. A trip to another map would make mod-playerbots
+            // forget the visit and the way back, so bots in Northrend stay where they are.
+            std::vector<City const*> reachable;
+            City const* here = nullptr;
+            for (City const& city : Cities)
             {
-                if (point.team != bot->GetTeamId() || point.mapId != bot->GetMapId())
+                if (city.team != bot->GetTeamId() || city.mapId != bot->GetMapId())
                     continue;
-                float const distance = bot->GetExactDist2d(point.x, point.y);
-                if (!best || distance < bestDistance)
-                {
-                    best = &point;
-                    bestDistance = distance;
-                }
+                reachable.push_back(&city);
+                if (bot->GetExactDist2d(city.x, city.y) < CityRadius)
+                    here = &city;
             }
-            if (!best)
-                return false;
+            if (reachable.empty())
+                return JOURNEY_NONE;
 
+            City const* city = here ? here : reachable[urand(0, uint32(reachable.size()) - 1)];
             float const angle = frand(0.0f, 6.2831853f);
             float const radius = frand(2.0f, 6.0f);
-            WorldPosition const target(best->mapId, best->x + radius * std::cos(angle), best->y + radius * std::sin(angle), best->z);
+            WorldPosition const auctioneers(city->mapId, city->x + radius * std::cos(angle), city->y + radius * std::sin(angle), city->z);
 
-            info.cityReturnPos = WorldPosition(bot);
-            if (!bot->TeleportTo(best->mapId, target.GetPositionX(), target.GetPositionY(), target.GetPositionZ(), bot->GetOrientation()))
+            if (!here)
             {
-                info.cityReturnPos = WorldPosition();
-                return false;
+                if (info.cityStayMs || info.cityReturnPos != WorldPosition())
+                    return JOURNEY_NONE;        // mod-playerbots is already taking it to a city
+                info.cityReturnPos = WorldPosition(bot);
+                if (!bot->TeleportTo(city->mapId, city->ax + frand(-3.0f, 3.0f), city->ay + frand(-3.0f, 3.0f), city->az, bot->GetOrientation()))
+                {
+                    info.cityReturnPos = WorldPosition();
+                    return JOURNEY_NONE;
+                }
             }
-            info.ChangeToGoCity(target);
-            return true;
+            info.ChangeToGoCity(auctioneers);
+            return here ? JOURNEY_WALK : JOURNEY_HEARTH;
         }
         else
         {
-            return false;
+            return JOURNEY_NONE;
         }
+    }
+
+    bool IsInTown(Player* bot)
+    {
+        for (City const& city : Cities)
+            if (city.team == bot->GetTeamId() && city.mapId == bot->GetMapId() && bot->GetExactDist2d(city.x, city.y) < CityRadius)
+                return true;
+        return false;
     }
 
     class AuctionSeller
@@ -479,6 +473,27 @@ namespace
         {
             if (!cfg.enabled)
                 return;
+
+            // Bots on their way to the auctioneers are watched closely: they do their business the moment
+            // they stand there, before they wander off again or sell their load to a vendor.
+            _arrivalTimer += diff;
+            if (_arrivalTimer >= 2 * IN_MILLISECONDS)
+            {
+                _arrivalTimer = 0;
+                time_t const now = GameTime::GetGameTime().count();
+                for (auto arrival = _arrivals.begin(); arrival != _arrivals.end();)
+                {
+                    Player* bot = ObjectAccessor::FindConnectedPlayer(arrival->first);
+                    bool done = !bot || arrival->second.until < now;
+                    if (!done && arrival->second.from <= now && bot->IsInWorld() && !bot->IsBeingTeleported())
+                    {
+                        time_t const until = arrival->second.until;
+                        _nextVisit.erase(arrival->first.GetCounter());
+                        done = Visit(bot, now) && arrival->second.until == until;     // unless the visit asked for another look
+                    }
+                    arrival = done ? _arrivals.erase(arrival) : std::next(arrival);
+                }
+            }
 
             _timer += diff;
             if (_timer < cfg.intervalMs)
@@ -491,19 +506,6 @@ namespace
                 return;
 
             time_t const now = GameTime::GetGameTime().count();
-
-            // Bots that just travelled to an auction house come first, before they sell their load to a vendor.
-            for (auto arrival = _arrivals.begin(); arrival != _arrivals.end();)
-            {
-                auto found = bots.find(arrival->first);
-                bool done = found == bots.end() || arrival->second < now;
-                if (!done && found->second && found->second->IsInWorld() && !found->second->IsBeingTeleported())
-                {
-                    _nextVisit.erase(arrival->first.GetCounter());
-                    done = Visit(found->second, now);
-                }
-                arrival = done ? _arrivals.erase(arrival) : std::next(arrival);
-            }
 
             uint32 visits = 0, looked = 0;
             auto itr = bots.upper_bound(_last);
@@ -547,10 +549,11 @@ namespace
             AuctionHouseId houseId;
             if (!FindHouse(bot, botAI, houseId))
             {
-                // Not in a place to sell: look again in a while, not at every pass.
+                // Not at an auctioneer: look again in a while, not at every pass.
                 _nextVisit[bot->GetGUID().GetCounter()] = now + urand(2 * MINUTE, 4 * MINUTE);
-                if (TryCityTrip(bot, botAI, now))
-                    _arrivals[bot->GetGUID()] = now + 3 * MINUTE;      // watched until it has arrived and sold
+                // A bot that is not already on its way decides whether it is time to go.
+                if (_arrivals.find(bot->GetGUID()) == _arrivals.end() && DecideToGo(bot, botAI, now))
+                    _arrivals[bot->GetGUID()] = { now, now + 8 * MINUTE };      // watched until it stands at the auctioneer
                 return false;
             }
 
@@ -568,7 +571,7 @@ namespace
             // In town a bot with a crafting profession makes something from what it carries. The result is
             // sold at the next look, a moment later.
             if (Craft(bot, botAI, now))
-                _arrivals[bot->GetGUID()] = now + 3 * MINUTE;
+                _arrivals[bot->GetGUID()] = { now + 20, now + 3 * MINUTE };      // once the crafting is done
 
             if (Buy(bot, botAI, house) && cfg.collectMail)
                 CollectMail(bot, now);          // what it bought outright arrives by mail at once
@@ -620,7 +623,7 @@ namespace
         /// their skill. What they do not need themselves they sell.
         bool Craft(Player* bot, PlayerbotAI* botAI, time_t now)
         {
-            if (!cfg.craftEnabled || cfg.place == PLACE_ANYWHERE || bot->IsNonMeleeSpellCast(false) || bot->isMoving())
+            if (!cfg.craftEnabled || bot->IsNonMeleeSpellCast(false) || bot->isMoving())
                 return false;
 
             auto next = _nextCraft.find(bot->GetGUID().GetCounter());
@@ -635,31 +638,55 @@ namespace
             return true;
         }
 
-        /// Bags nearly full and far from an auction house: the bot takes its hearth to one, sells there and
-        /// comes back when its city visit is over. The travelling itself is done by mod-playerbots.
-        bool TryCityTrip(Player* bot, PlayerbotAI* botAI, time_t now)
+        /// Does this bot want to go to the auction house now? Like a player, it goes when it feels it has
+        /// enough to sell or its bags are getting full - and every bot draws that line somewhere else.
+        /// A bot that is in town anyway goes for less, but not every time.
+        bool DecideToGo(Player* bot, PlayerbotAI* botAI, time_t now)
         {
-            if (!cfg.cityTrips || cfg.place == PLACE_ANYWHERE || bot->GetGroup())
+            if (!cfg.cityTrips || bot->GetGroup())
                 return false;
 
             auto next = _nextTrip.find(bot->GetGUID().GetCounter());
             if (next != _nextTrip.end() && next->second > now)
                 return false;
 
-            // Every bot decides for itself when its bags are too full.
-            uint32 const full = cfg.cityBagMin + uint32(Trait(bot, TRAIT_BAGS) * float(cfg.cityBagMax - cfg.cityBagMin));
-            if (botAI->GetAiObjectContext()->GetValue<uint8>("bag space")->Get() < full)
-                return false;
-
             std::vector<Item*> items;
             Collect(bot, botAI, items);
-            if (items.size() < cfg.cityMinItems)
+            uint32 const goods = uint32(items.size());
+            bool const inTown = IsInTown(bot);
+
+            // This bot's own lines: how full is full, and how much is enough.
+            uint32 const full = cfg.cityBagMin + uint32(Trait(bot, TRAIT_BAGS) * float(cfg.cityBagMax - cfg.cityBagMin));
+            uint32 const enough = cfg.goodsMin + uint32(Trait(bot, TRAIT_GOODS) * float(cfg.goodsMax - cfg.goodsMin));
+            bool const bagsFull = botAI->GetAiObjectContext()->GetValue<uint8>("bag space")->Get() >= full;
+
+            bool go;
+            char const* why;
+            if (goods >= cfg.cityMinItems && bagsFull)
             {
-                _nextTrip[bot->GetGUID().GetCounter()] = now + 10 * MINUTE;      // full of things it keeps
+                go = true;
+                why = "its bags are full";
+            }
+            else if (goods >= enough)
+            {
+                go = true;
+                why = "it has enough to sell";
+            }
+            else
+            {
+                // In town with a few things to sell: worth the walk, if it feels like it.
+                go = inTown && goods >= std::max<uint32>(1, enough / 3) && urand(0, 99) < cfg.inTownChance;
+                why = "it is in town anyway";
+            }
+
+            if (!go)
+            {
+                _nextTrip[bot->GetGUID().GetCounter()] = now + (inTown ? 5 * MINUTE : 10 * MINUTE);
                 return false;
             }
 
-            if (!SendToAuctionHouse(bot, botAI))
+            Journey const journey = SendToAuctionHouse(bot, botAI);
+            if (journey == JOURNEY_NONE)
             {
                 _nextTrip[bot->GetGUID().GetCounter()] = now + 10 * MINUTE;
                 return false;
@@ -667,8 +694,8 @@ namespace
 
             _nextTrip[bot->GetGUID().GetCounter()] = now + urand(cfg.cityCooldownMin, cfg.cityCooldownMax);
             if (cfg.debug)
-                LOG_INFO("module", "PlayerbotsAuctions: {} has full bags ({} items to sell) and travels to an auction house.",
-                    bot->GetName(), items.size());
+                LOG_INFO("module", "PlayerbotsAuctions: {} {} to the auction house with {} item(s) to sell: {}.",
+                    bot->GetName(), journey == JOURNEY_WALK ? "walks" : "takes its hearth to a city and walks", goods, why);
             return true;
         }
 
@@ -1098,11 +1125,17 @@ namespace
         }
 
         uint32 _timer = 0;
+        uint32 _arrivalTimer = 0;
         ObjectGuid _last;
         std::unordered_map<ObjectGuid::LowType, time_t> _nextVisit;
         std::unordered_map<ObjectGuid::LowType, time_t> _nextTrip;
         std::unordered_map<ObjectGuid::LowType, time_t> _nextCraft;
-        std::map<ObjectGuid, time_t> _arrivals;                        // bot on its way -> give up after
+        struct Watch
+        {
+            time_t from = 0;        // not looked at before this
+            time_t until = 0;       // given up after this
+        };
+        std::map<ObjectGuid, Watch> _arrivals;                         // bots on their way to the auctioneers
         std::unordered_map<ObjectGuid::LowType, std::unordered_set<uint32>> _bought;
     };
 
@@ -1123,8 +1156,7 @@ public:
     {
         market.LoadVendorItems();
         if (cfg.enabled)
-            LOG_INFO("server.loading", ">> PlayerbotsAuctions: the bots put their loot up for auction (place {}, every {} s).",
-                cfg.place, cfg.intervalMs / IN_MILLISECONDS);
+            LOG_INFO("server.loading", ">> PlayerbotsAuctions: the bots use the auction house.");
     }
 
     void OnUpdate(uint32 diff) override

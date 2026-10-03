@@ -16,15 +16,10 @@
 #        Default:     0 - Disabled
 #                     1 - Enabled
 #
-#    PlayerbotsAuctions.Place
-#        Description: Where a bot has to be to sell.
-#        Default:     1 - In a capital city, or near an auctioneer anywhere else
-#                     0 - Anywhere (not realistic; fills the auction house fastest, good for a test)
-#                     2 - Only near an auctioneer (see AuctioneerRange)
-#
 #    PlayerbotsAuctions.AuctioneerRange
-#        Description: How close (yards) a bot has to be to an auctioneer to count as "near".
-#        Default:     40
+#        Description: Bots sell and buy at an auctioneer, like a player. This is how close (yards)
+#                     they have to stand.
+#        Default:     25
 #
 #    PlayerbotsAuctions.MinBotLevel
 #        Description: Bots below this level do not sell.
@@ -48,8 +43,7 @@
 #                     1 - Enabled
 
 PlayerbotsAuctions.Enable = 0
-PlayerbotsAuctions.Place = 1
-PlayerbotsAuctions.AuctioneerRange = 40
+PlayerbotsAuctions.AuctioneerRange = 25
 PlayerbotsAuctions.MinBotLevel = 1
 PlayerbotsAuctions.CollectAuctionMail = 1
 PlayerbotsAuctions.ChargeDeposit = 0
@@ -307,13 +301,20 @@ PlayerbotsAuctions.Buy.MinVendorFactor = 1.2
 PlayerbotsAuctions.Buy.VendorItemMaxPercent = 75
 
 ###################################################################################################
-# TRIPS TO THE CITY
+# TRIPS TO THE AUCTION HOUSE
 #
-#    A bot whose bags fill up far from an auction house takes its hearth to the auction house of a
-#    capital of its faction on the same continent, stays in the city for a while and returns to
-#    where it was. Bots in Northrend do not travel. Needs the city visits of the CoA Playerbots
-#    fork; with other versions of mod-playerbots this part does nothing. Has no effect with
-#    PlayerbotsAuctions.Place = 0.
+#    Like a player, a bot decides for itself when it is time to go to the auction house: when its
+#    bags are getting full, or when it has collected enough to sell. Every bot draws these lines
+#    somewhere else and keeps them. A bot that is in a capital anyway goes for less, but not every
+#    time.
+#
+#    A bot in town walks to the auctioneers. A bot out in the world takes its hearth to a capital of
+#    its faction on the same continent (picked at random), arrives at the bank or inn, walks to the
+#    auctioneers, stays in town for a while and returns to where it was. Bots in Northrend do not
+#    travel.
+#
+#    Needs the city visits of the CoA Playerbots fork; with other versions of mod-playerbots the
+#    bots are not sent anywhere and only do their business when they happen to pass an auctioneer.
 #
 #    PlayerbotsAuctions.CityTrip.Enable
 #        Default:     1 - Enabled
@@ -322,13 +323,26 @@ PlayerbotsAuctions.Buy.VendorItemMaxPercent = 75
 #    PlayerbotsAuctions.CityTrip.BagsFullPercentMin
 #    PlayerbotsAuctions.CityTrip.BagsFullPercentMax
 #        Description: How full the bags have to be. Every bot has its own idea of "full" between
-#                     these two values and keeps it: one goes to town with half-full bags, another
-#                     only when nothing fits any more.
+#                     these two values: one goes with half-full bags, another only when nothing
+#                     fits any more.
 #        Default:     50 and 95
 #
 #    PlayerbotsAuctions.CityTrip.MinItemsToSell
-#        Description: The bot only travels if it carries at least this many things it can auction.
+#        Description: With full bags the bot only goes if it carries at least this many things it
+#                     can auction.
 #        Default:     3
+#
+#    PlayerbotsAuctions.CityTrip.EnoughItemsMin
+#    PlayerbotsAuctions.CityTrip.EnoughItemsMax
+#        Description: A bot also goes when it has collected enough to sell, however full its bags
+#                     are. Every bot has its own idea of "enough" between these two values.
+#        Default:     6 and 20
+#
+#    PlayerbotsAuctions.CityTrip.InTownChance
+#        Description: A bot that is in town with at least a third of its "enough" goes to the
+#                     auctioneers with this chance in percent each time it thinks about it (every
+#                     few minutes).
+#        Default:     50
 #
 #    PlayerbotsAuctions.CityTrip.CooldownMinutesMin
 #    PlayerbotsAuctions.CityTrip.CooldownMinutesMax
@@ -340,6 +354,9 @@ PlayerbotsAuctions.CityTrip.Enable = 1
 PlayerbotsAuctions.CityTrip.BagsFullPercentMin = 50
 PlayerbotsAuctions.CityTrip.BagsFullPercentMax = 95
 PlayerbotsAuctions.CityTrip.MinItemsToSell = 3
+PlayerbotsAuctions.CityTrip.EnoughItemsMin = 6
+PlayerbotsAuctions.CityTrip.EnoughItemsMax = 20
+PlayerbotsAuctions.CityTrip.InTownChance = 50
 PlayerbotsAuctions.CityTrip.CooldownMinutesMin = 60
 PlayerbotsAuctions.CityTrip.CooldownMinutesMax = 180
 
@@ -349,7 +366,7 @@ PlayerbotsAuctions.CityTrip.CooldownMinutesMax = 180
 #    mod-playerbots gives the bots professions and recipes, but the bots do not craft on their own.
 #    With this option a bot that is in town for the auction house makes something with its
 #    profession from the materials it carries - preferring what it can use itself or what raises its
-#    skill - and sells what it does not need. Has no effect with PlayerbotsAuctions.Place = 0.
+#    skill - and sells what it does not need.
 #
 #    PlayerbotsAuctions.Crafting.Enable
 #        Default:     1 - Enabled
