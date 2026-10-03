@@ -108,6 +108,11 @@ namespace
                         "{} soulbound or not tradable, {} needed by the bot itself.",
                         sRandomPlayerbotMgr.GetAllBots().size(), _stat.asked, _stat.withGoods, _stat.mostGoods, _stat.trips, _stat.noWay, _stat.visits,
                         _watch.size(), _kept.exchange(0), _stat.seen, _stat.wrongKind, _stat.bound, _stat.needed);
+                if (cfg.debug)
+                {
+                    LOG_INFO("module", "PlayerbotsAuctions: most common of a kind that is not sold: {}", MostCommon(_stat.wrongKinds));
+                    LOG_INFO("module", "PlayerbotsAuctions: most common the bots need themselves: {}", MostCommon(_stat.neededOnes));
+                }
                 _stat = Stat();
             }
 
@@ -646,6 +651,18 @@ namespace
             return patience < 0.3f ? 1 : patience < 0.7f ? 2 : 3;
         }
 
+        /// For the summary: the fifteen most common items of a group, with quality and item class.
+        static std::string MostCommon(std::unordered_map<uint32, uint32> const& counts)
+        {
+            std::vector<std::pair<uint32, uint32>> list(counts.begin(), counts.end());
+            std::sort(list.begin(), list.end(), [](auto const& a, auto const& b) { return a.second > b.second; });
+            std::string text;
+            for (std::size_t i = 0; i < list.size() && i < 15; ++i)
+                if (ItemTemplate const* proto = sObjectMgr->GetItemTemplate(list[i].first))
+                    text += Acore::StringFormat("{}{} x{} (q{} c{})", text.empty() ? "" : ", ", proto->Name1, list[i].second, proto->Quality, proto->Class);
+            return text.empty() ? "-" : text;
+        }
+
         static char const* KindName(Kind kind)
         {
             return kind == KIND_PROSPECT ? "prospect" : kind == KIND_MILL ? "mill" : kind == KIND_DISENCHANT ? "disenchant" : "craft";
@@ -664,7 +681,10 @@ namespace
             if (!IsSellable(bot, item))
             {
                 if (item->GetTemplate() && !IsAllowedKind(item->GetTemplate()))
+                {
                     ++_stat.wrongKind;
+                    ++_stat.wrongKinds[item->GetEntry()];
+                }
                 else
                     ++_stat.bound;
                 return;
@@ -689,7 +709,10 @@ namespace
             if (usage == ITEM_USAGE_AH || usage == ITEM_USAGE_VENDOR || (usage == ITEM_USAGE_NONE && !item->GetTemplate()->SellPrice))
                 items.push_back(item);
             else
+            {
                 ++_stat.needed;
+                ++_stat.neededOnes[item->GetEntry()];
+            }
         }
 
         void Collect(Player* bot, PlayerbotAI* botAI, std::vector<Item*>& items)
@@ -1517,6 +1540,7 @@ namespace
         {
             uint32 asked = 0, withGoods = 0, mostGoods = 0, trips = 0, noWay = 0, visits = 0;
             uint32 seen = 0, wrongKind = 0, bound = 0, needed = 0;
+            std::unordered_map<uint32, uint32> wrongKinds, neededOnes;
         };
         Stat _stat;
         std::atomic<uint32> _kept{0};
