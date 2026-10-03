@@ -1,58 +1,44 @@
 # mod-playerbots-auctions
 
 An add-on module for [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots) on AzerothCore:
-the random bots use the auction house in their own name. They sell their loot, buy and bid on what they can
-use, and travel to a city when their bags fill up.
+the random bots take part in the economy like players. They go to the auction house when they feel it is
+time, sell what they do not need, buy what they can use, and work with their professions.
 
-It adds to mod-playerbots and does not change or replace it. Nothing is added to the databases.
+It adds to mod-playerbots and does not change or replace it.
 
-**Status: test version.** Built and run on the Conquest of Azeroth core (`jealous-sound/azerothcore-wotlk-coa`)
-with the CoA Playerbots fork (`Zyth45/mod-playerbots`, branch `coa`). Selling has been seen working on a
-server; going there on purpose, buying, and crafting with bought materials are new and have only been compiled.
+**Status: test version.** Built against the Conquest of Azeroth core (`jealous-sound/azerothcore-wotlk-coa`)
+with the CoA Playerbots fork (`Zyth45/mod-playerbots`, branch `coa`). An early version has been seen selling
+on a server; the behaviour described here is new and has only been compiled.
 
-## What the bots do
+## Every bot is somebody
 
-**Going there.** Like a player, a bot decides for itself when it is time to go to the auction house: when
-its bags are getting full, or when it has collected enough to sell. Every bot draws these lines somewhere
-else. A bot that is in a capital anyway goes for less, but not every time. A bot in town walks to the
-auctioneers. A bot out in the world takes its hearth to a capital of its faction on the same continent, arrives
-at the bank or inn, walks to the auctioneers, stays in town for a while and returns to where it was. All
-business is done standing at an auctioneer. (The travelling uses the city visits of the CoA Playerbots fork;
-with other versions of mod-playerbots the bots only do their business when they happen to pass an auctioneer.)
+Each bot has a character of its own that never changes: how orderly it is, how patient, how well it knows the
+market, how thrifty, how keen on trading, how serious about its profession. Everything else follows from that.
 
-**Selling.** The bots already decide for every item whether they need it. What they do not need they would
-sell to a vendor. At the auctioneer a bot puts those items up for auction instead.
+- **Going there.** A bot decides for itself when it is time: when its bags are getting full, or when it has
+  enough to sell - and every bot draws those lines somewhere else. A bot in town walks to the auctioneers. A
+  bot out in the world takes its hearth to a capital, arrives at the bank or inn, walks to the auctioneers,
+  stays a while and returns. Some bots never use the auction house at all. In the evening and at the weekend
+  more is going on than at night.
+- **Selling.** Only what the bot does not need. One that knows the market goes just below the cheapest offer;
+  one that does not guesses - too low or far too high. Stacks go up in packs. The impatient list for half a day
+  and take what they get, the patient for two days. The deposit is real, so what brings little more than a
+  vendor pays goes to the vendor. What comes back unsold goes up again for less, then to the vendor.
+- **Buying.** Upgrades for its equipment, things it uses up, a bag for a free slot, materials for its
+  professions - the cheapest offer of each. What it pays depends on the usual price, how much it wants the
+  thing and how well off it is. The patient bid, the impatient buy outright. Traders buy what is clearly too
+  cheap and sell it on. Bots pay with their own money, and the thrifty keep a reserve.
+- **Crafting.** mod-playerbots gives the bots professions and recipes, but nothing makes them craft. Here a
+  bot compares what a product would bring with what its materials cost - carried, on offer, from a vendor -
+  and makes what pays. For some the profession is a sideline, some provide for themselves and work on their
+  skill, some produce in batches for the market. For an anvil, a forge or a fire the bot walks there.
+- **Memory.** The bots learn what things really sell for and remember what did not sell. That survives a
+  restart in two small tables of the characters database, which the module creates itself.
 
-- Only what the bot does not need, what is not soulbound and what a vendor would pay for
-- Weapons and armor from uncommon (green) quality, everything else from normal (white) quality - configurable
-- Prices start from the vendor value and the quality. Most auctions are near the usual price, some are
-  bargains, some are clearly overpriced; bots undercut the cheapest offer a little, down to a limit
+All business is done standing at an auctioneer. Bots that travel with a real player neither sell nor buy.
 
-**Buying.** At the auction house a bot also looks through some of the offers of players and other bots.
-
-- It pays most for an upgrade for itself, less for things it uses up, and now and then buys something to sell on
-- It buys outright when the price fits, otherwise it may place a bid - also against a player
-- It always pays more than a vendor would, and now and then far more than the usual price
-- It pays with its own money. For items a vendor sells it never pays the vendor's price, so buying from a
-  vendor and selling to the bots does not pay off
-
-**Learning prices.** What auctions really sell for moves what the bots consider the usual price - within
-limits, and only sales a bot took part in count.
-
-**Character.** Every bot has its own idea of when its bags are full and how much is enough to sell, and its own price level - a little
-above or below the others. A bot that finds no other offer of its item asks for more.
-
-**Crafting.** mod-playerbots gives the bots professions and recipes, but nothing makes them craft. At the
-auction house a crafter now thinks through its recipes: what would the product bring, what do the materials
-cost - those it carries, those on offer, those a vendor sells? For a recipe that pays it buys what is missing,
-makes the item and sells what it does not need. A recipe that still raises its skill is worth a little more to
-it. Bots also stock up on materials for their professions when the price is right. Recipes that need a forge,
-an anvil or a fire are left out: the bots craft where they stand.
-
-**Mail.** A bot empties its auction mail when it is at the auction house: money for sold items, items nobody
-bought (offered again later) and what it bought.
-
-Bots that travel with a real player neither sell nor buy.
+The travelling uses the city visits of the CoA Playerbots fork. With other versions of mod-playerbots the bots
+are not sent anywhere and only do their business when they happen to pass an auctioneer.
 
 ## Requirements
 
@@ -66,6 +52,11 @@ Bots that travel with a real player neither sell nor buy.
 
 With `PlayerbotsAuctions.Debug = 1` every trip, auction, bid, purchase and crafted item is written to the
 server log.
+
+## Removing it
+
+Take the folder out and rebuild. The two tables `mod_playerbots_auctions_market` and
+`mod_playerbots_auctions_unsold` in the characters database can be dropped; nothing else was changed.
 
 ## License
 

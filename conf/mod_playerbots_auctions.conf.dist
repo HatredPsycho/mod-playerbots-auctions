@@ -1,9 +1,11 @@
 #
 # mod-playerbots-auctions
 #
-# Lets the random bots of mod-playerbots use the auction house in their own name: they put their
-# loot up for auction, buy and bid on what they can use, and travel to a city when their bags fill up.
-# Needs mod-playerbots. Nothing is added to the databases.
+# The random bots of mod-playerbots take part in the economy like players: they go to the auction
+# house when they feel it is time, sell what they do not need, buy what they can use, and work with
+# their professions. Every bot has a character of its own, and behaves accordingly.
+#
+# Needs mod-playerbots. It adds to it and does not change it.
 #
 
 [worldserver]
@@ -12,7 +14,13 @@
 # GENERAL
 #
 #    PlayerbotsAuctions.Enable
-#        Description: Switches the module on: bots use the auction house.
+#        Description: Switches the module on.
+#        Default:     0 - Disabled
+#                     1 - Enabled
+#
+#    PlayerbotsAuctions.Debug
+#        Description: Writes to the server log what the bots do: every trip, auction, bid, purchase
+#                     and crafted item.
 #        Default:     0 - Disabled
 #                     1 - Enabled
 #
@@ -22,291 +30,91 @@
 #        Default:     35
 #
 #    PlayerbotsAuctions.MinBotLevel
-#        Description: Bots below this level do not sell.
+#        Description: Bots below this level do not use the auction house.
 #        Default:     1
 #
 #    PlayerbotsAuctions.CollectAuctionMail
-#        Description: When a bot sells, it also empties its auction mail: the money of sold items and
-#                     the items nobody bought (they are offered again later). Without this that mail
-#                     piles up, because the bots never open a mailbox for it.
+#        Description: A bot at the auction house empties its auction mail: the money of sold items,
+#                     the items nobody bought and what it bought. Without this that mail piles up,
+#                     because the bots never open a mailbox for it.
 #        Default:     1 - Enabled
 #                     0 - Disabled
 #
-#    PlayerbotsAuctions.ChargeDeposit
-#        Description: Bots pay the normal deposit. A bot that cannot afford it does not sell.
-#        Default:     0 - Disabled
-#                     1 - Enabled
+#    PlayerbotsAuctions.DailyRhythm
+#        Description: More is going on in the evening and at the weekend than at night, by the
+#                     server's clock: fewer bots set out for the auction house at four in the morning.
+#        Default:     1 - Enabled
+#                     0 - Disabled
 #
-#    PlayerbotsAuctions.Debug
-#        Description: Writes every auction a bot creates to the server log.
-#        Default:     0 - Disabled
-#                     1 - Enabled
+#    PlayerbotsAuctions.SaveMemory
+#        Description: The bots remember what things sold for and what came back unsold. With this
+#                     option that memory survives a restart, in two small tables of the characters
+#                     database (mod_playerbots_auctions_market, mod_playerbots_auctions_unsold).
+#                     They are created when the server starts.
+#        Default:     1 - Enabled
+#                     0 - Disabled (the market starts from scratch at every restart)
 
 PlayerbotsAuctions.Enable = 0
+PlayerbotsAuctions.Debug = 0
 PlayerbotsAuctions.AuctioneerRange = 35
 PlayerbotsAuctions.MinBotLevel = 1
 PlayerbotsAuctions.CollectAuctionMail = 1
-PlayerbotsAuctions.ChargeDeposit = 0
-PlayerbotsAuctions.Debug = 0
+PlayerbotsAuctions.DailyRhythm = 1
+PlayerbotsAuctions.SaveMemory = 1
 
 ###################################################################################################
-# HOW OFTEN AND HOW MUCH
+# CHARACTER
+#
+#    Every bot has a character of its own that never changes, made of these traits:
+#
+#      order      - collects until nothing fits ... tidies up early
+#      patience   - wants to be rid of it now   ... waits for a good price
+#      knowledge  - prices by gut feeling       ... knows the market
+#      thrift     - spends what it has          ... keeps a reserve
+#      trading    - hardly uses the auctions    ... lives in the auction house
+#      crafting   - profession is a sideline    ... produces on purpose
+#
+#    Everything below follows from them: when a bot goes to the auction house, how it prices, how
+#    long its auctions run, whether it bids or buys outright, how much it spends, what kind of
+#    crafter it is. The traits cannot be configured; the settings in this file set the frame.
+#
+#    PlayerbotsAuctions.Character.AvoidersPercent
+#        Description: Percent of the bots that never use the auction house and sell everything to a
+#                     vendor, as many players do.
+#        Default:     15
+
+PlayerbotsAuctions.Character.AvoidersPercent = 15
+
+###################################################################################################
+# PACE
 #
 #    PlayerbotsAuctions.IntervalSeconds
-#        Description: How often the module looks for bots that can sell.
+#        Description: How often the module looks at the bots.
 #        Default:     30
 #
 #    PlayerbotsAuctions.BotsPerCycle
-#        Description: How many bots may sell per look. Keeps the load even with thousands of bots.
+#        Description: How many bots may do their business per look. Keeps the load even with
+#                     thousands of bots.
 #        Default:     10
 #
 #    PlayerbotsAuctions.VisitCooldownMinutesMin
 #    PlayerbotsAuctions.VisitCooldownMinutesMax
-#        Description: After a bot was at the auction house it waits a random time between these
-#                     two values before it sells again.
+#        Description: A bot that was at the auctioneers and stays near them does its business again
+#                     after a random time between these two values - times 0.4 for a bot that lives
+#                     in the auction house, up to times 1.6 for one that hardly uses it.
 #        Default:     20 and 60
-#
-#    PlayerbotsAuctions.ItemsPerVisit
-#        Description: How many auctions a bot creates per visit at most.
-#        Default:     4
-#
-#    PlayerbotsAuctions.MaxAuctionsPerBot
-#        Description: How many auctions one bot may have running in an auction house.
-#        Default:     12
-#
-#    PlayerbotsAuctions.MaxAuctionsPerHouse
-#        Description: Bots stop selling in an auction house that holds this many auctions.
-#        Default:     20000
 
 PlayerbotsAuctions.IntervalSeconds = 30
 PlayerbotsAuctions.BotsPerCycle = 10
 PlayerbotsAuctions.VisitCooldownMinutesMin = 20
 PlayerbotsAuctions.VisitCooldownMinutesMax = 60
-PlayerbotsAuctions.ItemsPerVisit = 4
-PlayerbotsAuctions.MaxAuctionsPerBot = 12
-PlayerbotsAuctions.MaxAuctionsPerHouse = 20000
-
-###################################################################################################
-# WHAT IS SOLD
-#
-#    A bot only sells what it does not need itself (its own judgement: not an upgrade, not for a
-#    quest, not for its professions), what is not soulbound and what a vendor would pay for.
-#    Items that bind when picked up and quest items are never sold.
-#
-#    Qualities: 0 poor (grey), 1 normal (white), 2 uncommon (green), 3 rare (blue), 4 epic (purple),
-#               5 legendary
-#
-#    PlayerbotsAuctions.MinQuality.Equipment
-#        Description: Lowest quality of weapons and armor that is sold.
-#        Default:     2
-#
-#    PlayerbotsAuctions.MinQuality.Other
-#        Description: Lowest quality of everything else (trade goods, consumables, recipes, ...).
-#        Default:     1
-#
-#    PlayerbotsAuctions.MaxQuality
-#        Description: Highest quality that is sold.
-#        Default:     4
-#
-#    PlayerbotsAuctions.ItemClasses
-#        Description: Item classes that are sold, separated by commas.
-#                     0 consumable, 1 container, 2 weapon, 3 gem, 4 armor, 5 reagent, 6 projectile,
-#                     7 trade goods, 9 recipe, 11 quiver, 13 key, 15 miscellaneous, 16 glyph
-#        Default:     "0,1,2,3,4,5,7,9,15,16"
-#
-#    PlayerbotsAuctions.ExcludedItemIDs
-#        Description: Items that are never sold, separated by commas.
-#        Default:     ""
-#
-#    PlayerbotsAuctions.ExcludedNameParts
-#        Description: Items whose name contains one of these texts are never sold (upper and lower
-#                     case do not matter). Keeps test and technical items out of the auction house.
-#                     The texts are separated by commas and taken exactly as written, spaces
-#                     included: " test " only matches the single word.
-#        Default:     "monster -,deprecated,[ph],(test), test ,qatest,qa ,zzold,npc equip,unused"
-
-PlayerbotsAuctions.MinQuality.Equipment = 2
-PlayerbotsAuctions.MinQuality.Other = 1
-PlayerbotsAuctions.MaxQuality = 4
-PlayerbotsAuctions.ItemClasses = "0,1,2,3,4,5,7,9,15,16"
-PlayerbotsAuctions.ExcludedItemIDs = ""
-PlayerbotsAuctions.ExcludedNameParts = "monster -,deprecated,[ph],(test), test ,qatest,qa ,zzold,npc equip,unused"
-
-###################################################################################################
-# PRICES
-#
-#    The buyout price of one piece is its vendor value times the factor of its quality, a little up
-#    or down. If the item is already on offer for less, the bot goes a little below that offer.
-#
-#    PlayerbotsAuctions.Price.Poor ... Legendary
-#        Description: Factor on the vendor value, per quality.
-#        Default:     1.5, 3, 6, 12, 25, 50
-#
-#    PlayerbotsAuctions.Price.VariationPercent
-#        Description: Normal prices vary by this much up and down.
-#        Default:     20
-#
-#    PlayerbotsAuctions.Price.BargainChance
-#        Description: Percent of the auctions that are clearly cheap (55 to 85 percent of the usual
-#                     price): a seller who wants to be rid of it.
-#        Default:     10
-#
-#    PlayerbotsAuctions.Price.OverpricedChance
-#    PlayerbotsAuctions.Price.OverpricedMaxFactor
-#        Description: Percent of the auctions that are clearly expensive, from 1.5 times the usual
-#                     price up to OverpricedMaxFactor times.
-#        Default:     10 and 3
-#
-#    PlayerbotsAuctions.Price.NoCompetitionFactorMin
-#    PlayerbotsAuctions.Price.NoCompetitionFactorMax
-#        Description: A bot that finds no other offer of its item asks for more: the price is
-#                     multiplied by a random factor between these two values.
-#        Default:     1.15 and 1.6
-#
-#    PlayerbotsAuctions.Price.SellerTemperPercent
-#        Description: Every bot has its own price level and keeps it: up to this many percent above
-#                     or below the others.
-#        Default:     15
-#
-#    PlayerbotsAuctions.Price.LearnFromSales
-#        Description: What auctions really sold for moves what the bots consider the usual price of
-#                     an item, for selling and for buying. Only sales a bot took part in count, an
-#                     item needs three sales before its price is "known", and every sale is cut
-#                     down to between half and three times the calculated price. The learned prices
-#                     are forgotten when the server restarts.
-#        Default:     1 - Enabled
-#                     0 - Disabled (always vendor value times quality factor)
-#
-#    PlayerbotsAuctions.Price.BidPercent
-#        Description: The starting bid, in percent of the buyout price.
-#        Default:     70
-#
-#    PlayerbotsAuctions.Price.UndercutPercent
-#        Description: How far below the cheapest existing offer a bot goes. 0 = bots do not undercut.
-#        Default:     5
-#
-#    PlayerbotsAuctions.Price.MaxUndercutPercent
-#        Description: Undercutting stops this far below the regular price of an item, so the bots do
-#                     not underbid each other down to nothing.
-#        Default:     25
-#
-#    PlayerbotsAuctions.Price.MinVendorFactor
-#        Description: No bot sells for less than the vendor value times this factor, however low
-#                     the other offers are.
-#        Default:     1.5
-#
-#    PlayerbotsAuctions.Price.MaxBuyoutGold
-#        Description: Highest buyout price of one auction, in gold. A bot keeps an item that would
-#                     be worth more, and does not pay more than this for an auction. 0 = no limit.
-#        Default:     5000
-
-PlayerbotsAuctions.Price.Poor = 1.5
-PlayerbotsAuctions.Price.Normal = 3
-PlayerbotsAuctions.Price.Uncommon = 6
-PlayerbotsAuctions.Price.Rare = 12
-PlayerbotsAuctions.Price.Epic = 25
-PlayerbotsAuctions.Price.Legendary = 50
-PlayerbotsAuctions.Price.VariationPercent = 20
-PlayerbotsAuctions.Price.BargainChance = 10
-PlayerbotsAuctions.Price.OverpricedChance = 10
-PlayerbotsAuctions.Price.OverpricedMaxFactor = 3
-PlayerbotsAuctions.Price.NoCompetitionFactorMin = 1.15
-PlayerbotsAuctions.Price.NoCompetitionFactorMax = 1.6
-PlayerbotsAuctions.Price.SellerTemperPercent = 15
-PlayerbotsAuctions.Price.LearnFromSales = 1
-PlayerbotsAuctions.Price.BidPercent = 70
-PlayerbotsAuctions.Price.UndercutPercent = 5
-PlayerbotsAuctions.Price.MaxUndercutPercent = 25
-PlayerbotsAuctions.Price.MinVendorFactor = 1.5
-PlayerbotsAuctions.Price.MaxBuyoutGold = 5000
-
-###################################################################################################
-# BUYING
-#
-#    A bot that is at the auction house also looks through some of the offers - those of players
-#    and of other bots. What an offer is worth to it depends on the usual price of the item, on how
-#    much this bot wants it (an upgrade for itself most, things it uses up next) and on its mood.
-#    It buys outright if the buyout price is within that, otherwise it may place a bid.
-#
-#    PlayerbotsAuctions.Buy.Enable
-#        Description: Bots buy and bid.
-#        Default:     1 - Enabled
-#                     0 - Disabled (bots only sell)
-#
-#    PlayerbotsAuctions.Buy.ChancePerVisit
-#        Description: Percent of the visits in which a bot looks at the offers at all.
-#        Default:     60
-#
-#    PlayerbotsAuctions.Buy.OffersPerVisit
-#        Description: How many randomly picked offers a bot looks at per visit.
-#        Default:     40
-#
-#    PlayerbotsAuctions.Buy.MaxPerVisit
-#        Description: How many auctions a bot buys or bids on per visit at most.
-#        Default:     2
-#
-#    PlayerbotsAuctions.Buy.FromPlayers
-#    PlayerbotsAuctions.Buy.FromBots
-#        Description: Whose auctions the bots buy.
-#        Default:     1 and 1
-#
-#    PlayerbotsAuctions.Buy.PlaceBids
-#        Description: Bots also bid instead of only buying outright. A bid can outbid a player.
-#        Default:     1 - Enabled
-#                     0 - Disabled
-#
-#    PlayerbotsAuctions.Buy.UseBotMoney
-#        Description: Bots pay with their own money and cannot buy what they cannot afford.
-#        Default:     1 - Enabled
-#                     0 - Disabled (bots always have enough money; this brings new gold into the world)
-#
-#    PlayerbotsAuctions.Buy.MaxMoneySharePercent
-#        Description: The share of its money a bot spends on one auction at most.
-#        Default:     50
-#
-#    PlayerbotsAuctions.Buy.ImpulseChance
-#    PlayerbotsAuctions.Buy.ImpulseMaxFactor
-#        Description: Percent of the offers a bot looks at in a spending mood: it then pays from 1.5
-#                     times the usual price up to ImpulseMaxFactor times. This is how overpriced
-#                     auctions find a buyer now and then.
-#        Default:     5 and 3
-#
-#    PlayerbotsAuctions.Buy.SpeculateChance
-#        Description: Percent chance that a bot considers an item it has no use for (to sell it on).
-#        Default:     15
-#
-#    PlayerbotsAuctions.Buy.MinVendorFactor
-#        Description: A bot is always willing to pay at least the vendor value times this factor, so
-#                     selling to the bots is never worse than selling to a vendor.
-#        Default:     1.2
-#
-#    PlayerbotsAuctions.Buy.VendorItemMaxPercent
-#        Description: For items a vendor sells, bots pay at most this percent of the vendor's price.
-#                     Otherwise players could buy from a vendor and sell to the bots for a profit.
-#        Default:     75
-
-PlayerbotsAuctions.Buy.Enable = 1
-PlayerbotsAuctions.Buy.ChancePerVisit = 60
-PlayerbotsAuctions.Buy.OffersPerVisit = 40
-PlayerbotsAuctions.Buy.MaxPerVisit = 2
-PlayerbotsAuctions.Buy.FromPlayers = 1
-PlayerbotsAuctions.Buy.FromBots = 1
-PlayerbotsAuctions.Buy.PlaceBids = 1
-PlayerbotsAuctions.Buy.UseBotMoney = 1
-PlayerbotsAuctions.Buy.MaxMoneySharePercent = 50
-PlayerbotsAuctions.Buy.ImpulseChance = 5
-PlayerbotsAuctions.Buy.ImpulseMaxFactor = 3
-PlayerbotsAuctions.Buy.SpeculateChance = 15
-PlayerbotsAuctions.Buy.MinVendorFactor = 1.2
-PlayerbotsAuctions.Buy.VendorItemMaxPercent = 75
 
 ###################################################################################################
 # TRIPS TO THE AUCTION HOUSE
 #
-#    Like a player, a bot decides for itself when it is time to go to the auction house: when its
-#    bags are getting full, or when it has collected enough to sell. Every bot draws these lines
-#    somewhere else and keeps them. A bot that is in a capital anyway goes for less, but not every
-#    time.
+#    Like a player, a bot decides for itself when it is time to go: when its bags are getting full,
+#    or when it has collected enough to sell. Where it draws these lines follows from its character.
+#    A bot that is in a capital anyway goes for less, but not every time.
 #
 #    A bot in town walks to the auctioneers. A bot out in the world takes its hearth to a capital of
 #    its faction on the same continent (picked at random), arrives at the bank or inn, walks to the
@@ -320,74 +128,229 @@ PlayerbotsAuctions.Buy.VendorItemMaxPercent = 75
 #        Default:     1 - Enabled
 #                     0 - Disabled
 #
-#    PlayerbotsAuctions.CityTrip.BagsFullPercentMin
-#    PlayerbotsAuctions.CityTrip.BagsFullPercentMax
-#        Description: How full the bags have to be. Every bot has its own idea of "full" between
-#                     these two values: one goes with half-full bags, another only when nothing
-#                     fits any more.
-#        Default:     50 and 95
-#
-#    PlayerbotsAuctions.CityTrip.MinItemsToSell
-#        Description: With full bags the bot only goes if it carries at least this many things it
-#                     can auction.
-#        Default:     3
-#
-#    PlayerbotsAuctions.CityTrip.EnoughItemsMin
-#    PlayerbotsAuctions.CityTrip.EnoughItemsMax
-#        Description: A bot also goes when it has collected enough to sell, however full its bags
-#                     are. Every bot has its own idea of "enough" between these two values.
-#        Default:     6 and 20
-#
-#    PlayerbotsAuctions.CityTrip.InTownChance
-#        Description: A bot that is in town with at least a third of its "enough" goes to the
-#                     auctioneers with this chance in percent each time it thinks about it (every
-#                     few minutes).
-#        Default:     50
-#
 #    PlayerbotsAuctions.CityTrip.CooldownMinutesMin
 #    PlayerbotsAuctions.CityTrip.CooldownMinutesMax
 #        Description: After a trip a bot waits a random time between these two values before the
-#                     next one.
+#                     next one - times 0.5 for a bot that lives in the auction house, up to times
+#                     1.35 for one that hardly uses it.
 #        Default:     60 and 180
 
 PlayerbotsAuctions.CityTrip.Enable = 1
-PlayerbotsAuctions.CityTrip.BagsFullPercentMin = 50
-PlayerbotsAuctions.CityTrip.BagsFullPercentMax = 95
-PlayerbotsAuctions.CityTrip.MinItemsToSell = 3
-PlayerbotsAuctions.CityTrip.EnoughItemsMin = 6
-PlayerbotsAuctions.CityTrip.EnoughItemsMax = 20
-PlayerbotsAuctions.CityTrip.InTownChance = 50
 PlayerbotsAuctions.CityTrip.CooldownMinutesMin = 60
 PlayerbotsAuctions.CityTrip.CooldownMinutesMax = 180
+
+###################################################################################################
+# SELLING
+#
+#    A bot only sells what it does not need itself (its own judgement: not an upgrade, not for a
+#    quest, not for its professions), what is not soulbound and what a vendor would pay for.
+#    Items that bind when picked up and quest items are never sold.
+#
+#    How a bot sells follows from its character: one that knows the market goes just below the
+#    cheapest offer, one that does not guesses - too low or far too high. Stacks go up as packs of
+#    1, 5, 10 or 20 or as a whole. The impatient list for 12 hours and take what they get, the
+#    patient for 48 hours. What comes back unsold goes up again for less - once for the impatient,
+#    up to three times for the patient; after that the bot gives that kind of item to the vendor.
+#
+#    Qualities: 0 poor (grey), 1 normal (white), 2 uncommon (green), 3 rare (blue), 4 epic (purple),
+#               5 legendary
+#
+#    PlayerbotsAuctions.Sell.MinQuality.Equipment
+#        Description: Lowest quality of weapons and armor that is sold.
+#        Default:     2
+#
+#    PlayerbotsAuctions.Sell.MinQuality.Other
+#        Description: Lowest quality of everything else (trade goods, consumables, recipes, ...).
+#        Default:     1
+#
+#    PlayerbotsAuctions.Sell.MaxQuality
+#        Description: Highest quality that is sold.
+#        Default:     4
+#
+#    PlayerbotsAuctions.Sell.ItemClasses
+#        Description: Item classes that are sold, separated by commas.
+#                     0 consumable, 1 container, 2 weapon, 3 gem, 4 armor, 5 reagent, 6 projectile,
+#                     7 trade goods, 9 recipe, 11 quiver, 13 key, 15 miscellaneous, 16 glyph
+#        Default:     "0,1,2,3,4,5,7,9,15,16"
+#
+#    PlayerbotsAuctions.Sell.ExcludedItemIDs
+#        Description: Items that are never sold, separated by commas.
+#        Default:     ""
+#
+#    PlayerbotsAuctions.Sell.ExcludedNameParts
+#        Description: Items whose name contains one of these texts are never sold (upper and lower
+#                     case do not matter). Keeps test and technical items out of the auction house.
+#                     The texts are separated by commas and taken exactly as written, spaces
+#                     included: " test " only matches the single word.
+#        Default:     "monster -,deprecated,[ph],(test), test ,qatest,qa ,zzold,npc equip,unused"
+#
+#    PlayerbotsAuctions.Sell.ChargeDeposit
+#        Description: Bots pay the normal deposit and lose it if nobody buys. Things that bring
+#                     little more than a vendor pays are therefore not worth an auction and go to
+#                     the vendor, as with players.
+#        Default:     1 - Enabled
+#                     0 - Disabled (bots list for free; expect far more cheap auctions)
+#
+#    PlayerbotsAuctions.Sell.MinAuctionValueSilver
+#        Description: An auction that would bring less than this is not created.
+#        Default:     5
+#
+#    PlayerbotsAuctions.Sell.MaxAuctionsPerHouse
+#        Description: Bots stop selling in an auction house that holds this many auctions.
+#        Default:     20000
+
+PlayerbotsAuctions.Sell.MinQuality.Equipment = 2
+PlayerbotsAuctions.Sell.MinQuality.Other = 1
+PlayerbotsAuctions.Sell.MaxQuality = 4
+PlayerbotsAuctions.Sell.ItemClasses = "0,1,2,3,4,5,7,9,15,16"
+PlayerbotsAuctions.Sell.ExcludedItemIDs = ""
+PlayerbotsAuctions.Sell.ExcludedNameParts = "monster -,deprecated,[ph],(test), test ,qatest,qa ,zzold,npc equip,unused"
+PlayerbotsAuctions.Sell.ChargeDeposit = 1
+PlayerbotsAuctions.Sell.MinAuctionValueSilver = 5
+PlayerbotsAuctions.Sell.MaxAuctionsPerHouse = 20000
+
+###################################################################################################
+# PRICES
+#
+#    The starting point of every price is the vendor value of an item times the factor of its
+#    quality. What auctions really sell for moves that "usual price" over time.
+#
+#    PlayerbotsAuctions.Price.Poor ... Legendary
+#        Description: Factor on the vendor value, per quality.
+#        Default:     1.5, 3, 6, 12, 25, 50
+#
+#    PlayerbotsAuctions.Price.LearnFromSales
+#        Description: What auctions really sold for moves what the bots consider the usual price of
+#                     an item, for selling and for buying. Only sales a bot took part in count, an
+#                     item needs three sales before its price is "known", and every sale is cut
+#                     down to between half and three times the calculated price.
+#        Default:     1 - Enabled
+#                     0 - Disabled (always vendor value times quality factor)
+#
+#    PlayerbotsAuctions.Price.MinVendorFactor
+#        Description: No bot sells for less than the vendor value times this factor, however low
+#                     the other offers are - neither as buyout price nor as starting bid.
+#        Default:     1.5
+#
+#    PlayerbotsAuctions.Price.MaxBuyoutGold
+#        Description: Highest buyout price of one auction, in gold. A bot keeps an item that would
+#                     be worth more, and does not pay more than this for an auction. 0 = no limit.
+#        Default:     5000
+
+PlayerbotsAuctions.Price.Poor = 1.5
+PlayerbotsAuctions.Price.Normal = 3
+PlayerbotsAuctions.Price.Uncommon = 6
+PlayerbotsAuctions.Price.Rare = 12
+PlayerbotsAuctions.Price.Epic = 25
+PlayerbotsAuctions.Price.Legendary = 50
+PlayerbotsAuctions.Price.LearnFromSales = 1
+PlayerbotsAuctions.Price.MinVendorFactor = 1.5
+PlayerbotsAuctions.Price.MaxBuyoutGold = 5000
+
+###################################################################################################
+# BUYING
+#
+#    A bot at the auction house looks through some of the items on offer for things it has a use
+#    for: an upgrade for its equipment, things it uses up, a bag for a free bag slot, materials for
+#    its professions. Of several offers of the same item it takes the cheapest. What it is willing
+#    to pay depends on the usual price, on how much it wants the item and on how well off it is. The
+#    patient bid low and wait, the impatient pay the buyout price. Traders buy what is clearly too
+#    cheap to sell it on, and now and then a bot that is easy with its money simply has to have
+#    something and pays well above the usual price.
+#
+#    PlayerbotsAuctions.Buy.Enable
+#        Description: Bots buy and bid.
+#        Default:     1 - Enabled
+#                     0 - Disabled (bots only sell)
+#
+#    PlayerbotsAuctions.Buy.ItemsLookedAt
+#        Description: How many randomly picked items on offer a bot looks at per visit.
+#        Default:     60
+#
+#    PlayerbotsAuctions.Buy.FromPlayers
+#    PlayerbotsAuctions.Buy.FromBots
+#        Description: Whose auctions the bots buy.
+#        Default:     1 and 1
+#
+#    PlayerbotsAuctions.Buy.PlaceBids
+#        Description: Bots also bid instead of only buying outright. A bid can outbid a player.
+#        Default:     1 - Enabled
+#                     0 - Disabled
+#
+#    PlayerbotsAuctions.Buy.UseBotMoney
+#        Description: Bots pay with their own money and cannot buy what they cannot afford. Thrifty
+#                     bots keep a reserve.
+#        Default:     1 - Enabled
+#                     0 - Disabled (bots always have enough money; this brings new gold into the world)
+#
+#    PlayerbotsAuctions.Buy.MinVendorFactor
+#        Description: For something it wants, a bot is always willing to pay at least the vendor
+#                     value times this factor, so selling to the bots is never worse than selling to
+#                     a vendor.
+#        Default:     1.2
+#
+#    PlayerbotsAuctions.Buy.VendorItemMaxPercent
+#        Description: For items a vendor sells, bots pay at most this percent of the vendor's price.
+#                     Otherwise players could buy from a vendor and sell to the bots for a profit.
+#        Default:     75
+
+PlayerbotsAuctions.Buy.Enable = 1
+PlayerbotsAuctions.Buy.ItemsLookedAt = 60
+PlayerbotsAuctions.Buy.FromPlayers = 1
+PlayerbotsAuctions.Buy.FromBots = 1
+PlayerbotsAuctions.Buy.PlaceBids = 1
+PlayerbotsAuctions.Buy.UseBotMoney = 1
+PlayerbotsAuctions.Buy.MinVendorFactor = 1.2
+PlayerbotsAuctions.Buy.VendorItemMaxPercent = 75
 
 ###################################################################################################
 # CRAFTING
 #
 #    mod-playerbots gives the bots professions and recipes, but the bots do not craft on their own.
-#    With this option a bot that stands at the auctioneers works like a crafter: it thinks through
-#    some of its recipes, compares what the product would bring with what the materials cost - those
-#    it carries, those on offer in the auction house, those a vendor sells - and for a recipe that
-#    pays it buys what is missing and makes the item. What it does not need itself it sells.
+#    With this option a bot at the auctioneers thinks through its recipes and compares what the
+#    product would bring with what the materials cost - those it carries, those on offer in the
+#    auction house, those a vendor sells. What kind of crafter it is follows from its character:
 #
-#    Bots also buy materials for their professions when they are on offer at a good price, like any
-#    other item they have a use for (see BUYING).
+#      - for the casual one the profession is a sideline: it makes the first thing that works out
+#        with what it carries;
+#      - the one in between provides for itself and works on its skill, and buys what is missing;
+#      - the producer thinks through all its recipes, takes the one that pays best and makes
+#        several in a row.
 #
-#    Recipes that need a forge, an anvil or a fire, or a tool the bot does not carry, are left out:
-#    the bots craft where they stand.
+#    What a bot makes and does not need itself it sells. Bots also stock up on materials for their
+#    professions when the price is right (see BUYING).
 #
 #    PlayerbotsAuctions.Crafting.Enable
 #        Description: Bots craft.
 #        Default:     1 - Enabled
 #                     0 - Disabled
 #
+#    PlayerbotsAuctions.Crafting.WalkToAnvilForgeFire
+#        Description: For a recipe that needs an anvil, a forge, a cooking fire or the like, the bot
+#                     walks to the nearest one in the capital it is in, makes its things there and
+#                     walks back to the auctioneers to sell them.
+#        Default:     1 - Enabled
+#                     0 - Disabled (such recipes are left out)
+#
 #    PlayerbotsAuctions.Crafting.BuyMaterials
 #        Description: Bots buy the materials a recipe is missing when the product is worth it.
 #        Default:     1 - Enabled
 #                     0 - Disabled (bots only craft from what they carry)
 #
+#    PlayerbotsAuctions.Crafting.BuyVendorMaterials
+#        Description: Materials a vendor sells for money in any quantity (thread, vials, flux, ...)
+#                     the bot buys from the vendor at the vendor's price when it crafts.
+#        Default:     1 - Enabled
+#                     0 - Disabled (recipes that need such materials only work if the bot carries them)
+#
 #    PlayerbotsAuctions.Crafting.MinProfitPercent
 #        Description: The product has to be worth this many percent more than its materials.
 #        Default:     10
+#
+#    PlayerbotsAuctions.Crafting.SkillUpBonusPercent
+#        Description: A recipe that still raises the bot's skill is worth this many percent more to
+#                     it, so bots also craft at a small loss to get better.
+#        Default:     30
 #
 #    PlayerbotsAuctions.Crafting.MaxMaterialPriceFactor
 #        Description: A bot does not pay any price for a material just because the product is worth
@@ -395,25 +358,20 @@ PlayerbotsAuctions.CityTrip.CooldownMinutesMax = 180
 #                     alone.
 #        Default:     1.5
 #
-#    PlayerbotsAuctions.Crafting.SkillUpBonusPercent
-#        Description: A recipe that still raises the bot's skill is worth this many percent more to
-#                     it, so bots also craft at a small loss to get better.
-#        Default:     30
-#
 #    PlayerbotsAuctions.Crafting.RecipesPerVisit
 #        Description: How many of its recipes a bot thinks through per visit.
 #        Default:     40
 #
-#    PlayerbotsAuctions.Crafting.BuyVendorMaterials
-#        Description: Materials a vendor sells for money in any quantity (thread, vials, flux, ...)
-#                     the bot buys from the vendor at the vendor's price when it crafts.
-#        Default:     1 - Enabled
-#                     0 - Disabled (recipes that need such materials only work if the bot carries them)
+#    PlayerbotsAuctions.Crafting.MaxInARow
+#        Description: The most a producer makes of one thing in one go.
+#        Default:     5
 
 PlayerbotsAuctions.Crafting.Enable = 1
+PlayerbotsAuctions.Crafting.WalkToAnvilForgeFire = 1
 PlayerbotsAuctions.Crafting.BuyMaterials = 1
-PlayerbotsAuctions.Crafting.MinProfitPercent = 10
-PlayerbotsAuctions.Crafting.MaxMaterialPriceFactor = 1.5
-PlayerbotsAuctions.Crafting.SkillUpBonusPercent = 30
-PlayerbotsAuctions.Crafting.RecipesPerVisit = 40
 PlayerbotsAuctions.Crafting.BuyVendorMaterials = 1
+PlayerbotsAuctions.Crafting.MinProfitPercent = 10
+PlayerbotsAuctions.Crafting.SkillUpBonusPercent = 30
+PlayerbotsAuctions.Crafting.MaxMaterialPriceFactor = 1.5
+PlayerbotsAuctions.Crafting.RecipesPerVisit = 40
+PlayerbotsAuctions.Crafting.MaxInARow = 5
