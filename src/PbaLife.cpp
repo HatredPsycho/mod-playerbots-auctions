@@ -929,8 +929,12 @@ namespace
             double const value = market.Value(product) * recipe.made;
             estimate.worth = value * (forItself ? 1.2 : 0.95) + value * 0.95 * (times - 1);
             // A recipe that still raises its skill is worth more to it - once; the next one may not.
-            if (ItemUsageValue::SpellGivesSkillUp(recipe.spell, bot))
+            bool const skillUp = ItemUsageValue::SpellGivesSkillUp(recipe.spell, bot);
+            if (skillUp)
                 estimate.worth += value * skillBonus;
+            // Made only to be sold: then the lot has to be worth putting up for auction at all.
+            if (!forItself && !skillUp && value * times < double(cfg.minListValue))
+                return estimate;
 
             for (auto const& reagent : recipe.reagents)
             {
