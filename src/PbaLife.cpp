@@ -45,6 +45,8 @@ namespace
         uint32 left = 0;        // how many more it is going to make
         uint32 fails = 0;
         time_t until = 0;       // its materials are not for sale until then
+        uint32 keep = 0;        // what it makes is a material for its own profession: kept, not sold
+        time_t keepUntil = 0;
     };
 
     class Life
@@ -602,6 +604,8 @@ namespace
 
             // Materials for what the bot is about to craft are not for sale.
             auto plan = _plans.find(bot->GetGUID().GetCounter());
+            if (plan != _plans.end() && plan->second.keep == item->GetEntry() && plan->second.keepUntil > _now)
+                return;
             if (plan != _plans.end() && (plan->second.left || plan->second.until > _now))
                 for (auto const& reagent : plan->second.recipe.reagents)
                     if (reagent.first == item->GetEntry())
@@ -910,7 +914,7 @@ namespace
         /// The bot works out a recipe: what would the products bring, what do the materials cost - those it
         /// carries (it could sell them instead), those on offer here, those from a vendor?
         Estimate WorkOut(Player* bot, PlayerbotAI* botAI, Recipe const& recipe, uint32 times, Index const& index,
-            double purse, bool mayBuy, double skillBonus)
+            double purse, bool mayBuy, double skillBonus, bool intermediate)
         {
             Estimate estimate;
             ItemTemplate const* product = sObjectMgr->GetItemTemplate(recipe.product);
@@ -920,11 +924,12 @@ namespace
             // What the product is worth to the bot: its price minus the auction house's cut if it sells it,
             // a little more if it can use it itself - but it only needs one.
             ItemUsage const usage = botAI->GetAiObjectContext()->GetValue<ItemUsage>("item usage", product->ItemId)->Get();
-            bool const forItself = usage == ITEM_USAGE_EQUIP || usage == ITEM_USAGE_REPLACE || usage == ITEM_USAGE_USE;
+            // Something it wears or uses - or works on: the bars a smith smelts from its ore are for its own anvil.
+            bool const forItself = intermediate || usage == ITEM_USAGE_EQUIP || usage == ITEM_USAGE_REPLACE || usage == ITEM_USAGE_USE;
             bool const forSale = IsAllowedKind(product);
             if (!forItself && !forSale)
                 return estimate;
-            if (!forSale && times > 1)
+            if (!forSale && !intermediate && times > 1)
                 return estimate;
             double const value = market.Value(product) * recipe.made;
             estimate.worth = value * (forItself ? 1.2 : 0.95) + value * 0.95 * (times - 1);
@@ -1010,6 +1015,12 @@ namespace
             double const skillBonus = cfg.matsSkillBonus / 100.0 * (casual || producer ? 1.0 : 1.5);
             double const purse = Spendable(bot) * 0.6;
 
+            // What goes into its own recipes. Making one of those - smelting ore into bars - is a step on the way.
+            std::unordered_set<uint32> ownMaterials;
+            for (Recipe const& recipe : recipes)
+                for (auto const& reagent : recipe.reagents)
+                    ownMaterials.insert(reagent.first);
+
             Acore::Containers::RandomShuffle(recipes);
             uint32 const look = casual ? std::min<uint32>(10, cfg.matsRecipes) : cfg.matsRecipes;
             if (recipes.size() > look)
@@ -1022,7 +1033,8 @@ namespace
             {
                 for (uint32 times = most; times >= 1; --times)
                 {
-                    Estimate estimate = WorkOut(bot, botAI, recipe, times, index, purse, cfg.matsEnabled && !casual, skillBonus);
+                    Estimate estimate = WorkOut(bot, botAI, recipe, times, index, purse, cfg.matsEnabled && !casual, skillBonus,
+                        ownMaterials.find(recipe.product) != ownMaterials.end());
                     if (!estimate.ok)
                         continue;
                     if (!best || estimate.worth - estimate.cost > bestEstimate.worth - bestEstimate.cost)
@@ -1055,6 +1067,8 @@ namespace
             plan.left = bestTimes;
             plan.fails = 0;
             plan.until = _now + 10 * MINUTE;
+            plan.keep = ownMaterials.find(best->product) != ownMaterials.end() ? best->product : 0;
+            plan.keepUntil = _now + 3 * HOUR;
             if (cfg.debug)
                 if (ItemTemplate const* product = sObjectMgr->GetItemTemplate(best->product))
                     LOG_INFO("module", "PlayerbotsAuctions: {} plans to craft {} x{} (item {}): materials worth {} copper, product worth {} copper to it{}.",
