@@ -177,6 +177,11 @@ namespace pba
             if (!proto || !seen.insert(proto->ItemId).second)
                 return;
 
+            // Never what it needs for a quest.
+            ItemUsage const usage = botAI->GetAiObjectContext()->GetValue<ItemUsage>("item usage", proto->ItemId)->Get();
+            if (usage == ITEM_USAGE_QUEST)
+                return;
+
             Recipe recipe;
             if (prospects && proto->HasFlag(ITEM_FLAG_IS_PROSPECTABLE) && proto->RequiredSkillRank <= bot->GetSkillValue(SKILL_JEWELCRAFTING))
             {
@@ -195,7 +200,6 @@ namespace pba
             else if (disenchants && gear < 6 && CanDisenchant(bot, item))
             {
                 // Only what it would get rid of anyway - never something it wears, wants to wear or needs.
-                ItemUsage const usage = botAI->GetAiObjectContext()->GetValue<ItemUsage>("item usage", proto->ItemId)->Get();
                 if (usage != ITEM_USAGE_AH && usage != ITEM_USAGE_VENDOR)
                     return;
                 ++gear;
@@ -217,7 +221,7 @@ namespace pba
 
     bool Refine(Player* bot, Recipe const& recipe)
     {
-        if (recipe.kind == KIND_CRAFT || recipe.reagents.empty() || bot->GetFreeInventorySpace() < 4)
+        if (recipe.kind == KIND_CRAFT || recipe.reagents.empty())
             return false;
         uint32 const entry = recipe.reagents.front().first;
         ItemTemplate const* proto = sObjectMgr->GetItemTemplate(entry);
@@ -233,6 +237,19 @@ namespace pba
         }
         if (!store->HaveLootFor(lootId))
             return false;
+
+        // The dice of the server, as for a player - rolled first: if what comes out does not fit into the
+        // bags, nothing is taken apart.
+        Loot loot;
+        loot.FillLoot(lootId, *store, bot, true, true);
+        if (bot->GetFreeInventorySpace() < loot.items.size() + 1)
+            return false;
+        for (LootItem const& got : loot.items)
+        {
+            ItemPosCountVec dest;
+            if (bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, got.itemid, got.count) != EQUIP_ERR_OK)
+                return false;
+        }
 
         if (recipe.kind == KIND_DISENCHANT)
         {
@@ -267,9 +284,6 @@ namespace pba
             }
         }
 
-        // The dice of the server, as for a player.
-        Loot loot;
-        loot.FillLoot(lootId, *store, bot, true, true);
         for (LootItem const& got : loot.items)
         {
             ItemPosCountVec dest;

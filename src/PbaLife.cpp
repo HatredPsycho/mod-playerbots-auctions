@@ -106,7 +106,7 @@ namespace
                         "the most was {} thing(s)), {} set out, {} wanted to but found no way, {} did business at an auctioneer, {} on an errand now, "
                         "{} time(s) something was kept from a vendor.",
                         sRandomPlayerbotMgr.GetAllBots().size(), _stat.asked, _stat.withGoods, _stat.mostGoods, _stat.trips, _stat.noWay, _stat.visits,
-                        _watch.size(), _stat.kept);
+                        _watch.size(), _kept.exchange(0));
                 _stat = Stat();
             }
 
@@ -169,7 +169,7 @@ namespace
                 return false;
             // What would not be worth an auction may go: all it carries of the kind counts, a stack grows.
             ItemTemplate const* proto = item->GetTemplate();
-            if (!proto->SellPrice || proto->Quality >= MAX_ITEM_QUALITY ||
+            if (proto->Quality >= MAX_ITEM_QUALITY || !Market::Base(proto) ||
                 market.Value(proto) * bot->GetItemCount(proto->ItemId) < double(cfg.minListValue))
                 return false;
             return Kept();
@@ -178,7 +178,7 @@ namespace
     private:
         bool Kept()
         {
-            ++_stat.kept;
+            ++_kept;       // asked from the map threads, hence counted apart
             return true;
         }
 
@@ -674,7 +674,8 @@ namespace
 
             // The bot's own judgement: only what it neither uses, wears, needs for a quest or a profession.
             ItemUsage const usage = botAI->GetAiObjectContext()->GetValue<ItemUsage>("item usage", item->GetEntry())->Get();
-            if (usage == ITEM_USAGE_AH || usage == ITEM_USAGE_VENDOR)
+            // mod-playerbots has no opinion on what a vendor gives nothing for: dusts, essences, some gems.
+            if (usage == ITEM_USAGE_AH || usage == ITEM_USAGE_VENDOR || (usage == ITEM_USAGE_NONE && !item->GetTemplate()->SellPrice))
                 items.push_back(item);
         }
 
@@ -775,7 +776,7 @@ namespace
                 if (deals >= maxDeals)
                     break;
                 ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId);
-                if (!proto || !proto->SellPrice || proto->Quality >= MAX_ITEM_QUALITY)
+                if (!proto || proto->Quality >= MAX_ITEM_QUALITY || !Market::Base(proto))
                     continue;
 
                 // How much the bot wants it.
@@ -982,14 +983,14 @@ namespace
                 double value = 0.0;
                 for (Yield const& yield : *recipe.yield)
                     if (ItemTemplate const* got = sObjectMgr->GetItemTemplate(yield.item))
-                        if (got->SellPrice && got->Quality < MAX_ITEM_QUALITY)
+                        if (got->Quality < MAX_ITEM_QUALITY && Market::Base(got))
                             value += market.Value(got) * yield.count;
                 estimate.worth = value * (intermediate ? 1.2 : 0.95) * times;
                 return Materials(bot, recipe, times, index, purse, mayBuy, estimate);
             }
 
             ItemTemplate const* product = sObjectMgr->GetItemTemplate(recipe.product);
-            if (!product || !product->SellPrice || product->Quality >= MAX_ITEM_QUALITY)
+            if (!product || product->Quality >= MAX_ITEM_QUALITY || !Market::Base(product))
                 return estimate;
 
             // What the product is worth to the bot: its price minus the auction house's cut if it sells it,
@@ -1023,7 +1024,7 @@ namespace
                 ItemTemplate const* material = sObjectMgr->GetItemTemplate(reagent.first);
                 if (!material)
                     return estimate;
-                bool const priced = material->SellPrice && material->Quality < MAX_ITEM_QUALITY;
+                bool const priced = material->Quality < MAX_ITEM_QUALITY && Market::Base(material);
                 double const usual = recipe.sourceValue > 0.0 ? recipe.sourceValue : priced ? market.Value(material) : 0.0;
 
                 uint32 const wanted = reagent.second * times;
@@ -1076,15 +1077,17 @@ namespace
         /// Returns true if the bot bought materials.
         bool PlanCraft(Player* bot, PlayerbotAI* botAI, AuctionHouseObject* house, Index const& index, std::vector<Recipe> recipes)
         {
-            if (recipes.empty())
-                return false;
             ObjectGuid::LowType const guid = bot->GetGUID().GetCounter();
             auto existing = _plans.find(guid);
             // Back from the forge with bars of its own: now it decides whether to work them or to sell them.
             bool const followUp = existing != _plans.end() && existing->second.next && !existing->second.left;
             uint32 const steps = followUp ? existing->second.steps + 1 : 0;
             if (followUp)
+            {
+                // Whatever it decides now: what it kept back is free again. A new plan reserves what it needs.
                 existing->second.next = false;
+                existing->second.keep.clear();
+            }
             else
             {
                 if (existing != _plans.end() && (existing->second.left || existing->second.until > _now))
@@ -1102,10 +1105,14 @@ namespace
 
             // What goes into its own recipes. Making one of those - smelting ore into bars - is a step on the way.
             std::unordered_set<uint32> ownMaterials;
+            std::unordered_map<uint32, std::unordered_set<uint32>> madeFrom;        // material -> what it is made into
             for (Recipe const& recipe : recipes)
                 if (recipe.kind == KIND_CRAFT)
                     for (auto const& reagent : recipe.reagents)
+                    {
                         ownMaterials.insert(reagent.first);
+                        madeFrom[reagent.first].insert(recipe.product);
+                    }
 
             Acore::Containers::RandomShuffle(recipes);
             uint32 const look = casual ? std::min<uint32>(10, cfg.matsRecipes) : cfg.matsRecipes;
@@ -1119,6 +1126,11 @@ namespace
             {
                 // Does what comes of it go into another of its recipes?
                 bool intermediate = ownMaterials.find(recipe.product) != ownMaterials.end();
+                // ... but not in a circle: what can be turned back into what it was made of is no step forward.
+                if (intermediate)
+                    for (auto const& reagent : recipe.reagents)
+                        if (madeFrom[recipe.product].count(reagent.first))
+                            intermediate = false;
                 if (recipe.kind != KIND_CRAFT && recipe.yield)
                     for (Yield const& yield : *recipe.yield)
                         if (ownMaterials.find(yield.item) != ownMaterials.end())
@@ -1126,8 +1138,9 @@ namespace
 
                 for (uint32 times = most; times >= 1; --times)
                 {
-                    Estimate estimate = WorkOut(bot, botAI, recipe, times, index, purse, cfg.matsEnabled && !casual, skillBonus,
-                        intermediate);
+                    Estimate estimate = WorkOut(bot, botAI, recipe, times, index, purse,
+                        cfg.matsEnabled && !casual && !intermediate,       // for a step on the way it buys nothing
+                        skillBonus, intermediate);
                     if (!estimate.ok)
                         continue;
                     if (!best || estimate.worth - estimate.cost > bestEstimate.worth - bestEstimate.cost)
@@ -1142,11 +1155,7 @@ namespace
                     break;      // good enough
             }
             if (!best)
-            {
-                if (followUp)
-                    existing->second.keep.clear();  // nothing worth making of them: they are sold as they are
-                return false;
-            }
+                return false;       // after a step: nothing worth making of what it kept, it is sold as it is
 
             // It pays. Buy what is missing; if someone was quicker, the plan is dropped.
             bool bought = false;
@@ -1174,7 +1183,7 @@ namespace
                 for (Yield const& yield : *best->yield)
                     if (ownMaterials.find(yield.item) != ownMaterials.end())
                         plan.keep.push_back(yield.item);
-            plan.keepUntil = _now + 3 * HOUR;
+            plan.keepUntil = _now + 30 * MINUTE;
             plan.steps = steps;
             plan.next = false;
             if (cfg.debug && best->kind != KIND_CRAFT)
@@ -1245,13 +1254,15 @@ namespace
                 plan->second.until = free;      // the materials of a cast still running stay reserved
             }
             // What it made goes into its own recipes: at the auctioneers it thinks about the next step.
-            bool chain = false;
-            if (plan != _plans.end() && plan->second.steps < 3)
-                for (uint32 const kept : plan->second.keep)
-                    if (bot->HasItemCount(kept, 1))
-                        chain = true;
+            // (The last cast may still be running, so it is not asked whether the bars are in the bags yet.)
+            bool const chain = plan != _plans.end() && !plan->second.keep.empty() && plan->second.steps < 3;
             if (chain)
+            {
                 plan->second.next = true;
+                plan->second.keepUntil = now + 15 * MINUTE;
+            }
+            else if (plan != _plans.end())
+                plan->second.keep.clear();
             if (walked && botAI)
                 SendToAuctionHouse(bot, botAI);
             SetWatch(bot, free + 1, now + 8 * MINUTE, chain ? TASK_VISIT : TASK_SELL);
@@ -1491,9 +1502,10 @@ namespace
         uint32 _watchTimer = 0;
         struct Stat
         {
-            uint32 asked = 0, withGoods = 0, mostGoods = 0, trips = 0, noWay = 0, visits = 0, kept = 0;
+            uint32 asked = 0, withGoods = 0, mostGoods = 0, trips = 0, noWay = 0, visits = 0;
         };
         Stat _stat;
+        std::atomic<uint32> _kept{0};
         uint32 _statTimer = 0;
         uint32 _saveTimer = 0;
         uint32 _decisions = 0;

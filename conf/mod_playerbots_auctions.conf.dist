@@ -261,12 +261,13 @@ PlayerbotsAuctions.Sell.MinAuctionValueSilver = 5
 
 #
 #    PlayerbotsAuctions.Sell.KeepFromVendor
-#        Description: mod-playerbots sells everything a bot does not need to the next vendor it
-#                     passes - also what would be worth an auction. With this the bots keep what
-#                     is meant for the auction house (worth at least MinAuctionValueSilver, not
-#                     offered in vain too often) and the materials they have plans for. Bots that
-#                     never use the auction house and bots travelling with a player are left alone.
-#                     Needs CityTrip.Enable: bots that never get to an auctioneer keep nothing.
+#        Description: Where mod-playerbots lets bots sell to vendors, it sells whatever a bot does
+#                     not need - also what would be worth an auction. With this the bots do not
+#                     give a vendor what is meant for the auction house (worth at least
+#                     MinAuctionValueSilver, not offered in vain too often) or the materials they
+#                     have plans for. Bots that never use the auction house and bots travelling
+#                     with a player are left alone. Needs CityTrip.Enable: bots that never get to
+#                     an auctioneer keep nothing.
 #        Default:     1 - Enabled
 #                     0 - Disabled
 

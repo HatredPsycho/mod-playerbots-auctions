@@ -53,6 +53,7 @@
 #endif
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <cmath>
 #include <iterator>
@@ -172,6 +173,9 @@ namespace pba
     class Market
     {
     public:
+        /// What the calculation starts from: the vendor value. Things a vendor gives nothing for - dusts,
+        /// essences, some gems - get a value from their item level instead, or they could never be traded.
+        static uint32 Base(ItemTemplate const* proto);
         static double Regular(ItemTemplate const* proto);
         double Value(ItemTemplate const* proto) const;
         void RecordSale(uint32 itemId, uint32 price, uint32 count);

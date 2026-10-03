@@ -162,7 +162,7 @@ namespace pba
             return false;
         if (proto->Bonding == BIND_WHEN_PICKED_UP || proto->Bonding == BIND_QUEST_ITEM || proto->Bonding == BIND_QUEST_ITEM1)
             return false;
-        if (proto->HasFlag(ITEM_FLAG_CONJURED) || !proto->SellPrice)
+        if (proto->HasFlag(ITEM_FLAG_CONJURED) || !Market::Base(proto))
             return false;
         if (cfg.excludedItems.find(proto->ItemId) != cfg.excludedItems.end())
             return false;

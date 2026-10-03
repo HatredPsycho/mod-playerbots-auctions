@@ -9,9 +9,21 @@ namespace pba
 {
     Market market;
 
+    uint32 Market::Base(ItemTemplate const* proto)
+    {
+        if (proto->SellPrice)
+            return proto->SellPrice;
+        if (proto->Class != ITEM_CLASS_TRADE_GOODS && proto->Class != ITEM_CLASS_GEM && proto->Class != ITEM_CLASS_REAGENT)
+            return 0;
+        if (proto->Bonding == BIND_WHEN_PICKED_UP || proto->Bonding == BIND_QUEST_ITEM || proto->HasFlag(ITEM_FLAG_CONJURED))
+            return 0;
+        uint32 const level = std::max<uint32>(5, proto->ItemLevel);
+        return std::max<uint32>(20, level * level * (proto->Quality + 1) / 2);
+    }
+
     double Market::Regular(ItemTemplate const* proto)
     {
-        return double(proto->SellPrice) * cfg.priceMultiplier[proto->Quality];
+        return double(Base(proto)) * cfg.priceMultiplier[proto->Quality];
     }
 
     double Market::Value(ItemTemplate const* proto) const
@@ -28,7 +40,7 @@ namespace pba
     void Market::RecordSale(uint32 itemId, uint32 price, uint32 count)
     {
         ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId);
-        if (!proto || !price || !count || !proto->SellPrice || proto->Quality >= MAX_ITEM_QUALITY)
+        if (!proto || !price || !count || proto->Quality >= MAX_ITEM_QUALITY || !Base(proto) || proto->Quality >= MAX_ITEM_QUALITY)
             return;
         // Every sale is cut down to between half and three times the calculated price before it counts,
         // so a single absurd sale cannot move the market.
