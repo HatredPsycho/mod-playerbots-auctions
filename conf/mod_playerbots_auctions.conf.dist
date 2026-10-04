@@ -223,9 +223,11 @@ PlayerbotsAuctions.Sell.MaxQuality = 5
 #        Description: Item classes that are sold, separated by commas.
 #                     0 consumable, 1 container, 2 weapon, 3 gem, 4 armor, 5 reagent, 6 projectile,
 #                     7 trade goods, 9 recipe, 11 quiver, 13 key, 15 miscellaneous, 16 glyph
-#        Default:     "0,1,2,3,4,5,7,9,15,16"
+#                     12 quest (only what can be traded - most of it cannot), 15 includes companion
+#                     pets and mounts. Projectiles are left out: bots are handed their ammunition.
+#        Default:     "0,1,2,3,4,5,7,9,11,12,13,15,16"
 
-PlayerbotsAuctions.Sell.ItemClasses = "0,1,2,3,4,5,7,9,15,16"
+PlayerbotsAuctions.Sell.ItemClasses = "0,1,2,3,4,5,7,9,11,12,13,15,16"
 
 #
 #    PlayerbotsAuctions.Sell.ExcludedItemIDs

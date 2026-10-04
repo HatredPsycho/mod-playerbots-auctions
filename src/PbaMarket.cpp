@@ -34,9 +34,12 @@ namespace pba
         }
         if (proto->SellPrice)
             return proto->SellPrice;
-        if (proto->Class != ITEM_CLASS_TRADE_GOODS && proto->Class != ITEM_CLASS_GEM && proto->Class != ITEM_CLASS_REAGENT)
-            return 0;
         if (proto->Bonding == BIND_WHEN_PICKED_UP || proto->Bonding == BIND_QUEST_ITEM || proto->HasFlag(ITEM_FLAG_CONJURED))
+            return 0;
+        // A companion or a mount a vendor gives nothing for is still worth having: by its rarity.
+        if (proto->Class == ITEM_CLASS_MISC && (proto->SubClass == ITEM_SUBCLASS_JUNK_PET || proto->SubClass == ITEM_SUBCLASS_JUNK_MOUNT))
+            return 5000 * (proto->Quality + 1);
+        if (proto->Class != ITEM_CLASS_TRADE_GOODS && proto->Class != ITEM_CLASS_GEM && proto->Class != ITEM_CLASS_REAGENT)
             return 0;
         uint32 const level = std::max<uint32>(5, proto->ItemLevel);
         uint32 const byLevel = std::max<uint32>(20, level * level * (proto->Quality + 1) / 2);
