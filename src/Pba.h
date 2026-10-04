@@ -177,7 +177,7 @@ namespace pba
     /// alchemist sells potions, and only those it knows how to make.
     bool IsHandout(Player* bot, ItemTemplate const* proto);
     void LoadPotionRecipes();
-    /// Does a recipe of one of its crafts - not smelting - take this material?
+    /// Does a recipe of one of its crafts - not smelting, bandages or cooking - or a spell of its class take this material?
     bool UsesInCraft(Player* bot, uint32 itemId);
 
     /// A price as a person would type it: two digits that matter, the rest zeros.
@@ -193,9 +193,10 @@ namespace pba
         /// What the calculation starts from: the vendor value. Things a vendor gives nothing for - dusts,
         /// essences, some gems - get a value from their item level instead, or they could never be traded.
         static uint32 Base(ItemTemplate const* proto);
-        /// A value for something no vendor gives anything for and that only exists because someone made
-        /// it - the scroll of an enchantment. Worked out from what goes into it.
+        /// What is made is worth at least what goes into it: nobody sells a potion, a bag or the scroll of an
+        /// enchantment for less than its materials. The vendor value still counts where it is higher.
         static void SetMade(uint32 itemId, uint32 base);
+        static void ClearMade();
         static double Regular(ItemTemplate const* proto);
         double Value(ItemTemplate const* proto) const;
         void RecordSale(uint32 itemId, uint32 price, uint32 count);
@@ -305,8 +306,9 @@ namespace pba
     std::vector<Recipe> Recipes(Player* bot, bool canWalk);
 
     void LoadYields();
-    /// Enchantments on vellum: which vellum each one takes and what the scroll is worth. After the settings.
-    void LoadScrolls();
+    /// What crafted things are worth by their materials, and enchantments on vellum: which vellum each one
+    /// takes. After the settings and the vendor items.
+    void LoadMadeValues();
     /// The vellum this bot would put that enchantment on - one it carries, else the plainest that will do - or 0.
     uint32 VellumFor(Player* bot, SpellInfo const* info);
     /// Adds what the bot could take apart: ore to prospect, herbs to mill, gear to disenchant.

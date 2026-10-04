@@ -194,8 +194,9 @@ namespace pba
     {
         // Potion -> the recipes that make it.
         std::unordered_map<uint32, std::vector<uint32>> potionRecipes;
-        // Material -> the recipes of a craft it goes into. Smelting is not among them: ore is there to be
-        // smelted or sold, not to be kept.
+        // Material -> the recipes of a craft, and the spells of a class, it goes into. Not among them are
+        // smelting - ore is there to be smelted or sold - and the sidelines everybody has: nobody keeps
+        // all the cloth and meat it finds for bandages and cooking.
         std::unordered_map<uint32, std::vector<uint32>> craftUses;
     }
 
@@ -206,13 +207,14 @@ namespace pba
         for (uint32 id = 1; id < sSpellMgr->GetSpellInfoStoreSize(); ++id)
         {
             SpellInfo const* info = sSpellMgr->GetSpellInfo(id);
-            if (!info || !info->HasAttribute(SPELL_ATTR0_IS_TRADESKILL))
+            if (!info)
                 continue;
-            if (!info->IsAbilityOfSkillType(SKILL_MINING))
+            if (!info->IsAbilityOfSkillType(SKILL_MINING) && !info->IsAbilityOfSkillType(SKILL_FIRST_AID) &&
+                !info->IsAbilityOfSkillType(SKILL_COOKING) && !info->IsAbilityOfSkillType(SKILL_FISHING))
                 for (uint32 i = 0; i < MAX_SPELL_REAGENTS; ++i)
                     if (info->Reagent[i] > 0 && info->ReagentCount[i])
                         craftUses[uint32(info->Reagent[i])].push_back(id);
-            if (info->Effects[EFFECT_0].Effect != SPELL_EFFECT_CREATE_ITEM)
+            if (!info->HasAttribute(SPELL_ATTR0_IS_TRADESKILL) || info->Effects[EFFECT_0].Effect != SPELL_EFFECT_CREATE_ITEM)
                 continue;
             ItemTemplate const* product = sObjectMgr->GetItemTemplate(info->Effects[EFFECT_0].ItemType);
             if (product && product->Class == ITEM_CLASS_CONSUMABLE && product->SubClass == ITEM_SUBCLASS_POTION)

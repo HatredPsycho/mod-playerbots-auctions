@@ -14,6 +14,8 @@ namespace pba
         std::unordered_map<uint32, uint32> made;        // item -> value, see SetMade
     }
 
+    void Market::ClearMade() { made.clear(); }
+
     void Market::SetMade(uint32 itemId, uint32 base)
     {
         if (base)
@@ -24,14 +26,14 @@ namespace pba
 
     uint32 Market::Base(ItemTemplate const* proto)
     {
-        if (proto->SellPrice)
-            return proto->SellPrice;
         if (!made.empty())
         {
             auto found = made.find(proto->ItemId);
             if (found != made.end())
-                return found->second;
+                return std::max(found->second, proto->SellPrice);
         }
+        if (proto->SellPrice)
+            return proto->SellPrice;
         if (proto->Class != ITEM_CLASS_TRADE_GOODS && proto->Class != ITEM_CLASS_GEM && proto->Class != ITEM_CLASS_REAGENT)
             return 0;
         if (proto->Bonding == BIND_WHEN_PICKED_UP || proto->Bonding == BIND_QUEST_ITEM || proto->HasFlag(ITEM_FLAG_CONJURED))

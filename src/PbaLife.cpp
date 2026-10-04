@@ -972,9 +972,10 @@ namespace
             // mod-playerbots has no opinion on what a vendor gives nothing for: dusts, essences, some gems.
             if (usage == ITEM_USAGE_AH || usage == ITEM_USAGE_VENDOR || (usage == ITEM_USAGE_NONE && !item->GetTemplate()->SellPrice))
                 items.push_back(item);
-            // To mod-playerbots a miner "needs" all ore and bars, a skinner all leather and a herbalist all herbs -
-            // two stacks of each before anything is for sale. A material is only kept by a bot whose own craft
-            // works it. Ore is smelted first if that pays (the plan reserves it), and sold otherwise.
+            // To mod-playerbots a miner "needs" all ore and bars, a skinner all leather, a herbalist all herbs and
+            // everybody all cloth and meat - two stacks of each before anything is for sale. A material is only
+            // kept by a bot whose own craft works it. What it smelts, cooks or makes into bandages on this visit
+            // is reserved by its plan; the rest is sold.
             else if ((usage == ITEM_USAGE_SKILL || usage == ITEM_USAGE_KEEP) &&
                 (proto->Class == ITEM_CLASS_TRADE_GOODS || proto->Class == ITEM_CLASS_GEM) && !UsesInCraft(bot, proto->ItemId))
                 items.push_back(item);
@@ -1896,7 +1897,7 @@ public:
     {
         pba::LoadSettings();
         if (reload)
-            pba::LoadScrolls();     // priced with the settings
+            pba::LoadMadeValues();     // priced with the settings
     }
 
     void OnStartup() override
@@ -1906,7 +1907,7 @@ public:
         pba::LoadFocusObjects();
         pba::LoadYields();
         pba::LoadPotionRecipes();
-        pba::LoadScrolls();
+        pba::LoadMadeValues();
         pba::market.LoadMemory();
         if (pba::cfg.enabled)
             LOG_INFO("server.loading", ">> PlayerbotsAuctions: the bots use the auction house.");

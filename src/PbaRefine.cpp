@@ -184,8 +184,125 @@ namespace pba
             prospecting.size(), milling.size(), disenchanting.size());
     }
 
-    void LoadScrolls()
+    namespace
     {
+        constexpr double WorkMargin = 1.25;     // a quarter on top of the materials for the work
+
+        /// Is this something people buy from a crafter? Plain gear made to learn the craft is not.
+        bool HasBuyers(ItemTemplate const* proto)
+        {
+            if (proto->Quality >= MAX_ITEM_QUALITY || proto->Bonding == BIND_WHEN_PICKED_UP || proto->Bonding == BIND_QUEST_ITEM)
+                return false;
+            switch (proto->Class)
+            {
+                case ITEM_CLASS_CONSUMABLE:
+                case ITEM_CLASS_CONTAINER:
+                case ITEM_CLASS_GEM:
+                case ITEM_CLASS_TRADE_GOODS:
+                case ITEM_CLASS_REAGENT:
+                    return true;
+                case ITEM_CLASS_WEAPON:
+                case ITEM_CLASS_ARMOR:
+                    return proto->Quality >= ITEM_QUALITY_UNCOMMON;
+                case ITEM_CLASS_GLYPH:
+                    return cfg.glyphs;
+                default:
+                    return false;
+            }
+        }
+
+        double MaterialPrice(ItemTemplate const* proto)
+        {
+            if (proto->Quality >= MAX_ITEM_QUALITY)
+                return 0.0;
+            if (proto->BuyPrice && market.IsVendorSupply(proto->ItemId))
+                return double(proto->BuyPrice) / std::max<uint32>(1, proto->BuyCount);
+            return Market::Regular(proto);
+        }
+
+        double Factor(ItemTemplate const* proto)
+        {
+            return cfg.priceMultiplier[proto->Quality] > 0.0 ? cfg.priceMultiplier[proto->Quality] : 1.0;
+        }
+
+        void LoadCraftedValues()
+        {
+            struct Made
+            {
+                SpellInfo const* info;
+                ItemTemplate const* product;
+            };
+            std::vector<Made> recipes;
+            std::unordered_map<uint32, std::unordered_set<uint32>> from;      // product -> what it is made of
+            for (uint32 id = 1; id < sSpellMgr->GetSpellInfoStoreSize(); ++id)
+            {
+                SpellInfo const* info = sSpellMgr->GetSpellInfo(id);
+                if (!info || !info->HasAttribute(SPELL_ATTR0_IS_TRADESKILL) || info->Effects[EFFECT_0].Effect != SPELL_EFFECT_CREATE_ITEM)
+                    continue;
+                ItemTemplate const* product = sObjectMgr->GetItemTemplate(info->Effects[EFFECT_0].ItemType);
+                if (!product)
+                    continue;
+                bool any = false;
+                for (uint32 i = 0; i < MAX_SPELL_REAGENTS; ++i)
+                    if (info->Reagent[i] > 0 && info->ReagentCount[i])
+                    {
+                        from[product->ItemId].insert(uint32(info->Reagent[i]));
+                        any = true;
+                    }
+                if (any && HasBuyers(product))
+                    recipes.push_back({ info, product });
+            }
+
+            // Bars come of ore, shirts of bolts that come of cloth: a few rounds until it has settled.
+            uint32 valued = 0;
+            for (uint32 round = 0; round < 3; ++round)
+            {
+                std::unordered_map<uint32, double> least;       // product -> the cheapest way to make one
+                for (Made const& made : recipes)
+                {
+                    double cost = 0.0;
+                    bool circle = false;
+                    for (uint32 i = 0; i < MAX_SPELL_REAGENTS && !circle; ++i)
+                    {
+                        if (made.info->Reagent[i] <= 0 || !made.info->ReagentCount[i])
+                            continue;
+                        uint32 const reagent = uint32(made.info->Reagent[i]);
+                        // What can be turned back into what it was made of - essences - is worth no more for it.
+                        auto back = from.find(reagent);
+                        if (back != from.end() && back->second.count(made.product->ItemId))
+                            circle = true;
+                        else if (ItemTemplate const* proto = sObjectMgr->GetItemTemplate(reagent))
+                            cost += MaterialPrice(proto) * made.info->ReagentCount[i];
+                    }
+                    if (circle || cost <= 0.0)
+                        continue;
+                    double const each = cost * WorkMargin / std::max<int32>(1, made.info->Effects[EFFECT_0].BasePoints + 1);
+                    auto found = least.find(made.product->ItemId);
+                    if (found == least.end() || each < found->second)
+                        least[made.product->ItemId] = each;
+                }
+                valued = 0;
+                for (auto const& entry : least)
+                {
+                    ItemTemplate const* product = sObjectMgr->GetItemTemplate(entry.first);
+                    uint32 const base = uint32(std::clamp(entry.second / Factor(product), 1.0, 2000000000.0));
+                    if (base > product->SellPrice)
+                    {
+                        Market::SetMade(product->ItemId, base);
+                        ++valued;
+                    }
+                    else
+                        Market::SetMade(product->ItemId, 0);
+                }
+            }
+            LOG_INFO("server.loading", ">> PlayerbotsAuctions: {} crafted thing(s) are worth more by their materials than a vendor gives.", valued);
+        }
+    }
+
+    void LoadMadeValues()
+    {
+        Market::ClearMade();
+        LoadCraftedValues();
         vellums.clear();
         std::vector<SpellInfo const*> enchants;
         std::unordered_set<uint32> seen;
@@ -227,8 +344,7 @@ namespace pba
                     if (ItemTemplate const* proto = sObjectMgr->GetItemTemplate(info->Reagent[i]))
                         if (proto->Quality < MAX_ITEM_QUALITY)
                             cost += Market::Regular(proto) * info->ReagentCount[i];
-            double const factor = cfg.priceMultiplier[scroll->Quality] > 0.0 ? cfg.priceMultiplier[scroll->Quality] : 1.0;
-            Market::SetMade(scroll->ItemId, uint32(std::clamp(cost * 1.25 / factor, 1.0, 2000000000.0)));
+            Market::SetMade(scroll->ItemId, uint32(std::clamp(cost * WorkMargin / Factor(scroll), 1.0, 2000000000.0)));
             ++scrolls;
         }
         LOG_INFO("server.loading", ">> PlayerbotsAuctions: enchanters know {} enchantment(s) for a scroll, on {} kind(s) of vellum.",
