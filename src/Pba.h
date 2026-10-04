@@ -70,7 +70,7 @@ namespace pba
 
     struct Settings
     {
-        bool   enabled = false;
+        bool   enabled = true;
         bool   debug = false;
         uint32 intervalMs = 30000;
         uint32 botsPerCycle = 10;
@@ -123,7 +123,7 @@ namespace pba
         bool   craftEnabled = true;
         bool   matsEnabled = true;
         uint32 matsMinProfit = 10;             // percent the product has to be worth more than its materials
-        uint32 matsSkillBonus = 30;            // percent extra a recipe is worth while it gives skill
+        uint32 matsSkillBonus = 100;           // percent extra a recipe is worth while it gives skill
         uint32 matsRecipes = 40;               // recipes a bot thinks through per visit
         bool   matsVendor = true;
         float  matsMaxPrice = 1.5f;            // a material costing more than this times its usual price is left alone

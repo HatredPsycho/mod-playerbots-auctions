@@ -724,16 +724,24 @@ namespace
                 return;
 
             uint64 money = 0;
+            std::string names;
+            uint32 named = 0;
             for (Item* item : junk)
             {
-                money += uint64(item->GetTemplate()->SellPrice) * item->GetCount();
+                uint64 const price = uint64(item->GetTemplate()->SellPrice) * item->GetCount();
+                money += price;
+                if (cfg.debug && named < 6)
+                {
+                    names += Acore::StringFormat("{}{} x{} ({} copper)", named ? ", " : "", item->GetTemplate()->Name1, item->GetCount(), price);
+                    ++named;
+                }
                 bot->DestroyItem(item->GetBagSlot(), item->GetSlot(), true);
             }
             bot->ModifyMoney(int32(std::min<uint64>(money, MAX_MONEY_AMOUNT / 2)));
             _stat.vendored += uint32(junk.size());
             if (cfg.debug)
-                LOG_INFO("module", "PlayerbotsAuctions: {} sells {} thing(s) it has no use for to a vendor for {} copper.",
-                    bot->GetName(), junk.size(), money);
+                LOG_INFO("module", "PlayerbotsAuctions: {} sells {} thing(s) it has no use for to a vendor for {} copper: {}{}.",
+                    bot->GetName(), junk.size(), money, names, junk.size() > named ? ", ..." : "");
         }
 
         static bool Keeps(Plan const& plan, uint32 itemId)
@@ -1122,8 +1130,9 @@ namespace
             bool const skillUp = ItemUsageValue::SpellGivesSkillUp(recipe.spell, bot);
             if (skillUp)
                 estimate.worth += value * skillBonus;
-            // Made only to be sold: then the lot has to be worth putting up for auction at all.
-            if (!forItself && !skillUp && value * times < double(cfg.minListValue))
+            // Made only to be sold: then the lot has to be worth putting up for auction at all. For its skill
+            // it makes a single one of something that cheap, not a batch.
+            if (!forItself && value * times < double(cfg.minListValue) && (!skillUp || times > 1))
                 return estimate;
 
             return Materials(bot, recipe, times, index, purse, mayBuy, estimate);

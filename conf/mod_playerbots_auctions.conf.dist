@@ -16,10 +16,10 @@
 #
 #    PlayerbotsAuctions.Enable
 #        Description: Switches the module on.
-#        Default:     0 - Disabled
-#                     1 - Enabled
+#        Default:     1 - Enabled
+#                     0 - Disabled
 
-PlayerbotsAuctions.Enable = 0
+PlayerbotsAuctions.Enable = 1
 
 #
 #    PlayerbotsAuctions.Debug
@@ -485,10 +485,12 @@ PlayerbotsAuctions.Crafting.MinProfitPercent = 10
 #
 #    PlayerbotsAuctions.Crafting.SkillUpBonusPercent
 #        Description: A recipe that still raises the bot's skill is worth this many percent more to
-#                     it, so bots also craft at a small loss to get better.
-#        Default:     30
+#                     it, so bots also craft at a loss to get better - as players do who level a
+#                     profession. Most crafted things are worth less than what goes into them; with
+#                     a low value smiths and tailors hardly make anything.
+#        Default:     100
 
-PlayerbotsAuctions.Crafting.SkillUpBonusPercent = 30
+PlayerbotsAuctions.Crafting.SkillUpBonusPercent = 100
 
 #
 #    PlayerbotsAuctions.Crafting.MaxMaterialPriceFactor

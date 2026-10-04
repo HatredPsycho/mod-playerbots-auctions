@@ -34,7 +34,7 @@ namespace pba
 
     void LoadSettings()
     {
-        cfg.enabled             = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Enable", false);
+        cfg.enabled             = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Enable", true);
         cfg.debug               = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Debug", false);
         cfg.intervalMs          = std::max<uint32>(5, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.IntervalSeconds", 30)) * IN_MILLISECONDS;
         cfg.botsPerCycle        = std::max<uint32>(1, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.BotsPerCycle", 10));
@@ -95,7 +95,7 @@ namespace pba
         cfg.craftEnabled        = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Crafting.Enable", true);
         cfg.matsEnabled         = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Crafting.BuyMaterials", true);
         cfg.matsMinProfit       = std::min<uint32>(500, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Crafting.MinProfitPercent", 10));
-        cfg.matsSkillBonus      = std::min<uint32>(500, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Crafting.SkillUpBonusPercent", 30));
+        cfg.matsSkillBonus      = std::min<uint32>(500, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Crafting.SkillUpBonusPercent", 100));
         cfg.matsRecipes         = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Crafting.RecipesPerVisit", 40), 1, 500);
         cfg.matsVendor          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Crafting.BuyVendorMaterials", true);
         cfg.matsMaxPrice        = std::max(0.5f, sConfigMgr->GetOption<float>("PlayerbotsAuctions.Crafting.MaxMaterialPriceFactor", 1.5f));
