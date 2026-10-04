@@ -1276,7 +1276,7 @@ namespace
             double purse, bool mayBuy, double skillBonus, bool intermediate)
         {
             Estimate estimate;
-            if (recipe.kind != KIND_CRAFT)
+            if (TakesApart(recipe.kind))
             {
                 // Taking apart: what comes out on average, at its usual price. Gear is disenchanted piece by piece.
                 if (!recipe.yield || (recipe.kind == KIND_DISENCHANT && times > 1))
@@ -1307,7 +1307,7 @@ namespace
             double const value = market.Value(product) * recipe.made;
             estimate.worth = value * (forItself ? 1.2 : 0.95) + value * 0.95 * (times - 1);
             // A recipe that still raises its skill is worth more to it - once; the next one may not.
-            bool const skillUp = ItemUsageValue::SpellGivesSkillUp(recipe.spell, bot);
+            bool const skillUp = recipe.kind != KIND_ENCHANT && ItemUsageValue::SpellGivesSkillUp(recipe.spell, bot);
             if (skillUp)
                 estimate.worth += value * skillBonus;
             // A lot that would not be worth an auction is not made as a batch - a single one at most, and only
@@ -1419,7 +1419,7 @@ namespace
             std::unordered_set<uint32> ownMaterials;
             std::unordered_map<uint32, std::unordered_set<uint32>> madeFrom;        // material -> what it is made into
             for (Recipe const& recipe : recipes)
-                if (recipe.kind == KIND_CRAFT)
+                if (!TakesApart(recipe.kind))
                     for (auto const& reagent : recipe.reagents)
                     {
                         ownMaterials.insert(reagent.first);
@@ -1443,7 +1443,7 @@ namespace
                     for (auto const& reagent : recipe.reagents)
                         if (madeFrom[recipe.product].count(reagent.first))
                             intermediate = false;
-                if (recipe.kind != KIND_CRAFT && recipe.yield)
+                if (TakesApart(recipe.kind) && recipe.yield)
                     for (Yield const& yield : *recipe.yield)
                         if (ownMaterials.find(yield.item) != ownMaterials.end())
                             intermediate = true;
@@ -1457,7 +1457,7 @@ namespace
                     {
                         // For the summary: which professions the bots have, and what comes of their recipes.
                         uint32 skill = 0;
-                        if (recipe.kind == KIND_CRAFT)
+                        if (!TakesApart(recipe.kind))
                         {
                             SkillLineAbilityMapBounds const bounds = sSpellMgr->GetSkillLineAbilityMapBounds(recipe.spell);
                             if (bounds.first != bounds.second)
@@ -1505,7 +1505,7 @@ namespace
             plan.fails = 0;
             plan.until = _now + 10 * MINUTE;
             plan.keep.clear();
-            if (best->kind == KIND_CRAFT)
+            if (!TakesApart(best->kind))
             {
                 if (ownMaterials.find(best->product) != ownMaterials.end())
                     plan.keep.push_back(best->product);
@@ -1517,7 +1517,7 @@ namespace
             plan.keepUntil = _now + 30 * MINUTE;
             plan.steps = steps;
             plan.next = false;
-            if (cfg.debug && best->kind != KIND_CRAFT)
+            if (cfg.debug && TakesApart(best->kind))
                 if (ItemTemplate const* source = sObjectMgr->GetItemTemplate(best->reagents.front().first))
                     LOG_INFO("module", "PlayerbotsAuctions: {} plans to {} {} x{} (item {}): worth {} copper as it is, {} copper taken apart{}.",
                         bot->GetName(), KindName(best->kind), source->Name1, bestTimes * best->reagents.front().second, source->ItemId,
@@ -1681,7 +1681,13 @@ namespace
             {
                 if (!Refine(bot, plan.recipe))
                     return EndWork(bot, botAI, now, now, false);
-                if (cfg.debug)
+                if (cfg.debug && plan.recipe.kind == KIND_ENCHANT)
+                {
+                    if (ItemTemplate const* scroll = sObjectMgr->GetItemTemplate(plan.recipe.product))
+                        LOG_INFO("module", "PlayerbotsAuctions: {} puts an enchantment on vellum: {} (item {}).", bot->GetName(),
+                            scroll->Name1, scroll->ItemId);
+                }
+                else if (cfg.debug)
                     if (ItemTemplate const* source = sObjectMgr->GetItemTemplate(plan.recipe.reagents.front().first))
                         LOG_INFO("module", "PlayerbotsAuctions: {} {}s {} (item {}).", bot->GetName(), KindName(plan.recipe.kind),
                             source->Name1, source->ItemId);
@@ -1880,9 +1886,11 @@ class PlayerbotsAuctionsWorld : public WorldScript
 public:
     PlayerbotsAuctionsWorld() : WorldScript("PlayerbotsAuctionsWorld") { }
 
-    void OnAfterConfigLoad(bool /*reload*/) override
+    void OnAfterConfigLoad(bool reload) override
     {
         pba::LoadSettings();
+        if (reload)
+            pba::LoadScrolls();     // priced with the settings
     }
 
     void OnStartup() override
@@ -1892,6 +1900,7 @@ public:
         pba::LoadFocusObjects();
         pba::LoadYields();
         pba::LoadPotionRecipes();
+        pba::LoadScrolls();
         pba::market.LoadMemory();
         if (pba::cfg.enabled)
             LOG_INFO("server.loading", ">> PlayerbotsAuctions: the bots use the auction house.");

@@ -315,8 +315,11 @@ namespace pba
             if (!known.second || known.second->State == PLAYERSPELL_REMOVED || !known.second->Active)
                 continue;
             SpellInfo const* info = sSpellMgr->GetSpellInfo(known.first);
-            if (!info || !info->HasAttribute(SPELL_ATTR0_IS_TRADESKILL) || info->Effects[EFFECT_0].Effect != SPELL_EFFECT_CREATE_ITEM ||
-                !info->Effects[EFFECT_0].ItemType || bot->HasSpellCooldown(info->Id))
+            if (!info || !info->HasAttribute(SPELL_ATTR0_IS_TRADESKILL) || !info->Effects[EFFECT_0].ItemType || bot->HasSpellCooldown(info->Id))
+                continue;
+            // An enchantment on vellum: the scroll anyone can use, and the only way to sell an enchantment at auction.
+            uint32 const vellum = cfg.scrolls ? VellumFor(bot, info) : 0;
+            if (!vellum && info->Effects[EFFECT_0].Effect != SPELL_EFFECT_CREATE_ITEM)
                 continue;
             if (!cfg.glyphs)
                 if (ItemTemplate const* made = sObjectMgr->GetItemTemplate(info->Effects[EFFECT_0].ItemType))
@@ -352,7 +355,12 @@ namespace pba
             recipe.tools = std::move(toBuy);
             recipe.spell = info->Id;
             recipe.product = info->Effects[EFFECT_0].ItemType;
-            recipe.made = uint32(std::max<int32>(1, info->Effects[EFFECT_0].BasePoints + 1));
+            recipe.made = vellum ? 1 : uint32(std::max<int32>(1, info->Effects[EFFECT_0].BasePoints + 1));
+            if (vellum)
+            {
+                recipe.kind = KIND_ENCHANT;
+                recipe.reagents.emplace_back(vellum, 1);
+            }
             recipe.focus = info->RequiresSpellFocus;
             for (uint32 i = 0; i < MAX_SPELL_REAGENTS; ++i)
                 if (info->Reagent[i] > 0 && info->ReagentCount[i])

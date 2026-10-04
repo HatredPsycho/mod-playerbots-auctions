@@ -34,6 +34,7 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
   skill, some produce in batches for the market. For an anvil, a forge or a fire the bot walks there.
   A miner smelts its ore; a smith then decides at once whether to work the bars or to sell them.
   Jewelcrafters prospect, scribes mill and enchanters disenchant when that pays or feeds their own recipes.
+  Enchanters put their enchantments on vellum - made by scribes - and sell the scrolls.
 - **Keeping.** What is meant for the auction house and the materials a bot has plans for are not sold to a
   vendor on the way. Things a vendor gives nothing for - dusts, essences - get a price from their item level.
 - **Memory.** The bots learn what things really sell for and remember what did not sell. That survives a

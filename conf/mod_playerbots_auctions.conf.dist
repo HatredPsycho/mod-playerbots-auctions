@@ -527,6 +527,16 @@ PlayerbotsAuctions.Crafting.MaxInARow = 5
 PlayerbotsAuctions.Crafting.TakeApart = 1
 
 #
+#    PlayerbotsAuctions.Crafting.Scrolls
+#        Description: Enchanters put their enchantments on vellum and sell the scrolls - the way an
+#                     enchantment gets into the auction house. They need the materials, their rod and
+#                     a vellum, which scribes make. A scroll is priced by what goes into it.
+#        Default:     1 - Enabled
+#                     0 - Disabled
+
+PlayerbotsAuctions.Crafting.Scrolls = 1
+
+#
 #    PlayerbotsAuctions.Crafting.Glyphs
 #        Description: Scribes make glyphs. The glyphs of Wrath of the Lich King change the spells of
 #                     the old classes; the classes of Conquest of Azeroth cannot use them, so nobody

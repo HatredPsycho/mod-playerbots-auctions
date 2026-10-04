@@ -35,6 +35,31 @@ namespace pba
 
         Yields prospecting, milling, disenchanting;
 
+        struct Vellum
+        {
+            uint32 item = 0;
+            uint32 level = 0;
+            bool weapon = false;
+        };
+        std::vector<Vellum> vellums;        // those a scribe can make, the plainest first
+
+        bool IsScrollRecipe(SpellInfo const* info)
+        {
+            return info && info->HasAttribute(SPELL_ATTR0_IS_TRADESKILL) && info->Effects[EFFECT_0].Effect == SPELL_EFFECT_ENCHANT_ITEM &&
+                info->Effects[EFFECT_0].ItemType && info->IsAbilityOfSkillType(SKILL_ENCHANTING) &&
+                (info->EquippedItemClass == ITEM_CLASS_WEAPON || info->EquippedItemClass == ITEM_CLASS_ARMOR);
+        }
+
+        template <class Fn>
+        void ForEachVellum(SpellInfo const* info, Fn&& fn)
+        {
+            bool const weapon = info->EquippedItemClass == ITEM_CLASS_WEAPON;
+            for (Vellum const& vellum : vellums)
+                if (vellum.weapon == weapon && vellum.level >= info->BaseLevel)
+                    if (fn(vellum))
+                        return;
+        }
+
         Table LoadTable(char const* name)
         {
             Table table;
@@ -159,6 +184,73 @@ namespace pba
             prospecting.size(), milling.size(), disenchanting.size());
     }
 
+    void LoadScrolls()
+    {
+        vellums.clear();
+        std::vector<SpellInfo const*> enchants;
+        std::unordered_set<uint32> seen;
+        for (uint32 id = 1; id < sSpellMgr->GetSpellInfoStoreSize(); ++id)
+        {
+            SpellInfo const* info = sSpellMgr->GetSpellInfo(id);
+            if (!info || !info->HasAttribute(SPELL_ATTR0_IS_TRADESKILL))
+                continue;
+            if (IsScrollRecipe(info))
+                enchants.push_back(info);
+            else if (info->Effects[EFFECT_0].Effect == SPELL_EFFECT_CREATE_ITEM)
+                if (ItemTemplate const* proto = sObjectMgr->GetItemTemplate(info->Effects[EFFECT_0].ItemType))
+                    if ((proto->IsWeaponVellum() || proto->IsArmorVellum()) && seen.insert(proto->ItemId).second)
+                        vellums.push_back({ proto->ItemId, proto->RequiredLevel ? proto->RequiredLevel : proto->ItemLevel, proto->IsWeaponVellum() });
+        }
+        std::sort(vellums.begin(), vellums.end(), [](Vellum const& a, Vellum const& b) { return a.level < b.level; });
+
+        // What a scroll is worth: what goes into it, and a quarter on top for the work.
+        uint32 scrolls = 0;
+        for (SpellInfo const* info : enchants)
+        {
+            ItemTemplate const* scroll = sObjectMgr->GetItemTemplate(info->Effects[EFFECT_0].ItemType);
+            if (!scroll || scroll->SellPrice || scroll->Quality >= MAX_ITEM_QUALITY)
+                continue;
+            double cost = 0.0;
+            ForEachVellum(info, [&](Vellum const& vellum)
+            {
+                if (ItemTemplate const* proto = sObjectMgr->GetItemTemplate(vellum.item))
+                    cost = Market::Regular(proto);
+                return true;
+            });
+            if (cost <= 0.0)
+            {
+                Market::SetMade(scroll->ItemId, 0);
+                continue;       // no vellum for it
+            }
+            for (uint32 i = 0; i < MAX_SPELL_REAGENTS; ++i)
+                if (info->Reagent[i] > 0 && info->ReagentCount[i])
+                    if (ItemTemplate const* proto = sObjectMgr->GetItemTemplate(info->Reagent[i]))
+                        if (proto->Quality < MAX_ITEM_QUALITY)
+                            cost += Market::Regular(proto) * info->ReagentCount[i];
+            double const factor = cfg.priceMultiplier[scroll->Quality] > 0.0 ? cfg.priceMultiplier[scroll->Quality] : 1.0;
+            Market::SetMade(scroll->ItemId, uint32(std::clamp(cost * 1.25 / factor, 1.0, 2000000000.0)));
+            ++scrolls;
+        }
+        LOG_INFO("server.loading", ">> PlayerbotsAuctions: enchanters know {} enchantment(s) for a scroll, on {} kind(s) of vellum.",
+            scrolls, vellums.size());
+    }
+
+    uint32 VellumFor(Player* bot, SpellInfo const* info)
+    {
+        if (!IsScrollRecipe(info))
+            return 0;
+        uint32 plainest = 0, carried = 0;
+        ForEachVellum(info, [&](Vellum const& vellum)
+        {
+            if (!plainest)
+                plainest = vellum.item;
+            if (bot->HasItemCount(vellum.item, 1))
+                carried = vellum.item;
+            return carried != 0;
+        });
+        return carried ? carried : plainest;
+    }
+
     void AddRefining(Player* bot, PlayerbotAI* botAI, std::vector<Recipe>& recipes)
     {
         if (!cfg.refine)
@@ -223,6 +315,23 @@ namespace pba
     {
         if (recipe.kind == KIND_CRAFT || recipe.reagents.empty())
             return false;
+
+        if (recipe.kind == KIND_ENCHANT)
+        {
+            // As the server does it when an enchantment is cast on vellum: the vellum and the materials go,
+            // the scroll comes. No skill is gained from it.
+            for (auto const& reagent : recipe.reagents)
+                if (bot->GetItemCount(reagent.first) < reagent.second)
+                    return false;
+            ItemPosCountVec dest;
+            if (!sObjectMgr->GetItemTemplate(recipe.product) ||
+                bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, recipe.product, 1) != EQUIP_ERR_OK)
+                return false;
+            for (auto const& reagent : recipe.reagents)
+                bot->DestroyItemCount(reagent.first, reagent.second, true);
+            bot->StoreNewItem(dest, recipe.product, true);
+            return true;
+        }
         uint32 const entry = recipe.reagents.front().first;
         ItemTemplate const* proto = sObjectMgr->GetItemTemplate(entry);
         if (!proto)

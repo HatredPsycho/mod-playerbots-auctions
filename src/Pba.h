@@ -137,6 +137,7 @@ namespace pba
         bool   craftFocus = true;              // walk to an anvil, a forge or a fire when a recipe needs one
         uint32 craftBatch = 5;                 // the most a producer makes of one thing in a row
         bool   refine = true;                  // prospecting, milling, disenchanting
+        bool   scrolls = true;                 // enchanters put enchantments on vellum
         bool   glyphs = false;                 // scribes make glyphs - of no use to the classes of Conquest of Azeroth
     };
 
@@ -190,6 +191,9 @@ namespace pba
         /// What the calculation starts from: the vendor value. Things a vendor gives nothing for - dusts,
         /// essences, some gems - get a value from their item level instead, or they could never be traded.
         static uint32 Base(ItemTemplate const* proto);
+        /// A value for something no vendor gives anything for and that only exists because someone made
+        /// it - the scroll of an enchantment. Worked out from what goes into it.
+        static void SetMade(uint32 itemId, uint32 base);
         static double Regular(ItemTemplate const* proto);
         double Value(ItemTemplate const* proto) const;
         void RecordSale(uint32 itemId, uint32 price, uint32 count);
@@ -268,7 +272,10 @@ namespace pba
 
     // ------------------------------------------------------------------------------------------ recipes
 
-    enum Kind : uint8 { KIND_CRAFT, KIND_PROSPECT, KIND_MILL, KIND_DISENCHANT };
+    enum Kind : uint8 { KIND_CRAFT, KIND_PROSPECT, KIND_MILL, KIND_DISENCHANT, KIND_ENCHANT };
+
+    /// Prospecting, milling, disenchanting: one thing goes in, what comes out is a matter of luck.
+    inline bool TakesApart(Kind kind) { return kind == KIND_PROSPECT || kind == KIND_MILL || kind == KIND_DISENCHANT; }
 
     /// What comes of taking something apart, on average.
     struct Yield
@@ -296,9 +303,13 @@ namespace pba
     std::vector<Recipe> Recipes(Player* bot, bool canWalk);
 
     void LoadYields();
+    /// Enchantments on vellum: which vellum each one takes and what the scroll is worth. After the settings.
+    void LoadScrolls();
+    /// The vellum this bot would put that enchantment on - one it carries, else the plainest that will do - or 0.
+    uint32 VellumFor(Player* bot, SpellInfo const* info);
     /// Adds what the bot could take apart: ore to prospect, herbs to mill, gear to disenchant.
     void AddRefining(Player* bot, PlayerbotAI* botAI, std::vector<Recipe>& recipes);
-    /// Takes it apart: the source is gone, what comes out is in the bags.
+    /// Takes it apart - or puts an enchantment on vellum: the source is gone, what comes out is in the bags.
     bool Refine(Player* bot, Recipe const& recipe);
 }
 
