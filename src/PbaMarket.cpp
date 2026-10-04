@@ -39,7 +39,9 @@ namespace pba
         // A companion or a mount a vendor gives nothing for is still worth having: by its rarity.
         if (proto->Class == ITEM_CLASS_MISC && (proto->SubClass == ITEM_SUBCLASS_JUNK_PET || proto->SubClass == ITEM_SUBCLASS_JUNK_MOUNT))
             return 5000 * (proto->Quality + 1);
-        if (proto->Class != ITEM_CLASS_TRADE_GOODS && proto->Class != ITEM_CLASS_GEM && proto->Class != ITEM_CLASS_REAGENT)
+        // Anything else that can be traded has a value too, by its item level - gear apart: a weapon or a
+        // piece of armor a vendor gives nothing for is not a normal item.
+        if (proto->Class == ITEM_CLASS_WEAPON || proto->Class == ITEM_CLASS_ARMOR)
             return 0;
         uint32 const level = std::max<uint32>(5, proto->ItemLevel);
         uint32 const byLevel = std::max<uint32>(20, level * level * (proto->Quality + 1) / 2);
