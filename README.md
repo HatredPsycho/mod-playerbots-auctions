@@ -67,6 +67,15 @@ the module manager. AFK Realm downloads it, applies the patches with every build
 it no longer fits or is no longer needed), sets `AiPlayerbot.LootDistance` to 60 so the bots gather more ore
 and herbs, and rebuilds the server. `afk-realm.json` tells it what to do.
 
+So that bots have a reason to buy gear, AFK Realm also sets three options of mod-playerbots once - change
+them back in `playerbots.conf` if you prefer the old behaviour:
+
+- `AiPlayerbot.AutoUpgradeEquip = 0` - no free gear at every level-up
+- `AiPlayerbot.RandomGearQualityLimit = 2` - new bots start in uncommon gear at most
+- `AiPlayerbot.LootNeedRollLevel = 2` - bots roll need on upgrades
+
+Bots that exist already keep what they wear; reset the random bots to start all of them that way.
+
 **By hand:**
 
 1. Put this folder into `modules` next to `mod-playerbots`.

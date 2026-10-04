@@ -32,6 +32,24 @@
       "key": "AiPlayerbot.LootDistance",
       "value": "60.0",
       "why": "Bots only gather ore and herbs they pass within this distance. With the default of 15 yards hardly any reach the auction house."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.AutoUpgradeEquip",
+      "value": "0",
+      "why": "Bots were handed better gear at every level-up, so none ever needed anything from the auction house - and sold the old pieces to a vendor."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.RandomGearQualityLimit",
+      "value": "2",
+      "why": "New bots start in uncommon gear at most. Rare gear becomes something worth buying."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.LootNeedRollLevel",
+      "value": "2",
+      "why": "In a group, bots roll need on what is an upgrade for them."
     }
   ]
 }
