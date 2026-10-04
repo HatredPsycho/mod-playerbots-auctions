@@ -117,6 +117,10 @@ namespace
                         crafts += Acore::StringFormat("{}{}: {} recipe(s) thought through, {} lack a material, {} do not pay, {} work out",
                             crafts.empty() ? "" : "; ", SkillName(skill.first), skill.second[0], skill.second[1], skill.second[2], skill.second[3]);
                     LOG_INFO("module", "PlayerbotsAuctions: professions at the auctioneers: {}", crafts.empty() ? "-" : crafts);
+                    std::string misses;
+                    for (std::string const& miss : _stat.noPay)
+                        misses += (misses.empty() ? "" : "; ") + miss;
+                    LOG_INFO("module", "PlayerbotsAuctions: some that do not pay: {}", misses.empty() ? "-" : misses);
                     LOG_INFO("module", "PlayerbotsAuctions: gathered in the last 5 minutes: {}", GatheredText());
                     LOG_INFO("module", "PlayerbotsAuctions: professions of the bots online: {}", ProfessionCensus());
                     LOG_INFO("module", "PlayerbotsAuctions: gathering right now: {}", NodeCensus());
@@ -867,7 +871,8 @@ namespace
 
         static char const* KindName(Kind kind)
         {
-            return kind == KIND_PROSPECT ? "prospect" : kind == KIND_MILL ? "mill" : kind == KIND_DISENCHANT ? "disenchant" : "craft";
+            return kind == KIND_PROSPECT ? "prospect" : kind == KIND_MILL ? "mill" : kind == KIND_DISENCHANT ? "disenchant" :
+                kind == KIND_ENCHANT ? "scroll" : "craft";
         }
 
         /// What the bot has no use for and what is not worth an auction goes to the vendor it stands next to,
@@ -1477,7 +1482,13 @@ namespace
                         else if (estimate.missing)
                             ++counts[1];
                         else
+                        {
                             ++counts[2];
+                            if (cfg.debug && _stat.noPay.size() < 12)
+                                if (ItemTemplate const* made = sObjectMgr->GetItemTemplate(TakesApart(recipe.kind) ? recipe.reagents.front().first : recipe.product))
+                                    _stat.noPay.push_back(Acore::StringFormat("{} {} (q{} c{}): worth {}, materials {}", KindName(recipe.kind),
+                                        made->Name1, made->Quality, made->Class, uint64(estimate.worth), uint64(estimate.cost)));
+                        }
                     }
                     if (!estimate.ok)
                         continue;
@@ -1862,6 +1873,7 @@ namespace
             uint32 seen = 0, wrongKind = 0, bound = 0, needed = 0, vendored = 0, cheap = 0;
             std::unordered_map<uint32, uint32> wrongKinds, neededOnes;
             std::map<uint32, uint32[4]> recipes;        // skill -> thought through, material missing, does not pay, works out
+            std::vector<std::string> noPay;             // a few of those that do not pay, with the sum
         };
         Stat _stat;
         struct Gathered

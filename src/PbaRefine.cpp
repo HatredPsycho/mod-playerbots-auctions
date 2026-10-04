@@ -262,6 +262,18 @@ namespace pba
                 {
                     double cost = 0.0;
                     bool circle = false;
+                    // Leather made of lesser leather, an essence of lesser ones: what is found as it is has its
+                    // price from that, not from what it could be made of.
+                    bool converted = true;
+                    for (uint32 i = 0; i < MAX_SPELL_REAGENTS; ++i)
+                        if (made.info->Reagent[i] > 0 && made.info->ReagentCount[i])
+                        {
+                            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(uint32(made.info->Reagent[i]));
+                            if (!proto || proto->Class != made.product->Class || proto->SubClass != made.product->SubClass)
+                                converted = false;
+                        }
+                    if (converted)
+                        continue;
                     for (uint32 i = 0; i < MAX_SPELL_REAGENTS && !circle; ++i)
                     {
                         if (made.info->Reagent[i] <= 0 || !made.info->ReagentCount[i])
