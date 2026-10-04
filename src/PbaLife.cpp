@@ -1324,7 +1324,9 @@ namespace
                 estimate.worth += value * skillBonus;
             // A lot that would not be worth an auction is not made as a batch - a single one at most, and only
             // if the bot can use it itself or learns from it. A step towards another recipe is a different matter.
-            if (!intermediate && value * times < double(cfg.minListValue) && (times > 1 || (!forItself && !skillUp)))
+            // What it already carries of it counts: one more cheap potion fills up a pack worth offering.
+            double const lot = value * times + market.Value(product) * bot->GetItemCount(product->ItemId);
+            if (!intermediate && lot < double(cfg.minListValue) && (times > 1 || (!forItself && !skillUp)))
                 return estimate;
 
             return Materials(bot, recipe, times, index, purse, mayBuy, estimate);
