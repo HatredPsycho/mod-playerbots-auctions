@@ -50,7 +50,7 @@ namespace pba
         cfg.maxAuctionsPerHouse = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MaxAuctionsPerHouse", 20000);
         cfg.minQualityEquipment = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MinQuality.Equipment", ITEM_QUALITY_UNCOMMON);
         cfg.minQualityOther     = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MinQuality.Other", ITEM_QUALITY_NORMAL);
-        cfg.maxQuality          = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MaxQuality", ITEM_QUALITY_EPIC);
+        cfg.maxQuality          = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MaxQuality", ITEM_QUALITY_LEGENDARY);
         LoadNumbers(sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.Sell.ItemClasses", "0,1,2,3,4,5,7,9,15,16"), cfg.itemClasses);
         LoadNumbers(sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.Sell.ExcludedItemIDs", ""), cfg.excludedItems);
         cfg.excludedNameParts.clear();

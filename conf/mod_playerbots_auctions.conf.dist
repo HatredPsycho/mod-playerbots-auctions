@@ -212,10 +212,11 @@ PlayerbotsAuctions.Sell.MinQuality.Other = 1
 
 #
 #    PlayerbotsAuctions.Sell.MaxQuality
-#        Description: Highest quality that is sold.
-#        Default:     4
+#        Description: Highest quality that is sold: 2 uncommon, 3 rare, 4 epic, 5 legendary. Whatever
+#                     can be traded may be offered, so the default leaves it open at the top.
+#        Default:     5
 
-PlayerbotsAuctions.Sell.MaxQuality = 4
+PlayerbotsAuctions.Sell.MaxQuality = 5
 
 #
 #    PlayerbotsAuctions.Sell.ItemClasses
