@@ -45,6 +45,11 @@
 #include "World.h"
 
 // The CoA core counts mail through its own manager; a stock AzerothCore does it in the character cache.
+// The CoA core tells its client the server's rates; a stock AzerothCore has no such thing.
+#if __has_include("AscensionCoAConfig.h")
+#include "AscensionCoAConfig.h"
+#endif
+
 #if __has_include("MailMgr.h")
 #include "MailMgr.h"
 #define PBA_MAIL_DELETED(guid) sMailMgr->OnMailDeleted((guid).GetCounter())

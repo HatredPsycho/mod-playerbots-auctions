@@ -1760,6 +1760,20 @@ public:
 
 void AddSC_playerbots_auctions()
 {
+#if __has_include("AscensionCoAConfig.h")
+    // The CoA client works out the deposit of an auction itself and asks the server for the deposit rate.
+    // The core tells it its XP rates only, so the client stops with a Lua error ("depositMulti" is nil) as
+    // soon as a player puts an item into the auction window. With the rate sent along, players can sell.
+    RegisterAscensionClientConfig([](AscensionClientConfig& config)
+    {
+        for (auto const& rate : config.Rates)
+            if (rate.first == "RATE_AUCTION_DEPOSIT")
+                return;     // the core sends it itself by now
+        config.Rates.emplace_back("RATE_AUCTION_DEPOSIT", sWorld->getRate(RATE_AUCTION_DEPOSIT));
+        config.Rates.emplace_back("RATE_AUCTION_CUT", sWorld->getRate(RATE_AUCTION_CUT));
+        config.Rates.emplace_back("RATE_AUCTION_TIME", sWorld->getRate(RATE_AUCTION_TIME));
+    });
+#endif
     new PlayerbotsAuctionsWorld();
     new PlayerbotsAuctionsHouse();
     new PlayerbotsAuctionsPlayer();
