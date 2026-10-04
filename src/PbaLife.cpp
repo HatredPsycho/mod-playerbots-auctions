@@ -124,6 +124,7 @@ namespace
                     LOG_INFO("module", "PlayerbotsAuctions: gathered in the last 5 minutes: {}", GatheredText());
                     LOG_INFO("module", "PlayerbotsAuctions: professions of the bots online: {}", ProfessionCensus());
                     LOG_INFO("module", "PlayerbotsAuctions: gathering right now: {}", NodeCensus());
+                    LOG_INFO("module", "PlayerbotsAuctions: raw materials in the bags: {}", StockCensus());
                 }
                 else
                 {
@@ -782,6 +783,63 @@ namespace
             for (std::size_t i = 0; i < std::size(skills); ++i)
                 text += Acore::StringFormat("{}{} {}", i ? ", " : "", SkillName(skills[i]), counts[i]);
             return text;
+        }
+
+        /// What raw materials the bots carry right now, and what each of them is going to do with its share:
+        /// offer it, let the stack grow, or keep it for its own craft.
+        static std::string StockCensus()
+        {
+            struct Stock
+            {
+                uint32 pieces = 0, bags = 0, sells = 0, grows = 0, keeps = 0;
+            };
+            std::map<uint32, Stock> stock;
+            PlayerBotMap const bots = sRandomPlayerbotMgr.GetAllBots();
+            for (auto const& entry : bots)
+            {
+                Player* bot = entry.second;
+                PlayerbotAI* botAI = bot && bot->IsInWorld() && !bot->IsBeingTeleported() ? GET_PLAYERBOT_AI(bot) : nullptr;
+                if (!botAI || !botAI->GetAiObjectContext())
+                    continue;
+                std::map<uint32, uint32> carried;
+                auto look = [&](Item* item)
+                {
+                    ItemTemplate const* proto = item ? item->GetTemplate() : nullptr;
+                    if (proto && (proto->Class == ITEM_CLASS_GEM || (proto->Class == ITEM_CLASS_TRADE_GOODS &&
+                        (proto->SubClass == ITEM_SUBCLASS_CLOTH || proto->SubClass == ITEM_SUBCLASS_LEATHER ||
+                         proto->SubClass == ITEM_SUBCLASS_METAL_STONE || proto->SubClass == ITEM_SUBCLASS_HERB ||
+                         proto->SubClass == ITEM_SUBCLASS_ENCHANTING))))
+                        carried[proto->ItemId] += item->GetCount();
+                };
+                for (uint8 slot = INVENTORY_SLOT_ITEM_START; slot < INVENTORY_SLOT_ITEM_END; ++slot)
+                    look(bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot));
+                for (uint8 bagSlot = INVENTORY_SLOT_BAG_START; bagSlot < INVENTORY_SLOT_BAG_END; ++bagSlot)
+                    if (Bag* bag = bot->GetBagByPos(bagSlot))
+                        for (uint32 slot = 0; slot < bag->GetBagSize(); ++slot)
+                            look(bag->GetItemByPos(slot));
+                for (auto const& held : carried)
+                {
+                    ItemTemplate const* proto = sObjectMgr->GetItemTemplate(held.first);
+                    Stock& entry2 = stock[held.first];
+                    entry2.pieces += held.second;
+                    ++entry2.bags;
+                    ItemUsage const usage = botAI->GetAiObjectContext()->GetValue<ItemUsage>("item usage", held.first)->Get();
+                    if ((usage == ITEM_USAGE_SKILL || usage == ITEM_USAGE_KEEP) && UsesInCraft(bot, held.first))
+                        ++entry2.keeps;
+                    else if (market.Value(proto) * held.second < LeastLot(proto, held.second))
+                        ++entry2.grows;
+                    else
+                        ++entry2.sells;
+                }
+            }
+            std::vector<std::pair<uint32, Stock>> sorted(stock.begin(), stock.end());
+            std::sort(sorted.begin(), sorted.end(), [](auto const& a, auto const& b) { return a.second.pieces > b.second.pieces; });
+            std::string text;
+            for (std::size_t i = 0; i < sorted.size() && i < 20; ++i)
+                if (ItemTemplate const* proto = sObjectMgr->GetItemTemplate(sorted[i].first))
+                    text += Acore::StringFormat("{}{} x{} in {} bag(s) - {} will offer it, {} let it grow, {} keep it for their craft", text.empty() ? "" : "; ",
+                        proto->Name1, sorted[i].second.pieces, sorted[i].second.bags, sorted[i].second.sells, sorted[i].second.grows, sorted[i].second.keeps);
+            return text.empty() ? "-" : text;
         }
 
         /// Why the gatherers gather or do not: do they carry their tool, are there veins and herbs in sight, and
