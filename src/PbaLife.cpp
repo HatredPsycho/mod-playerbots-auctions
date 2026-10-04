@@ -119,6 +119,7 @@ namespace
                     LOG_INFO("module", "PlayerbotsAuctions: professions at the auctioneers: {}", crafts.empty() ? "-" : crafts);
                     LOG_INFO("module", "PlayerbotsAuctions: gathered in the last 5 minutes: {}", GatheredText());
                     LOG_INFO("module", "PlayerbotsAuctions: professions of the bots online: {}", ProfessionCensus());
+                    LOG_INFO("module", "PlayerbotsAuctions: gathering right now: {}", NodeCensus());
                 }
                 else
                 {
@@ -751,6 +752,93 @@ namespace
             for (std::size_t i = 0; i < std::size(skills); ++i)
                 text += Acore::StringFormat("{}{} {}", i ? ", " : "", SkillName(skills[i]), counts[i]);
             return text;
+        }
+
+        /// Why the gatherers gather or do not: do they carry their tool, are there veins and herbs in sight, and
+        /// would mod-playerbots go for them? It only does within its loot distance, at about the bot's own height
+        /// (3.5 yards up or down) and with enough skill.
+        static std::string NodeCensus()
+        {
+            static uint32 const picks[] = { 756, 778, 1819, 1893, 1959, 2901, 9465, 20723, 40772, 40892, 40893 };
+            static uint32 const knives[] = { 7005, 40772, 40893, 12709, 19901 };
+            struct Count
+            {
+                uint32 bots = 0, withTool = 0, seeing = 0, nodes = 0, near = 0, level = 0, skilled = 0, fine = 0;
+            };
+            Count mining, herbs, skinning;
+            float const reach = sPlayerbotAIConfig.lootDistance;
+
+            PlayerBotMap const bots = sRandomPlayerbotMgr.GetAllBots();
+            for (auto const& entry : bots)
+            {
+                Player* bot = entry.second;
+                if (!bot || !bot->IsInWorld() || bot->IsBeingTeleported() || !bot->GetSession())
+                    continue;
+                if (bot->HasSkill(SKILL_SKINNING))
+                {
+                    ++skinning.bots;
+                    for (uint32 const knife : knives)
+                        if (bot->HasItemCount(knife, 1)) { ++skinning.withTool; break; }
+                }
+                bool const miner = bot->HasSkill(SKILL_MINING), herbalist = bot->HasSkill(SKILL_HERBALISM);
+                if (!miner && !herbalist)
+                    continue;
+                if (miner)
+                {
+                    ++mining.bots;
+                    for (uint32 const pick : picks)
+                        if (bot->HasItemCount(pick, 1)) { ++mining.withTool; break; }
+                }
+                if (herbalist)
+                {
+                    ++herbs.bots;
+                    ++herbs.withTool;       // needs none
+                }
+
+                PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
+                if (!botAI || !botAI->GetAiObjectContext())
+                    continue;
+                bool sawVein = false, sawHerb = false;
+                GuidVector const objects = botAI->GetAiObjectContext()->GetValue<GuidVector>("nearest game objects")->Get();
+                for (ObjectGuid const guid : objects)
+                {
+                    GameObject* go = ObjectAccessor::GetGameObject(*bot, guid);
+                    if (!go || !go->isSpawned() || !go->GetGOInfo())
+                        continue;
+                    LockEntry const* lock = sLockStore.LookupEntry(go->GetGOInfo()->GetLockId());
+                    if (!lock)
+                        continue;
+                    for (uint8 i = 0; i < 8; ++i)
+                    {
+                        if (lock->Type[i] != LOCK_KEY_SKILL)
+                            continue;
+                        bool const vein = lock->Index[i] == LOCKTYPE_MINING, herb = lock->Index[i] == LOCKTYPE_HERBALISM;
+                        if (!(vein && miner) && !(herb && herbalist))
+                            continue;
+                        Count& count = vein ? mining : herbs;
+                        (vein ? sawVein : sawHerb) = true;
+                        ++count.nodes;
+                        bool const near = bot->GetDistance(go) <= reach;
+                        bool const level = std::fabs(go->GetPositionZ() - bot->GetPositionZ()) <= INTERACTION_DISTANCE - 2.0f;
+                        bool const skilled = bot->GetSkillValue(vein ? SKILL_MINING : SKILL_HERBALISM) >= std::max<uint32>(1, lock->Skill[i]);
+                        if (near) ++count.near;
+                        if (level) ++count.level;
+                        if (skilled) ++count.skilled;
+                        if (near && level && skilled) ++count.fine;
+                        break;
+                    }
+                }
+                if (sawVein) ++mining.seeing;
+                if (sawHerb) ++herbs.seeing;
+            }
+
+            auto text = [reach](char const* name, char const* node, Count const& count)
+            {
+                return Acore::StringFormat("{} {} ({} with the tool), {} of them see {} {} - {} within {} yards, {} at their height, {} with enough skill, {} all three",
+                    count.bots, name, count.withTool, count.seeing, count.nodes, node, count.near, uint32(reach), count.level, count.skilled, count.fine);
+            };
+            return text("miners", "vein(s)", mining) + "; " + text("herbalists", "herb(s)", herbs) +
+                Acore::StringFormat("; {} skinners ({} with a knife)", skinning.bots, skinning.withTool);
         }
 
         static std::string SkillName(uint32 skill)
