@@ -310,6 +310,8 @@ namespace pba
     std::vector<Recipe> Recipes(Player* bot, bool canWalk)
     {
         std::vector<Recipe> recipes;
+        // Tools it lacks and no vendor sells: a rod, a spanner, a philosopher's stone. Those it makes itself.
+        std::unordered_set<uint32> lackingTools, lackingKinds;
         for (auto const& known : bot->GetSpellMap())
         {
             if (!known.second || known.second->State == PLAYERSPELL_REMOVED || !known.second->Active)
@@ -338,14 +340,20 @@ namespace pba
                     if (market.IsVendorSupply(info->Totem[i]))
                         toBuy.push_back(info->Totem[i]);
                     else
+                    {
                         tools = false;
+                        lackingTools.insert(info->Totem[i]);
+                    }
                 }
                 if (info->TotemCategory[i] && !bot->HasItemTotemCategory(info->TotemCategory[i]))
                 {
                     if (uint32 const tool = market.VendorTool(info->TotemCategory[i]))
                         toBuy.push_back(tool);
                     else
+                    {
                         tools = false;
+                        lackingKinds.insert(info->TotemCategory[i]);
+                    }
                 }
             }
             if (!tools || (!toBuy.empty() && !cfg.matsVendor))
@@ -368,6 +376,20 @@ namespace pba
             if (!recipe.reagents.empty())
                 recipes.push_back(std::move(recipe));
         }
+
+        if (!lackingTools.empty() || !lackingKinds.empty())
+            for (Recipe& recipe : recipes)
+            {
+                ItemTemplate const* made = recipe.kind == KIND_CRAFT ? sObjectMgr->GetItemTemplate(recipe.product) : nullptr;
+                if (!made || bot->HasItemCount(made->ItemId, 1))
+                    continue;
+                if (lackingTools.count(made->ItemId))
+                    recipe.ownTool = true;
+                else if (made->TotemCategory)
+                    for (uint32 const kind : lackingKinds)
+                        if (bot->IsTotemCategoryCompatiableWith(made, kind))
+                            recipe.ownTool = true;
+            }
         return recipes;
     }
 }

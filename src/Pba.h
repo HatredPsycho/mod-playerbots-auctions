@@ -299,6 +299,7 @@ namespace pba
         uint32 focus = 0;                                       // needs an anvil, a forge, a fire
         std::vector<std::pair<uint32, uint32>> reagents;        // item, count
         std::vector<uint32> tools;                              // a hammer, a pick it still has to buy from a vendor
+        bool ownTool = false;                                   // makes a tool another of its recipes needs and no vendor sells
     };
 
     /// What this bot can craft here: recipes of its professions that turn materials into an item, for which it

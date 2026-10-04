@@ -960,6 +960,12 @@ namespace
                 return;
 
             ItemTemplate const* proto = item->GetTemplate();
+            // Its tools - the one rod, the one spanner - are not for sale.
+            if (proto->TotemCategory && bot->GetItemCount(proto->ItemId) <= 1)
+            {
+                ++_stat.needed;
+                return;
+            }
             if (IsHandout(bot, proto))
             {
                 ++_stat.needed;
@@ -1303,20 +1309,24 @@ namespace
             }
 
             ItemTemplate const* product = sObjectMgr->GetItemTemplate(recipe.product);
-            if (!product || product->Quality >= MAX_ITEM_QUALITY || !Market::Base(product))
+            if (!product || product->Quality >= MAX_ITEM_QUALITY)
+                return estimate;
+            // A tool for its own work it makes once, whatever it would bring.
+            bool const ownTool = recipe.ownTool && !bot->HasItemCount(product->ItemId, 1);
+            if (ownTool ? times > 1 : !Market::Base(product))
                 return estimate;
 
             // What the product is worth to the bot: its price minus the auction house's cut if it sells it,
             // a little more if it can use it itself - but it only needs one.
             ItemUsage const usage = botAI->GetAiObjectContext()->GetValue<ItemUsage>("item usage", product->ItemId)->Get();
             // Something it wears or uses - or works on: the bars a smith smelts from its ore are for its own anvil.
-            bool const forItself = intermediate || usage == ITEM_USAGE_EQUIP || usage == ITEM_USAGE_REPLACE || usage == ITEM_USAGE_USE;
+            bool const forItself = intermediate || ownTool || usage == ITEM_USAGE_EQUIP || usage == ITEM_USAGE_REPLACE || usage == ITEM_USAGE_USE;
             bool const forSale = IsAllowedKind(product);
             if (!forItself && !forSale)
                 return estimate;
             if (!forSale && !intermediate && times > 1)
                 return estimate;
-            double const value = market.Value(product) * recipe.made;
+            double const value = (Market::Base(product) ? market.Value(product) : 0.0) * recipe.made;
             estimate.worth = value * (forItself ? 1.2 : 0.95) + value * 0.95 * (times - 1);
             // A recipe that still raises its skill is worth more to it - once; the next one may not.
             bool const skillUp = recipe.kind != KIND_ENCHANT && ItemUsageValue::SpellGivesSkillUp(recipe.spell, bot);
@@ -1329,7 +1339,13 @@ namespace
             if (!intermediate && lot < double(cfg.minListValue) && (times > 1 || (!forItself && !skillUp)))
                 return estimate;
 
-            return Materials(bot, recipe, times, index, purse, mayBuy, estimate);
+            estimate = Materials(bot, recipe, times, index, purse, mayBuy, estimate);
+            if (ownTool && !estimate.missing)
+            {
+                estimate.worth = std::max(estimate.worth, estimate.cost * 1.5 + 1.0);
+                estimate.ok = estimate.toPay <= purse;
+            }
+            return estimate;
         }
 
         /// The other side of the sum: what the materials cost - those it carries, those on offer, those from a vendor.
