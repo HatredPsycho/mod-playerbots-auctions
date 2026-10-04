@@ -37,7 +37,16 @@ namespace pba
         if (proto->Bonding == BIND_WHEN_PICKED_UP || proto->Bonding == BIND_QUEST_ITEM || proto->HasFlag(ITEM_FLAG_CONJURED))
             return 0;
         uint32 const level = std::max<uint32>(5, proto->ItemLevel);
-        return std::max<uint32>(20, level * level * (proto->Quality + 1) / 2);
+        uint32 const byLevel = std::max<uint32>(20, level * level * (proto->Quality + 1) / 2);
+        // What a vendor would ask for it, were there one - dusts, essences and shards have such a price, and
+        // a vendor buys at a fifth of what it sells for. Never less than the item level says, and not
+        // absurdly more: some of these prices are placeholders.
+        if (proto->BuyPrice)
+        {
+            uint32 const byPrice = proto->BuyPrice / std::max<uint32>(1, proto->BuyCount) / 5;
+            return std::max(byLevel, std::min(byPrice, byLevel * 10));
+        }
+        return byLevel;
     }
 
     double Market::Regular(ItemTemplate const* proto)

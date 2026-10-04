@@ -196,7 +196,7 @@ namespace pba
                 continue;
             if (IsScrollRecipe(info))
                 enchants.push_back(info);
-            else if (info->Effects[EFFECT_0].Effect == SPELL_EFFECT_CREATE_ITEM)
+            else if (info->Effects[EFFECT_0].Effect == SPELL_EFFECT_CREATE_ITEM && info->IsAbilityOfSkillType(SKILL_INSCRIPTION))
                 if (ItemTemplate const* proto = sObjectMgr->GetItemTemplate(info->Effects[EFFECT_0].ItemType))
                     if ((proto->IsWeaponVellum() || proto->IsArmorVellum()) && seen.insert(proto->ItemId).second)
                         vellums.push_back({ proto->ItemId, proto->RequiredLevel ? proto->RequiredLevel : proto->ItemLevel, proto->IsWeaponVellum() });
