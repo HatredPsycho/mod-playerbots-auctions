@@ -763,7 +763,7 @@ namespace
             static uint32 const knives[] = { 7005, 40772, 40893, 12709, 19901 };
             struct Count
             {
-                uint32 bots = 0, withTool = 0, seeing = 0, nodes = 0, near = 0, level = 0, skilled = 0, fine = 0;
+                uint32 bots = 0, withTool = 0, seeing = 0, nodes = 0, close = 0, level = 0, skilled = 0, fine = 0;
             };
             Count mining, herbs, skinning;
             float const reach = sPlayerbotAIConfig.lootDistance;
@@ -818,13 +818,13 @@ namespace
                         Count& count = vein ? mining : herbs;
                         (vein ? sawVein : sawHerb) = true;
                         ++count.nodes;
-                        bool const near = bot->GetDistance(go) <= reach;
+                        bool const close = bot->GetDistance(go) <= reach;
                         bool const level = std::fabs(go->GetPositionZ() - bot->GetPositionZ()) <= INTERACTION_DISTANCE - 2.0f;
                         bool const skilled = bot->GetSkillValue(vein ? SKILL_MINING : SKILL_HERBALISM) >= std::max<uint32>(1, lock->Skill[i]);
-                        if (near) ++count.near;
+                        if (close) ++count.close;
                         if (level) ++count.level;
                         if (skilled) ++count.skilled;
-                        if (near && level && skilled) ++count.fine;
+                        if (close && level && skilled) ++count.fine;
                         break;
                     }
                 }
@@ -835,7 +835,7 @@ namespace
             auto text = [reach](char const* name, char const* node, Count const& count)
             {
                 return Acore::StringFormat("{} {} ({} with the tool), {} of them see {} {} - {} within {} yards, {} at their height, {} with enough skill, {} all three",
-                    count.bots, name, count.withTool, count.seeing, count.nodes, node, count.near, uint32(reach), count.level, count.skilled, count.fine);
+                    count.bots, name, count.withTool, count.seeing, count.nodes, node, count.close, uint32(reach), count.level, count.skilled, count.fine);
             };
             return text("miners", "vein(s)", mining) + "; " + text("herbalists", "herb(s)", herbs) +
                 Acore::StringFormat("; {} skinners ({} with a knife)", skinning.bots, skinning.withTool);
