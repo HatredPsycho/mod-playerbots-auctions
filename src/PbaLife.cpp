@@ -105,9 +105,9 @@ namespace
                     LOG_INFO("module", "PlayerbotsAuctions: last 5 minutes - {} bot(s) online, {} asked themselves whether to go ({} had something to sell, "
                         "the most was {} thing(s)), {} set out, {} wanted to but found no way, {} did business at an auctioneer, {} on an errand now, "
                         "{} time(s) something was kept from a vendor. Of {} thing(s) in their bags {} were not of a kind that is sold, "
-                        "{} soulbound or not tradable, {} needed by the bot itself. {} thing(s) went to a vendor as junk.",
+                        "{} soulbound or not tradable, {} needed by the bot itself, {} not worth an auction. {} thing(s) went to a vendor as junk.",
                         sRandomPlayerbotMgr.GetAllBots().size(), _stat.asked, _stat.withGoods, _stat.mostGoods, _stat.trips, _stat.noWay, _stat.visits,
-                        _watch.size(), _kept.exchange(0), _stat.seen, _stat.wrongKind, _stat.bound, _stat.needed, _stat.vendored);
+                        _watch.size(), _kept.exchange(0), _stat.seen, _stat.wrongKind, _stat.bound, _stat.needed, _stat.cheap, _stat.vendored);
                 if (cfg.debug)
                 {
                     LOG_INFO("module", "PlayerbotsAuctions: most common of a kind that is not sold: {}", MostCommon(_stat.wrongKinds));
@@ -770,6 +770,14 @@ namespace
             // What nobody wanted goes to the vendor: mod-playerbots sells it there by itself.
             if (market.Tries(bot->GetGUID().GetCounter(), item->GetEntry()) >= TryLimit(bot))
                 return;
+
+            // What would not be worth an auction is no reason for a trip: it goes to a vendor on the way.
+            ItemTemplate const* proto = item->GetTemplate();
+            if (market.Value(proto) * bot->GetItemCount(proto->ItemId) < double(cfg.minListValue))
+            {
+                ++_stat.cheap;
+                return;
+            }
 
             // The bot's own judgement: only what it neither uses, wears, needs for a quest or a profession.
             ItemUsage const usage = botAI->GetAiObjectContext()->GetValue<ItemUsage>("item usage", item->GetEntry())->Get();
@@ -1649,7 +1657,7 @@ namespace
         struct Stat
         {
             uint32 asked = 0, withGoods = 0, mostGoods = 0, trips = 0, noWay = 0, visits = 0;
-            uint32 seen = 0, wrongKind = 0, bound = 0, needed = 0, vendored = 0;
+            uint32 seen = 0, wrongKind = 0, bound = 0, needed = 0, vendored = 0, cheap = 0;
             std::unordered_map<uint32, uint32> wrongKinds, neededOnes;
             std::map<uint32, uint32[4]> recipes;        // skill -> thought through, material missing, does not pay, works out
         };
