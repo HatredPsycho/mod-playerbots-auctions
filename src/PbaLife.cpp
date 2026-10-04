@@ -117,6 +117,13 @@ namespace
                         crafts += Acore::StringFormat("{}{}: {} recipe(s) thought through, {} lack a material, {} do not pay, {} work out",
                             crafts.empty() ? "" : "; ", SkillName(skill.first), skill.second[0], skill.second[1], skill.second[2], skill.second[3]);
                     LOG_INFO("module", "PlayerbotsAuctions: professions at the auctioneers: {}", crafts.empty() ? "-" : crafts);
+                    LOG_INFO("module", "PlayerbotsAuctions: gathered in the last 5 minutes: {}", GatheredText());
+                    LOG_INFO("module", "PlayerbotsAuctions: professions of the bots online: {}", ProfessionCensus());
+                }
+                else
+                {
+                    std::lock_guard<std::mutex> guard(_gatherLock);
+                    _gathered.clear();
                 }
                 _stat = Stat();
             }
@@ -148,6 +155,52 @@ namespace
                 if (Visit(bot, now, false))
                     ++visits;
             }
+        }
+
+        /// For the summary: what a bot took out of the world - ore from a vein, herbs, a hide off a corpse, cloth.
+        /// Called from the map threads, hence the lock.
+        void Looted(Player* bot, Item* item, uint32 count, ObjectGuid source)
+        {
+            if (!cfg.enabled || !cfg.debug || !bot || !item || !item->GetTemplate() || !bot->GetSession() ||
+                !sPlayerbotAIConfig.IsInRandomAccountList(bot->GetSession()->GetAccountId()))
+                return;
+            ItemTemplate const* proto = item->GetTemplate();
+            if (proto->Class != ITEM_CLASS_TRADE_GOODS && proto->Class != ITEM_CLASS_GEM)
+                return;
+
+            char const* what = nullptr;
+            if (source.IsGameObject())
+            {
+                if (proto->Class == ITEM_CLASS_GEM)
+                    what = "gems from veins";
+                else if (proto->SubClass == ITEM_SUBCLASS_METAL_STONE)
+                    what = "ore and stone mined";
+                else if (proto->SubClass == ITEM_SUBCLASS_HERB)
+                    what = "herbs picked";
+                else
+                    what = "other materials from chests and nodes";
+            }
+            else if (source.IsCreatureOrVehicle())
+            {
+                Creature* corpse = ObjectAccessor::GetCreature(*bot, source);
+                if (corpse && corpse->loot.loot_type == LOOT_SKINNING)
+                    what = proto->SubClass == ITEM_SUBCLASS_LEATHER ? "leather and hides skinned" :
+                           proto->SubClass == ITEM_SUBCLASS_HERB ? "herbs from corpses" :
+                           proto->SubClass == ITEM_SUBCLASS_METAL_STONE ? "ore from corpses" : "other things skinned";
+                else if (proto->SubClass == ITEM_SUBCLASS_CLOTH && proto->Class == ITEM_CLASS_TRADE_GOODS)
+                    what = "cloth looted";
+                else if (proto->SubClass == ITEM_SUBCLASS_MEAT && proto->Class == ITEM_CLASS_TRADE_GOODS)
+                    what = "meat looted";
+                else
+                    what = "other materials looted";
+            }
+            if (!what)
+                return;
+
+            std::lock_guard<std::mutex> guard(_gatherLock);
+            Gathered& entry = _gathered[what];
+            entry.pieces += count;
+            entry.bots.insert(bot->GetGUID().GetCounter());
         }
 
         /// Is this something the bot does not give to a vendor? mod-playerbots sells whatever a bot does not
@@ -671,6 +724,35 @@ namespace
             return text.empty() ? "-" : text;
         }
 
+        std::string GatheredText()
+        {
+            std::lock_guard<std::mutex> guard(_gatherLock);
+            std::string text;
+            for (auto const& entry : _gathered)
+                text += Acore::StringFormat("{}{}: {} piece(s) by {} bot(s)", text.empty() ? "" : "; ", entry.first, entry.second.pieces, entry.second.bots.size());
+            _gathered.clear();
+            return text.empty() ? "nothing" : text;
+        }
+
+        /// How many of the bots online have which profession - so one can tell "nobody mines" from "no miner is online".
+        static std::string ProfessionCensus()
+        {
+            static uint32 const skills[] = { SKILL_MINING, SKILL_HERBALISM, SKILL_SKINNING, SKILL_BLACKSMITHING, SKILL_ENGINEERING,
+                SKILL_JEWELCRAFTING, SKILL_ALCHEMY, SKILL_INSCRIPTION, SKILL_TAILORING, SKILL_LEATHERWORKING, SKILL_ENCHANTING,
+                SKILL_COOKING, SKILL_FIRST_AID };
+            uint32 counts[std::size(skills)] = { };
+            PlayerBotMap const bots = sRandomPlayerbotMgr.GetAllBots();
+            for (auto const& entry : bots)
+                if (Player* bot = entry.second)
+                    for (std::size_t i = 0; i < std::size(skills); ++i)
+                        if (bot->HasSkill(skills[i]))
+                            ++counts[i];
+            std::string text;
+            for (std::size_t i = 0; i < std::size(skills); ++i)
+                text += Acore::StringFormat("{}{} {}", i ? ", " : "", SkillName(skills[i]), counts[i]);
+            return text;
+        }
+
         static std::string SkillName(uint32 skill)
         {
             switch (skill)
@@ -686,6 +768,8 @@ namespace
                 case SKILL_JEWELCRAFTING: return "jewelcrafting";
                 case SKILL_LEATHERWORKING: return "leatherworking";
                 case SKILL_MINING: return "mining";
+                case SKILL_HERBALISM: return "herbalism";
+                case SKILL_SKINNING: return "skinning";
                 case SKILL_TAILORING: return "tailoring";
                 default: return "skill " + std::to_string(skill);
             }
@@ -1677,6 +1761,13 @@ namespace
             std::map<uint32, uint32[4]> recipes;        // skill -> thought through, material missing, does not pay, works out
         };
         Stat _stat;
+        struct Gathered
+        {
+            uint64 pieces = 0;
+            std::set<ObjectGuid::LowType> bots;
+        };
+        std::mutex _gatherLock;
+        std::map<std::string, Gathered> _gathered;
         std::atomic<uint32> _kept{0};
         uint32 _statTimer = 0;
         uint32 _saveTimer = 0;
@@ -1730,7 +1821,12 @@ public:
 class PlayerbotsAuctionsPlayer : public PlayerScript
 {
 public:
-    PlayerbotsAuctionsPlayer() : PlayerScript("PlayerbotsAuctionsPlayer", { PLAYERHOOK_CAN_SELL_ITEM }) { }
+    PlayerbotsAuctionsPlayer() : PlayerScript("PlayerbotsAuctionsPlayer", { PLAYERHOOK_CAN_SELL_ITEM, PLAYERHOOK_ON_LOOT_ITEM }) { }
+
+    void OnPlayerLootItem(Player* player, Item* item, uint32 count, ObjectGuid source) override
+    {
+        pba::life.Looted(player, item, count, source);
+    }
 
     bool OnPlayerCanSellItem(Player* player, Item* item, Creature* /*vendor*/) override
     {

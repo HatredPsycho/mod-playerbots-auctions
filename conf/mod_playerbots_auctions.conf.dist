@@ -24,7 +24,8 @@ PlayerbotsAuctions.Enable = 1
 #
 #    PlayerbotsAuctions.Debug
 #        Description: Writes to the server log what the bots do: every trip, auction, bid, purchase
-#                     and crafted item, and every five minutes a summary.
+#                     and crafted item, and every five minutes a summary: what the bots carry, what they gathered (ore, herbs,
+#                     hides, cloth), which professions they have and what comes of their recipes.
 #        Default:     0 - Disabled
 #                     1 - Enabled
 

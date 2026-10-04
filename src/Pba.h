@@ -59,6 +59,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <mutex>
+#include <set>
 #include <cctype>
 #include <cmath>
 #include <iterator>
