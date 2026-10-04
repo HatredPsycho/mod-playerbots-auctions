@@ -102,6 +102,7 @@ namespace pba
         cfg.craftFocus          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Crafting.WalkToAnvilForgeFire", true);
         cfg.craftBatch          = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Crafting.MaxInARow", 5), 1, 20);
         cfg.refine              = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Crafting.TakeApart", true);
+        cfg.glyphs              = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Crafting.Glyphs", false);
     }
 
     // ------------------------------------------------------------------------------------------ character

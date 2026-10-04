@@ -12,13 +12,19 @@
       "target": "mod-playerbots",
       "file": "patches/mod-playerbots/scaled-item-lookup.patch",
       "why": "Since CoA core #6403 a bot that loots a level-scaled item ends the server. Left out by itself as soon as mod-playerbots has the fix."
+    },
+    {
+      "name": "Bots gather on slopes",
+      "target": "mod-playerbots",
+      "file": "patches/mod-playerbots/gather-on-slopes.patch",
+      "why": "mod-playerbots ignores every vein and herb that lies more than 3.5 yards above or below the bot. Veins are in hillsides, so miners never mined. Now the height may grow with the distance."
     }
   ],
   "settings": [
     {
       "file": "playerbots.conf",
       "key": "AiPlayerbot.LootDistance",
-      "value": "40.0",
+      "value": "60.0",
       "why": "Bots only gather ore and herbs they pass within this distance. With the default of 15 yards hardly any reach the auction house."
     }
   ]

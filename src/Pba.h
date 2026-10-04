@@ -137,6 +137,7 @@ namespace pba
         bool   craftFocus = true;              // walk to an anvil, a forge or a fire when a recipe needs one
         uint32 craftBatch = 5;                 // the most a producer makes of one thing in a row
         bool   refine = true;                  // prospecting, milling, disenchanting
+        bool   glyphs = false;                 // scribes make glyphs - of no use to the classes of Conquest of Azeroth
     };
 
     extern Settings cfg;

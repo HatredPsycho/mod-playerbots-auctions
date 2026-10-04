@@ -318,6 +318,10 @@ namespace pba
             if (!info || !info->HasAttribute(SPELL_ATTR0_IS_TRADESKILL) || info->Effects[EFFECT_0].Effect != SPELL_EFFECT_CREATE_ITEM ||
                 !info->Effects[EFFECT_0].ItemType || bot->HasSpellCooldown(info->Id))
                 continue;
+            if (!cfg.glyphs)
+                if (ItemTemplate const* made = sObjectMgr->GetItemTemplate(info->Effects[EFFECT_0].ItemType))
+                    if (made->Class == ITEM_CLASS_GLYPH)
+                        continue;
             if (info->RequiresSpellFocus && (!cfg.craftFocus || !canWalk || !NearestFocus(bot, info->RequiresSpellFocus)))
                 continue;
 

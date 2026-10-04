@@ -1,0 +1,20 @@
+diff --git a/src/Mgr/Item/LootObjectStack.cpp b/src/Mgr/Item/LootObjectStack.cpp
+index a449f0a..625053e 100644
+--- a/src/Mgr/Item/LootObjectStack.cpp
++++ b/src/Mgr/Item/LootObjectStack.cpp
+@@ -294,7 +294,14 @@ bool LootObject::IsLootPossible(Player* bot)
+     if (reqItem && !bot->HasItemCount(reqItem, 1))
+         return false;
+ 
+-    if (abs(worldObj->GetPositionZ() - bot->GetPositionZ()) > INTERACTION_DISTANCE - 2.0f)
++    // Veins and herbs stand on slopes: the farther away one is, the more it may lie above or below the
++    // bot - half a yard for every yard of way, 25 at most. Next to it the old limit holds again, so a
++    // node on a ledge the bot cannot climb is given up once it stands underneath.
++    float maxHeight = INTERACTION_DISTANCE - 2.0f;
++    if (guid.IsGameObject() && (skillId == SKILL_MINING || skillId == SKILL_HERBALISM))
++        maxHeight = std::min(25.0f, maxHeight + 0.5f * bot->GetExactDist2d(worldObj));
++
++    if (abs(worldObj->GetPositionZ() - bot->GetPositionZ()) > maxHeight)
+         return false;
+ 
+     Creature* creature = botAI->GetCreature(guid);

@@ -819,7 +819,9 @@ namespace
                         (vein ? sawVein : sawHerb) = true;
                         ++count.nodes;
                         bool const close = bot->GetDistance(go) <= reach;
-                        bool const level = std::fabs(go->GetPositionZ() - bot->GetPositionZ()) <= INTERACTION_DISTANCE - 2.0f;
+                        // The rule of patches/mod-playerbots/gather-on-slopes.patch.
+                        bool const level = std::fabs(go->GetPositionZ() - bot->GetPositionZ()) <=
+                            std::min(25.0f, INTERACTION_DISTANCE - 2.0f + 0.5f * bot->GetExactDist2d(go));
                         bool const skilled = bot->GetSkillValue(vein ? SKILL_MINING : SKILL_HERBALISM) >= std::max<uint32>(1, lock->Skill[i]);
                         if (close) ++count.close;
                         if (level) ++count.level;
@@ -834,7 +836,7 @@ namespace
 
             auto text = [reach](char const* name, char const* node, Count const& count)
             {
-                return Acore::StringFormat("{} {} ({} with the tool), {} of them see {} {} - {} within {} yards, {} at their height, {} with enough skill, {} all three",
+                return Acore::StringFormat("{} {} ({} with the tool), {} of them see {} {} - {} within {} yards, {} on a slope they take, {} with enough skill, {} all three",
                     count.bots, name, count.withTool, count.seeing, count.nodes, node, count.close, uint32(reach), count.level, count.skilled, count.fine);
             };
             return text("miners", "vein(s)", mining) + "; " + text("herbalists", "herb(s)", herbs) +

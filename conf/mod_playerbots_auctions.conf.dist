@@ -525,3 +525,14 @@ PlayerbotsAuctions.Crafting.MaxInARow = 5
 #                     0 - Disabled
 
 PlayerbotsAuctions.Crafting.TakeApart = 1
+
+#
+#    PlayerbotsAuctions.Crafting.Glyphs
+#        Description: Scribes make glyphs. The glyphs of Wrath of the Lich King change the spells of
+#                     the old classes; the classes of Conquest of Azeroth cannot use them, so nobody
+#                     buys them there. Without glyphs scribes make inks, scrolls, vellum, cards and
+#                     books. Enable on a server with the old classes.
+#        Default:     0 - Disabled
+#                     1 - Enabled
+
+PlayerbotsAuctions.Crafting.Glyphs = 0

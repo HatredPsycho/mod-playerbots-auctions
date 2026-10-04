@@ -47,18 +47,21 @@ are not sent anywhere and only do their business when they happen to pass an auc
 ## Requirements
 
 - AzerothCore with **mod-playerbots** installed (this module does not build without it)
-- Two small changes to mod-playerbots, in `patches/mod-playerbots`:
+- Three small changes to mod-playerbots, in `patches/mod-playerbots`:
   - **keep-bags-on-refresh.patch** - mod-playerbots empties the bags of every random bot every 10 to 40
     minutes and after every death. With that the bots never have anything to sell. The patch keeps the bags
     and only renews food, drink and potions.
   - **scaled-item-lookup.patch** - since CoA core #6403 a bot that loots a level-scaled item ends the
     server. Not needed any more once mod-playerbots has the fix.
+  - **gather-on-slopes.patch** - mod-playerbots ignores every vein and herb more than 3.5 yards above or
+    below the bot. Veins are in hillsides, so miners never mined. With the patch the height may grow with
+    the distance (half a yard per yard, 25 at most).
 
 ## Installation
 
 **With [AFK Realm](https://github.com/aspollon/AFK-Realm):** tick the module under "Modules by AFK Realm" in
-the module manager. AFK Realm downloads it, applies the two patches with every build (and leaves one out when
-it no longer fits or is no longer needed), sets `AiPlayerbot.LootDistance` to 40 so the bots gather more ore
+the module manager. AFK Realm downloads it, applies the patches with every build (and leaves one out when
+it no longer fits or is no longer needed), sets `AiPlayerbot.LootDistance` to 60 so the bots gather more ore
 and herbs, and rebuilds the server. `afk-realm.json` tells it what to do.
 
 **By hand:**
