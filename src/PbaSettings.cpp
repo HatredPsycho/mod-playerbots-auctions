@@ -188,11 +188,39 @@ namespace pba
         return item->GetOwnerGUID() == bot->GetGUID();
     }
 
+    namespace
+    {
+        // Potion -> the recipes that make it.
+        std::unordered_map<uint32, std::vector<uint32>> potionRecipes;
+    }
+
+    void LoadPotionRecipes()
+    {
+        potionRecipes.clear();
+        for (uint32 id = 1; id < sSpellMgr->GetSpellInfoStoreSize(); ++id)
+        {
+            SpellInfo const* info = sSpellMgr->GetSpellInfo(id);
+            if (!info || !info->HasAttribute(SPELL_ATTR0_IS_TRADESKILL) || info->Effects[EFFECT_0].Effect != SPELL_EFFECT_CREATE_ITEM)
+                continue;
+            ItemTemplate const* product = sObjectMgr->GetItemTemplate(info->Effects[EFFECT_0].ItemType);
+            if (product && product->Class == ITEM_CLASS_CONSUMABLE && product->SubClass == ITEM_SUBCLASS_POTION)
+                potionRecipes[product->ItemId].push_back(id);
+        }
+    }
+
     bool IsHandout(Player* bot, ItemTemplate const* proto)
     {
         if (proto->Class == ITEM_CLASS_PROJECTILE)
             return true;
-        return proto->Class == ITEM_CLASS_CONSUMABLE && proto->SubClass == ITEM_SUBCLASS_POTION && !bot->HasSkill(SKILL_ALCHEMY);
+        if (proto->Class != ITEM_CLASS_CONSUMABLE || proto->SubClass != ITEM_SUBCLASS_POTION)
+            return false;
+        // A potion is the bot's own to sell only if it can make it; any other was handed to it.
+        auto found = potionRecipes.find(proto->ItemId);
+        if (found != potionRecipes.end())
+            for (uint32 const spell : found->second)
+                if (bot->HasSpell(spell))
+                    return false;
+        return true;
     }
 
     uint32 HumanPrice(double copper)

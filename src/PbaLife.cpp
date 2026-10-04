@@ -1710,6 +1710,7 @@ public:
         pba::market.LoadVendorItems();
         pba::LoadFocusObjects();
         pba::LoadYields();
+        pba::LoadPotionRecipes();
         pba::market.LoadMemory();
         if (pba::cfg.enabled)
             LOG_INFO("server.loading", ">> PlayerbotsAuctions: the bots use the auction house.");
