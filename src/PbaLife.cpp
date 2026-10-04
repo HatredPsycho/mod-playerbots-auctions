@@ -631,12 +631,16 @@ namespace
             if (!count || sAuctionMgr->GetAItem(item->GetGUID()))
                 return false;
 
-            uint32 const pack = PackSize(bot, proto, count);
-            wholeStack = pack >= count;
+            uint32 pack = PackSize(bot, proto, count);
             uint32 const tries = market.Tries(bot->GetGUID().GetCounter(), proto->ItemId);
 
             bool exact = false;
             double const each = PriceFor(bot, proto, index, tries, exact);
+            // Cheap things - copper ore, peacebloom - are only worth an auction as the whole stack.
+            if (pack < count && (each * pack < double(cfg.minListValue) ||
+                each * pack * 0.95 - double(proto->SellPrice) * pack < double(SILVER) * 1.2))
+                pack = count;
+            wholeStack = pack >= count;
             double const total = each * pack;
             double const limit = cfg.maxBuyout ? double(cfg.maxBuyout) : double(MAX_MONEY_AMOUNT);
             if (total > limit || total < double(cfg.minListValue))
@@ -662,7 +666,9 @@ namespace
             {
                 deposit = AuctionHouseMgr::GetAuctionDeposit(houseEntry, etime, item, pack);
                 double const gain = double(buyout) * 0.95 - double(proto->SellPrice) * pack;
-                if (gain < double(deposit) * 2.0 || !bot->HasEnoughMoney(deposit))
+                // The deposit comes back when it sells. It is at least a silver, whatever is offered: twice
+                // that would keep every stack of copper ore out of the auction house for good.
+                if (gain < double(deposit) * 1.2 || !bot->HasEnoughMoney(deposit))
                     return false;
             }
 
@@ -1111,7 +1117,9 @@ namespace
                     continue;
 
                 // How much the bot wants it.
-                bool const isMaterial = materials.find(itemId) != materials.end();
+                // Stock is bought for a craft of its own. Cloth for bandages and meat for the fire are bought
+                // when a recipe is planned, not on spec - or the same stack of linen goes from bot to bot.
+                bool const isMaterial = materials.find(itemId) != materials.end() && UsesInCraft(bot, itemId);
                 bool resale = false;
                 double interest = 0.0;
                 switch (botAI->GetAiObjectContext()->GetValue<ItemUsage>("item usage", itemId)->Get())
