@@ -637,8 +637,7 @@ namespace
             bool exact = false;
             double const each = PriceFor(bot, proto, index, tries, exact);
             // Cheap things - copper ore, peacebloom - are only worth an auction as the whole stack.
-            if (pack < count && (each * pack < double(cfg.minListValue) ||
-                each * pack * 0.95 - double(proto->SellPrice) * pack < double(SILVER) * 1.2))
+            if (pack < count && each * pack < double(cfg.minListValue))
                 pack = count;
             wholeStack = pack >= count;
             double const total = each * pack;
@@ -659,16 +658,14 @@ namespace
             uint32 const etime = (patience < 0.3f ? 12 : patience < 0.7f ? 24 : 48) * HOUR;
             uint32 const auctionTime = uint32(etime * sWorld->getRate(RATE_AUCTION_TIME));
 
-            // The deposit is lost if nobody buys. For things that bring little more than a vendor pays,
-            // the auction house is not worth it - those go to the vendor.
+            // The deposit comes back when the item sells and is lost when it does not - as for a player. It
+            // does not decide whether something is offered: the price does, and what keeps coming back gets
+            // cheaper and goes to a vendor in the end.
             uint32 deposit = 0;
             if (cfg.chargeDeposit)
             {
                 deposit = AuctionHouseMgr::GetAuctionDeposit(houseEntry, etime, item, pack);
-                double const gain = double(buyout) * 0.95 - double(proto->SellPrice) * pack;
-                // The deposit comes back when it sells. It is at least a silver, whatever is offered: twice
-                // that would keep every stack of copper ore out of the auction house for good.
-                if (gain < double(deposit) * 1.2 || !bot->HasEnoughMoney(deposit))
+                if (!bot->HasEnoughMoney(deposit))
                     return false;
             }
 

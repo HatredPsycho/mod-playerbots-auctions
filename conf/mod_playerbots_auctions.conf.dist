@@ -245,11 +245,10 @@ PlayerbotsAuctions.Sell.ExcludedNameParts = "monster -,deprecated,[ph],(test), t
 
 #
 #    PlayerbotsAuctions.Sell.ChargeDeposit
-#        Description: Bots pay the normal deposit and lose it if nobody buys. Things that bring
-#                     little more than a vendor pays are therefore not worth an auction and go to
-#                     the vendor, as with players.
+#        Description: Bots pay the normal deposit, get it back when the item sells and lose it if
+#                     nobody buys - as players do. It does not decide what is offered.
 #        Default:     1 - Enabled
-#                     0 - Disabled (bots list for free; expect far more cheap auctions)
+#                     0 - Disabled (bots list for free)
 
 PlayerbotsAuctions.Sell.ChargeDeposit = 1
 
