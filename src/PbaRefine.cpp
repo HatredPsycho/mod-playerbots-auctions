@@ -255,9 +255,11 @@ namespace pba
     {
         if (!cfg.refine)
             return;
-        bool const prospects = bot->HasSpell(SPELL_PROSPECTING);
-        bool const mills = bot->HasSpell(SPELL_MILLING);
-        bool const disenchants = bot->HasSpell(SPELL_DISENCHANT);
+        // By the skill, not only by the spell: mod-playerbots gives its bots the profession without always
+        // teaching what comes with it.
+        bool const prospects = bot->HasSpell(SPELL_PROSPECTING) || bot->GetSkillValue(SKILL_JEWELCRAFTING) >= 20;
+        bool const mills = bot->HasSpell(SPELL_MILLING) || bot->GetSkillValue(SKILL_INSCRIPTION) >= 1;
+        bool const disenchants = bot->HasSpell(SPELL_DISENCHANT) || bot->GetSkillValue(SKILL_ENCHANTING) >= 1;
         if (!prospects && !mills && !disenchants)
             return;
 
@@ -292,7 +294,8 @@ namespace pba
             else if (disenchants && gear < 6 && CanDisenchant(bot, item))
             {
                 // Only what it would get rid of anyway - never something it wears, wants to wear or needs.
-                if (usage != ITEM_USAGE_AH && usage != ITEM_USAGE_VENDOR)
+                // To mod-playerbots, bound gear an enchanter cannot wear is "to disenchant" - which it then never does.
+                if (usage != ITEM_USAGE_AH && usage != ITEM_USAGE_VENDOR && usage != ITEM_USAGE_DISENCHANT)
                     return;
                 ++gear;
                 recipe.kind = KIND_DISENCHANT;
