@@ -87,6 +87,9 @@ namespace pba
         ++learned.sales;
         learned.last = GameTime::GetGameTime().count();
         _dirty.insert(itemId);
+        if (cfg.debug)
+            LOG_INFO("module", "PlayerbotsAuctions: {} (item {}) came back unsold - the bots now take one to be worth {} copper, usually {}.",
+                proto->Name1, itemId, uint64(Value(proto)), uint64(regular));
     }
 
     void Market::RecordSale(uint32 itemId, uint32 price, uint32 count)
@@ -103,6 +106,9 @@ namespace pba
         ++learned.sales;
         learned.last = GameTime::GetGameTime().count();
         _dirty.insert(itemId);
+        if (cfg.debug)
+            LOG_INFO("module", "PlayerbotsAuctions: {} x{} (item {}) sold for {} copper - the bots now take one to be worth {} copper, usually {}.",
+                proto->Name1, count, itemId, price, uint64(Value(proto)), uint64(regular));
     }
 
     void Market::LoadVendorItems()
