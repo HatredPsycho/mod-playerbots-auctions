@@ -579,7 +579,8 @@ namespace
             if (knowledge >= 0.5f)
             {
                 // Knows what the item goes for and looks at the competition.
-                double const value = market.Value(proto);
+                // Nobody offers it: whatever it went for when the market was full, it is scarce now.
+                double const value = cheapest ? market.Value(proto) : std::max(market.Value(proto), Market::Regular(proto));
                 each = value * (0.95 + 0.2 * greed);
                 if (!cheapest)
                     each *= 1.15 + 0.45 * greed;                // nobody else offers it: asks for more
@@ -1300,6 +1301,20 @@ namespace
             std::vector<uint32> toBuy;      // auctions
         };
 
+        /// What a crafter expects for one piece, standing at the auctioneers: it looks at what is on offer.
+        /// None there - it is scarce, the usual price at least. Some there - no more than the cheapest asks.
+        double Going(ItemTemplate const* proto, Index const& index) const
+        {
+            double const value = market.Value(proto);
+            double const regular = Market::Regular(proto);
+            auto found = index.find(proto->ItemId);
+            if (found != index.end())
+                for (Offer const& offer : found->second)
+                    if (offer.buyout)
+                        return double(offer.each) < regular * 0.3 ? value : std::min(value, double(offer.each));     // not a giveaway's price
+            return std::max(value, regular);
+        }
+
         /// The bot works out a recipe: what would the products bring, what do the materials cost - those it
         /// carries (it could sell them instead), those on offer here, those from a vendor?
         Estimate WorkOut(Player* bot, PlayerbotAI* botAI, Recipe const& recipe, uint32 times, Index const& index,
@@ -1338,7 +1353,7 @@ namespace
                 return estimate;
             if (!forSale && !intermediate && times > 1)
                 return estimate;
-            double const value = (Market::Base(product) ? market.Value(product) : 0.0) * recipe.made;
+            double const value = (Market::Base(product) ? Going(product, index) : 0.0) * recipe.made;
             estimate.worth = value * (forItself ? 1.2 : 0.95) + value * 0.95 * (times - 1);
             // A recipe that still raises its skill is worth more to it - once; the next one may not.
             bool const skillUp = recipe.kind != KIND_ENCHANT && ItemUsageValue::SpellGivesSkillUp(recipe.spell, bot);
@@ -1829,7 +1844,10 @@ namespace
                     item->SetState(ITEM_UNCHANGED);
                     bot->MoveItemToInventory(dest, item, true);
                     if (expired)
+                    {
                         market.AddTry(bot->GetGUID().GetCounter(), info.item_template);      // remembered: nobody wanted it at that price
+                        market.RecordReturn(info.item_template);                             // ... and everybody learns from it
+                    }
                     ++returned;
                     changed = true;
                 }

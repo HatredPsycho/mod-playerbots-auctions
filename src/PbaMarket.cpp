@@ -62,9 +62,31 @@ namespace pba
         if (!cfg.learnPrices)
             return regular;
         auto found = _sold.find(proto->ItemId);
-        if (found == _sold.end() || found->second.sales < 3)
-            return regular;         // a price is only "known" after a few sales
-        return (regular + found->second.each) / 2.0;
+        if (found == _sold.end() || !found->second.sales)
+            return regular;
+        // What was learned counts the more the more often it was seen, and fades within days: a market that
+        // was full last week may be empty today.
+        Learned const& learned = found->second;
+        double const weight = std::min(1.0, learned.sales / 5.0);
+        double const age = learned.last ? double(std::max<time_t>(0, GameTime::GetGameTime().count() - learned.last)) : 0.0;
+        double const fade = std::pow(0.5, age / double(3 * DAY));
+        return regular + (learned.each - regular) * weight * fade;
+    }
+
+    void Market::RecordReturn(uint32 itemId)
+    {
+        ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId);
+        if (!cfg.learnPrices || !proto || proto->Quality >= MAX_ITEM_QUALITY || !Base(proto))
+            return;
+        double const regular = Regular(proto);
+        // Not below what a vendor gives: from there on the vendor is the buyer.
+        double const lowest = proto->SellPrice ? double(proto->SellPrice) : regular * 0.2;
+        Learned& learned = _sold[itemId];
+        double const before = learned.sales ? learned.each : regular;
+        learned.each = std::max(lowest, before * 0.7 + before * 0.6 * 0.3);
+        ++learned.sales;
+        learned.last = GameTime::GetGameTime().count();
+        _dirty.insert(itemId);
     }
 
     void Market::RecordSale(uint32 itemId, uint32 price, uint32 count)
@@ -79,6 +101,7 @@ namespace pba
         Learned& learned = _sold[itemId];
         learned.each = learned.sales ? learned.each * 0.8 + each * 0.2 : each;      // newer sales count more
         ++learned.sales;
+        learned.last = GameTime::GetGameTime().count();
         _dirty.insert(itemId);
     }
 
@@ -148,7 +171,7 @@ namespace pba
         CharacterDatabase.DirectExecute(
             "CREATE TABLE IF NOT EXISTS `mod_playerbots_auctions_market` ("
             "`item` INT UNSIGNED NOT NULL, `price` DOUBLE NOT NULL, `sales` INT UNSIGNED NOT NULL, "
-            "PRIMARY KEY (`item`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mod-playerbots-auctions: what items sold for'");
+            "`seen` BIGINT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY (`item`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mod-playerbots-auctions: what items sold for'");
         CharacterDatabase.DirectExecute(
             "CREATE TABLE IF NOT EXISTS `mod_playerbots_auctions_unsold` ("
             "`owner` INT UNSIGNED NOT NULL, `item` INT UNSIGNED NOT NULL, `tries` TINYINT UNSIGNED NOT NULL, "
@@ -156,15 +179,21 @@ namespace pba
         // Sellers that no longer exist are forgotten.
         CharacterDatabase.DirectExecute(
             "DELETE u FROM `mod_playerbots_auctions_unsold` u LEFT JOIN `characters` c ON c.`guid` = u.`owner` WHERE c.`guid` IS NULL");
+        // Tables of an older version do not have the time yet.
+        if (QueryResult result = CharacterDatabase.Query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() "
+            "AND TABLE_NAME = 'mod_playerbots_auctions_market' AND COLUMN_NAME = 'seen'"))
+            if (!result->Fetch()[0].Get<uint64>())
+                CharacterDatabase.DirectExecute("ALTER TABLE `mod_playerbots_auctions_market` ADD COLUMN `seen` BIGINT UNSIGNED NOT NULL DEFAULT 0");
         _tables = true;
 
-        if (QueryResult result = CharacterDatabase.Query("SELECT `item`, `price`, `sales` FROM `mod_playerbots_auctions_market`"))
+        if (QueryResult result = CharacterDatabase.Query("SELECT `item`, `price`, `sales`, `seen` FROM `mod_playerbots_auctions_market`"))
             do
             {
                 Field* fields = result->Fetch();
                 Learned& learned = _sold[fields[0].Get<uint32>()];
                 learned.each = fields[1].Get<double>();
                 learned.sales = fields[2].Get<uint32>();
+                learned.last = time_t(fields[3].Get<uint64>());
             } while (result->NextRow());
 
         if (QueryResult result = CharacterDatabase.Query("SELECT `owner`, `item`, `tries` FROM `mod_playerbots_auctions_unsold`"))
@@ -186,8 +215,8 @@ namespace pba
         {
             auto found = _sold.find(itemId);
             if (found != _sold.end())
-                CharacterDatabase.Execute("REPLACE INTO `mod_playerbots_auctions_market` (`item`, `price`, `sales`) VALUES ({}, {}, {})",
-                    itemId, found->second.each, found->second.sales);
+                CharacterDatabase.Execute("REPLACE INTO `mod_playerbots_auctions_market` (`item`, `price`, `sales`, `seen`) VALUES ({}, {}, {}, {})",
+                    itemId, found->second.each, found->second.sales, uint64(found->second.last));
         }
         _dirty.clear();
     }

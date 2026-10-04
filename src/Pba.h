@@ -200,6 +200,8 @@ namespace pba
         static double Regular(ItemTemplate const* proto);
         double Value(ItemTemplate const* proto) const;
         void RecordSale(uint32 itemId, uint32 price, uint32 count);
+        /// An auction ran out and nobody wanted it: it is worth less than was thought.
+        void RecordReturn(uint32 itemId);
 
         void LoadVendorItems();
         bool IsVendorItem(uint32 itemId) const { return _vendorItems.find(itemId) != _vendorItems.end(); }
@@ -226,7 +228,8 @@ namespace pba
         struct Learned
         {
             double each = 0.0;      // price of one piece
-            uint32 sales = 0;
+            uint32 sales = 0;       // how often it was seen to sell - or to come back
+            time_t last = 0;        // when it was last seen; what was learned fades
         };
         std::unordered_map<uint32, Learned> _sold;
         std::unordered_set<uint32> _dirty;
