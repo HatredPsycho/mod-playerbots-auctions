@@ -177,6 +177,8 @@ namespace pba
     /// alchemist sells potions, and only those it knows how to make.
     bool IsHandout(Player* bot, ItemTemplate const* proto);
     void LoadPotionRecipes();
+    /// Does a recipe of one of its crafts - not smelting - take this material?
+    bool UsesInCraft(Player* bot, uint32 itemId);
 
     /// A price as a person would type it: two digits that matter, the rest zeros.
     uint32 HumanPrice(double copper);

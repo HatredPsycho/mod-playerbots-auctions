@@ -972,6 +972,12 @@ namespace
             // mod-playerbots has no opinion on what a vendor gives nothing for: dusts, essences, some gems.
             if (usage == ITEM_USAGE_AH || usage == ITEM_USAGE_VENDOR || (usage == ITEM_USAGE_NONE && !item->GetTemplate()->SellPrice))
                 items.push_back(item);
+            // To mod-playerbots a miner "needs" all ore and bars, a skinner all leather and a herbalist all herbs -
+            // two stacks of each before anything is for sale. A material is only kept by a bot whose own craft
+            // works it. Ore is smelted first if that pays (the plan reserves it), and sold otherwise.
+            else if ((usage == ITEM_USAGE_SKILL || usage == ITEM_USAGE_KEEP) &&
+                (proto->Class == ITEM_CLASS_TRADE_GOODS || proto->Class == ITEM_CLASS_GEM) && !UsesInCraft(bot, proto->ItemId))
+                items.push_back(item);
             else
             {
                 ++_stat.needed;
