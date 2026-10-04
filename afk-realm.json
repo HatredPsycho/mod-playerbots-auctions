@@ -5,7 +5,7 @@
       "name": "Bots keep their bags",
       "target": "mod-playerbots",
       "file": "patches/mod-playerbots/keep-bags-on-refresh.patch",
-      "why": "mod-playerbots empties the bags of every random bot every 10 to 40 minutes and after every death. Without this change the bots never have anything to sell."
+      "why": "mod-playerbots empties the bags of every random bot every 10 to 40 minutes and after every death. Without this change the bots never have anything to sell. Food, drink and potions are still renewed."
     },
     {
       "name": "No crash on level-scaled loot",

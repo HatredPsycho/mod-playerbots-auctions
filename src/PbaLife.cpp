@@ -707,7 +707,8 @@ namespace
             auto look = [&](Item* item)
             {
                 if (!item || !item->GetTemplate() || !item->GetTemplate()->SellPrice || item->GetOwnerGUID() != bot->GetGUID() ||
-                    item->IsNotEmptyBag() || sAuctionMgr->GetAItem(item->GetGUID()) || KeepsFromVendor(bot, item))
+                    item->IsNotEmptyBag() || sAuctionMgr->GetAItem(item->GetGUID()) || IsHandout(bot, item->GetTemplate()) ||
+                    KeepsFromVendor(bot, item))
                     return;
                 // The bot's own judgement: nothing it wears, uses, or needs for a quest or a profession.
                 ItemUsage const usage = botAI->GetAiObjectContext()->GetValue<ItemUsage>("item usage", item->GetEntry())->Get();
@@ -779,8 +780,13 @@ namespace
             if (market.Tries(bot->GetGUID().GetCounter(), item->GetEntry()) >= TryLimit(bot))
                 return;
 
-            // What would not be worth an auction is no reason for a trip: it goes to a vendor on the way.
             ItemTemplate const* proto = item->GetTemplate();
+            if (IsHandout(bot, proto))
+            {
+                ++_stat.needed;
+                return;
+            }
+            // What would not be worth an auction is no reason for a trip: it goes to a vendor on the way.
             if (market.Value(proto) * bot->GetItemCount(proto->ItemId) < double(cfg.minListValue))
             {
                 ++_stat.cheap;

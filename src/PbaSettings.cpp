@@ -188,6 +188,13 @@ namespace pba
         return item->GetOwnerGUID() == bot->GetGUID();
     }
 
+    bool IsHandout(Player* bot, ItemTemplate const* proto)
+    {
+        if (proto->Class == ITEM_CLASS_PROJECTILE)
+            return true;
+        return proto->Class == ITEM_CLASS_CONSUMABLE && proto->SubClass == ITEM_SUBCLASS_POTION && !bot->HasSkill(SKILL_ALCHEMY);
+    }
+
     uint32 HumanPrice(double copper)
     {
         if (copper < 100.0)

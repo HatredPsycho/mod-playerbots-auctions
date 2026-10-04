@@ -163,6 +163,10 @@ namespace pba
     bool IsEquipment(ItemTemplate const* proto);
     bool IsAllowedKind(ItemTemplate const* proto);
     bool IsSellable(Player* bot, Item* item);
+    /// Things mod-playerbots hands every bot again and again: ammunition, and potions (also ones the bot cannot
+    /// use). Sold, they would come back with the next refresh - goods and money out of nothing. Only an
+    /// alchemist sells potions.
+    bool IsHandout(Player* bot, ItemTemplate const* proto);
 
     /// A price as a person would type it: two digits that matter, the rest zeros.
     uint32 HumanPrice(double copper);

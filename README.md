@@ -50,7 +50,7 @@ are not sent anywhere and only do their business when they happen to pass an auc
 - Two small changes to mod-playerbots, in `patches/mod-playerbots`:
   - **keep-bags-on-refresh.patch** - mod-playerbots empties the bags of every random bot every 10 to 40
     minutes and after every death. With that the bots never have anything to sell. The patch keeps the bags
-    and only renews food and drink.
+    and only renews food, drink and potions.
   - **scaled-item-lookup.patch** - since CoA core #6403 a bot that loots a level-scaled item ends the
     server. Not needed any more once mod-playerbots has the fix.
 

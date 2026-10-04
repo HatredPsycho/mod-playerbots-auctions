@@ -1,21 +1,22 @@
 diff --git a/src/Bot/Factory/PlayerbotFactory.cpp b/src/Bot/Factory/PlayerbotFactory.cpp
-index 72816c9..f52e4f9 100644
+index 72816c9..582b34e 100644
 --- a/src/Bot/Factory/PlayerbotFactory.cpp
 +++ b/src/Bot/Factory/PlayerbotFactory.cpp
-@@ -1094,7 +1094,25 @@ void PlayerbotFactory::Refresh()
+@@ -1094,7 +1094,26 @@ void PlayerbotFactory::Refresh()
      //     InitEquipment(true);
      // }
      InitAttunementQuests();
 -    ClearInventory();
 +    // mod-playerbots-auctions: a refresh no longer empties the bags - the bots keep what they looted, bought
-+    // and made. Only food and drink are renewed, because InitFood() below hands out fresh stacks every time.
++    // and made. Only food, drink and potions are renewed, because InitFood() and InitPotions() below hand out
++    // fresh ones every time (potions also ones the bot cannot use, which would pile up).
 +    {
-+        std::vector<Item*> food;
-+        auto look = [&food](Item* item)
++        std::vector<Item*> renewed;
++        auto look = [&renewed](Item* item)
 +        {
 +            if (item && item->GetTemplate() && item->GetTemplate()->Class == ITEM_CLASS_CONSUMABLE &&
-+                item->GetTemplate()->SubClass == ITEM_SUBCLASS_FOOD)
-+                food.push_back(item);
++                (item->GetTemplate()->SubClass == ITEM_SUBCLASS_FOOD || item->GetTemplate()->SubClass == ITEM_SUBCLASS_POTION))
++                renewed.push_back(item);
 +        };
 +        for (uint8 slot = INVENTORY_SLOT_ITEM_START; slot < INVENTORY_SLOT_ITEM_END; ++slot)
 +            look(bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot));
@@ -23,7 +24,7 @@ index 72816c9..f52e4f9 100644
 +            if (Bag* bag = bot->GetBagByPos(bagSlot))
 +                for (uint32 slot = 0; slot < bag->GetBagSize(); ++slot)
 +                    look(bag->GetItemByPos(slot));
-+        for (Item* item : food)
++        for (Item* item : renewed)
 +            bot->DestroyItem(item->GetBagSlot(), item->GetSlot(), true);
 +    }
      InitAmmo();
