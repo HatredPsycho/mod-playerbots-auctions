@@ -1136,9 +1136,9 @@ namespace
             bool const skillUp = ItemUsageValue::SpellGivesSkillUp(recipe.spell, bot);
             if (skillUp)
                 estimate.worth += value * skillBonus;
-            // Made only to be sold: then the lot has to be worth putting up for auction at all. For its skill
-            // it makes a single one of something that cheap, not a batch.
-            if (!forItself && value * times < double(cfg.minListValue) && (!skillUp || times > 1))
+            // A lot that would not be worth an auction is not made as a batch - a single one at most, and only
+            // if the bot can use it itself or learns from it. A step towards another recipe is a different matter.
+            if (!intermediate && value * times < double(cfg.minListValue) && (times > 1 || (!forItself && !skillUp)))
                 return estimate;
 
             return Materials(bot, recipe, times, index, purse, mayBuy, estimate);
