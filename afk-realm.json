@@ -18,6 +18,12 @@
       "target": "mod-playerbots",
       "file": "patches/mod-playerbots/gather-on-slopes.patch",
       "why": "mod-playerbots ignores every vein and herb that lies more than 3.5 yards above or below the bot. Veins are in hillsides, so miners never mined. Now the height may grow with the distance."
+    },
+    {
+      "name": "Bots go for the veins and herbs they see",
+      "target": "mod-playerbots",
+      "file": "patches/mod-playerbots/gather-farther.patch",
+      "why": "mod-playerbots only gathers what lies within the distance a bot walks for a corpse. A gatherer now goes for every vein and herb in sight, as a player follows the dots on the minimap."
     }
   ],
   "settings": [

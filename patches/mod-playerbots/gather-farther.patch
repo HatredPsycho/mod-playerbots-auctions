@@ -1,0 +1,27 @@
+diff --git a/src/Mgr/Item/LootObjectStack.cpp b/src/Mgr/Item/LootObjectStack.cpp
+index a449f0a..153e102 100644
+--- a/src/Mgr/Item/LootObjectStack.cpp
++++ b/src/Mgr/Item/LootObjectStack.cpp
+@@ -424,11 +424,21 @@ LootObject LootObjectStack::GetNearest(float maxDistance)
+ 
+         float distance = bot->GetDistance(worldObj);
+ 
+-        if (distance >= nearestDistance || (maxDistance && distance > maxDistance))
++        if (distance >= nearestDistance)
++            continue;
++
++        // A vein or a herb is worth a detour: a gatherer goes for every one it sees, not only for those
++        // within the distance it walks for a corpse.
++        float const sight = std::max(maxDistance, sPlayerbotAIConfig.sightDistance);
++        if (maxDistance && distance > sight)
+             continue;
+ 
+         LootObject lootObject(bot, guid);
+ 
++        if (maxDistance && distance > maxDistance &&
++            !(guid.IsGameObject() && (lootObject.skillId == SKILL_MINING || lootObject.skillId == SKILL_HERBALISM)))
++            continue;
++
+         if (!lootObject.IsLootPossible(bot))
+             continue;
+ 

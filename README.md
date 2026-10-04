@@ -48,7 +48,7 @@ are not sent anywhere and only do their business when they happen to pass an auc
 ## Requirements
 
 - AzerothCore with **mod-playerbots** installed (this module does not build without it)
-- Three small changes to mod-playerbots, in `patches/mod-playerbots`:
+- Four small changes to mod-playerbots, in `patches/mod-playerbots`:
   - **keep-bags-on-refresh.patch** - mod-playerbots empties the bags of every random bot every 10 to 40
     minutes and after every death. With that the bots never have anything to sell. The patch keeps the bags
     and only renews food, drink and potions.
@@ -57,6 +57,8 @@ are not sent anywhere and only do their business when they happen to pass an auc
   - **gather-on-slopes.patch** - mod-playerbots ignores every vein and herb more than 3.5 yards above or
     below the bot. Veins are in hillsides, so miners never mined. With the patch the height may grow with
     the distance (half a yard per yard, 25 at most).
+  - **gather-farther.patch** - mod-playerbots only gathers what lies within the distance a bot walks for a
+    corpse. With the patch a gatherer goes for every vein and herb in sight.
 
 ## Installation
 

@@ -238,9 +238,21 @@ namespace
                 return false;
             // What would not be worth an auction may go: all it carries of the kind counts, a stack grows.
             ItemTemplate const* proto = item->GetTemplate();
-            if (proto->Quality >= MAX_ITEM_QUALITY || !Market::Base(proto) ||
-                market.Value(proto) * bot->GetItemCount(proto->ItemId) < double(cfg.minListValue))
+            if (proto->Quality >= MAX_ITEM_QUALITY || !Market::Base(proto))
                 return false;
+            if (market.Value(proto) * bot->GetItemCount(proto->ItemId) < double(cfg.minListValue))
+            {
+                // A few herbs, a little ore or cloth: not worth an auction yet, but it will be. A gatherer lets
+                // the stack grow as long as there is room in the bags.
+                bool const raw = proto->Class == ITEM_CLASS_GEM || (proto->Class == ITEM_CLASS_TRADE_GOODS &&
+                    (proto->SubClass == ITEM_SUBCLASS_CLOTH || proto->SubClass == ITEM_SUBCLASS_LEATHER ||
+                     proto->SubClass == ITEM_SUBCLASS_METAL_STONE || proto->SubClass == ITEM_SUBCLASS_HERB ||
+                     proto->SubClass == ITEM_SUBCLASS_ELEMENTAL || proto->SubClass == ITEM_SUBCLASS_ENCHANTING ||
+                     proto->SubClass == ITEM_SUBCLASS_JEWELCRAFTING));
+                if (!raw || bot->GetFreeInventorySpace() < 4 ||
+                    market.Value(proto) * proto->GetMaxStackSize() < double(cfg.minListValue))
+                    return false;
+            }
             return Kept();
         }
 
@@ -770,7 +782,7 @@ namespace
                 uint32 bots = 0, withTool = 0, seeing = 0, nodes = 0, close = 0, level = 0, skilled = 0, fine = 0;
             };
             Count mining, herbs, skinning;
-            float const reach = sPlayerbotAIConfig.lootDistance;
+            float const reach = std::max(sPlayerbotAIConfig.lootDistance, sPlayerbotAIConfig.sightDistance);     // gather-farther.patch
 
             PlayerBotMap const bots = sRandomPlayerbotMgr.GetAllBots();
             for (auto const& entry : bots)
