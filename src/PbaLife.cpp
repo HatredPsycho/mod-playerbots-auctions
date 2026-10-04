@@ -208,6 +208,16 @@ namespace
             entry.bots.insert(bot->GetGUID().GetCounter());
         }
 
+        /// What a lot has to be worth to be put up. A full stack of a material always is: rough stone is
+        /// worth next to nothing, and a smith still needs it.
+        static double LeastLot(ItemTemplate const* proto, uint32 count)
+        {
+            if ((proto->Class == ITEM_CLASS_TRADE_GOODS || proto->Class == ITEM_CLASS_GEM) && proto->GetMaxStackSize() > 1 &&
+                count >= proto->GetMaxStackSize())
+                return 2.0;
+            return double(cfg.minListValue);
+        }
+
         /// Is this something the bot does not give to a vendor? mod-playerbots sells whatever a bot does not
         /// need to the next vendor it passes; what is meant for the auction house, and the materials the bot
         /// has plans for, stay in its bags.
@@ -240,7 +250,7 @@ namespace
             ItemTemplate const* proto = item->GetTemplate();
             if (proto->Quality >= MAX_ITEM_QUALITY || !Market::Base(proto))
                 return false;
-            if (market.Value(proto) * bot->GetItemCount(proto->ItemId) < double(cfg.minListValue))
+            if (market.Value(proto) * bot->GetItemCount(proto->ItemId) < LeastLot(proto, bot->GetItemCount(proto->ItemId)))
             {
                 // A few herbs, a little ore or cloth: not worth an auction yet, but it will be. A gatherer lets
                 // the stack grow as long as there is room in the bags.
@@ -250,7 +260,7 @@ namespace
                      proto->SubClass == ITEM_SUBCLASS_ELEMENTAL || proto->SubClass == ITEM_SUBCLASS_ENCHANTING ||
                      proto->SubClass == ITEM_SUBCLASS_JEWELCRAFTING));
                 if (!raw || bot->GetFreeInventorySpace() < 4 ||
-                    market.Value(proto) * proto->GetMaxStackSize() < double(cfg.minListValue))
+                    market.Value(proto) * proto->GetMaxStackSize() < LeastLot(proto, proto->GetMaxStackSize()))
                     return false;
             }
             return Kept();
@@ -637,12 +647,12 @@ namespace
             bool exact = false;
             double const each = PriceFor(bot, proto, index, tries, exact);
             // Cheap things - copper ore, peacebloom - are only worth an auction as the whole stack.
-            if (pack < count && each * pack < double(cfg.minListValue))
+            if (pack < count && each * pack < LeastLot(proto, pack))
                 pack = count;
             wholeStack = pack >= count;
             double const total = each * pack;
             double const limit = cfg.maxBuyout ? double(cfg.maxBuyout) : double(MAX_MONEY_AMOUNT);
-            if (total > limit || total < double(cfg.minListValue))
+            if (total > limit || total < LeastLot(proto, pack))
                 return false;       // too valuable to give away at the highest allowed price, or not worth the walk
             // Rounding must not take the price below the line under which buying to sell to a vendor would pay.
             uint32 const vendorLine = uint32(std::ceil(double(proto->SellPrice) * pack * cfg.minVendorFactor));
@@ -988,7 +998,7 @@ namespace
                 return;
             }
             // What would not be worth an auction is no reason for a trip: it goes to a vendor on the way.
-            if (market.Value(proto) * bot->GetItemCount(proto->ItemId) < double(cfg.minListValue))
+            if (market.Value(proto) * bot->GetItemCount(proto->ItemId) < LeastLot(proto, bot->GetItemCount(proto->ItemId)))
             {
                 ++_stat.cheap;
                 return;
