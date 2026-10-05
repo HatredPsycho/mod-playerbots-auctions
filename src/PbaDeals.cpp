@@ -1,0 +1,1098 @@
+/*
+ * mod-playerbots-auctions - deals by chat.
+ *
+ * A player writes "WTB copper ore" or "WTS 20 linen cloth" into a channel. Bots that have the item to spare, or
+ * a use for it, whisper an offer after a moment, each at a price of its own. The player can agree, decline or
+ * name another price; a bot gives way a little, depending on its character, and no further. The goods travel
+ * by mail, cash on delivery: a bot that sells sends them itself, a bot that buys pays for the parcel the
+ * player sends it - if it holds what was agreed, at the price that was agreed.
+ */
+
+#include "Pba.h"
+
+#include <cstdlib>
+
+namespace pba
+{
+namespace
+{
+    char const* const BuyWords[] = { "wtb", "ltb", "buying", "want to buy", "looking to buy", "looking for", "lf" };
+    char const* const SellWords[] = { "wts", "lts", "selling", "want to sell", "looking to sell" };
+    char const* const YesWords[] = { "yes", "y", "ya", "yep", "yeah", "yea", "ok", "okay", "k", "kk", "deal", "sure", "fine", "send", "send it",
+        "sounds good", "do it", "go", "alright", "ja", "jo", "passt", "gerne" };
+    char const* const NoWords[] = { "no", "n", "nah", "nope", "nvm", "nevermind", "never mind", "no thanks", "no thx", "too much", "too expensive",
+        "too low", "forget it", "cancel", "nein", "ne" };
+    // Words around the name of an item that are not part of it.
+    char const* const Filler[] = { "of", "my", "some", "a", "an", "the", "pls", "plz", "please", "anyone", "any", "pst", "cheap", "x", "pm", "me", "whisper", "w",
+        "all", "your", "ur", "more", "few", "couple", "bunch", "lot", "lots", "stack", "stacks", "about", "around" };
+
+    bool IsWordChar(char c) { return std::isalnum(static_cast<unsigned char>(c)) || static_cast<unsigned char>(c) >= 0x80; }
+
+    /// A name as it is compared: lower case, letters and digits only - "Copper Ore", "copperore" and "[Copper Ore]" are the same.
+    std::string Squeeze(std::string const& text)
+    {
+        std::string out;
+        out.reserve(text.size());
+        for (char const c : text)
+            if (IsWordChar(c))
+                out += static_cast<unsigned char>(c) < 0x80 ? char(std::tolower(static_cast<unsigned char>(c))) : c;
+        return out;
+    }
+
+    /// Takes the colour and link codes of the client out of a message; an item that was linked is returned by its id.
+    std::string Plain(std::string const& msg, uint32& linked)
+    {
+        std::string out;
+        for (size_t i = 0; i < msg.size(); ++i)
+        {
+            if (msg[i] != '|' || i + 1 >= msg.size())
+            {
+                out += msg[i];
+                continue;
+            }
+            char const code = msg[i + 1];
+            if (code == 'c' && i + 9 < msg.size())
+                i += 9;                                         // |cAARRGGBB
+            else if (code == 'H')
+            {
+                if (!linked && msg.compare(i, 7, "|Hitem:") == 0)
+                    linked = uint32(std::strtoul(msg.c_str() + i + 7, nullptr, 10));
+                size_t const end = msg.find("|h", i + 2);
+                if (end == std::string::npos)
+                    break;
+                i = end + 1;
+            }
+            else if (code == 'h' || code == 'r')
+                ++i;
+            else
+                out += msg[i];
+        }
+        return out;
+    }
+
+    std::vector<std::string> Words(std::string const& text)
+    {
+        std::vector<std::string> words;
+        std::string word;
+        for (char const c : text)
+        {
+            if (std::isspace(static_cast<unsigned char>(c)) || c == ',' || c == ';' || c == '[' || c == ']' || c == '(' || c == ')' || c == '!' || c == '?')
+            {
+                if (!word.empty())
+                    words.push_back(word);
+                word.clear();
+            }
+            else
+                word += c;
+        }
+        if (!word.empty())
+            words.push_back(word);
+        return words;
+    }
+
+    bool IsNumber(std::string const& word)
+    {
+        return !word.empty() && std::all_of(word.begin(), word.end(), [](char c) { return std::isdigit(static_cast<unsigned char>(c)); });
+    }
+
+    uint32 UnitOf(std::string const& word)
+    {
+        if (word == "g" || word == "gold" || word == "gp")
+            return GOLD;
+        if (word == "s" || word == "silver" || word == "sp")
+            return SILVER;
+        if (word == "c" || word == "copper" || word == "cp")
+            return 1;
+        return 0;
+    }
+
+    /// Reads an amount of money that starts at words[at]: "5g", "1g20s", "20 s", "3 gold 50 silver". Returns how many
+    /// words it took, 0 if there is no money here.
+    size_t ReadMoney(std::vector<std::string> const& words, size_t at, uint64& copper)
+    {
+        copper = 0;
+        size_t taken = 0;
+        while (at + taken < words.size())
+        {
+            std::string const& word = words[at + taken];
+            // One word: digits and units in turns.
+            uint64 sum = 0;
+            size_t i = 0;
+            bool whole = !word.empty();
+            while (i < word.size() && whole)
+            {
+                size_t start = i;
+                while (i < word.size() && std::isdigit(static_cast<unsigned char>(word[i])))
+                    ++i;
+                if (i == start || i - start > 7)
+                {
+                    whole = false;
+                    break;
+                }
+                uint64 const number = std::strtoull(word.substr(start, i - start).c_str(), nullptr, 10);
+                start = i;
+                while (i < word.size() && std::isalpha(static_cast<unsigned char>(word[i])))
+                    ++i;
+                uint32 const unit = UnitOf(word.substr(start, i - start));
+                if (!unit)
+                {
+                    whole = false;
+                    break;
+                }
+                sum += number * unit;
+            }
+            if (whole && i == word.size())
+            {
+                copper += sum;
+                ++taken;
+                continue;
+            }
+            // Two words: a number, then a unit.
+            if (IsNumber(word) && word.size() <= 7 && at + taken + 1 < words.size() && UnitOf(words[at + taken + 1]))
+            {
+                copper += std::strtoull(word.c_str(), nullptr, 10) * UnitOf(words[at + taken + 1]);
+                taken += 2;
+                continue;
+            }
+            break;
+        }
+        return taken;
+    }
+
+    bool IsEachWord(std::string const& word)
+    {
+        return word == "each" || word == "ea" || word == "per" || word == "apiece" || word == "/ea" || word == "/each" || word == "p/u";
+    }
+
+    std::string MoneyText(uint64 copper)
+    {
+        uint64 const gold = copper / GOLD, silver = (copper % GOLD) / SILVER, rest = copper % SILVER;
+        std::string text;
+        if (gold)
+            text += std::to_string(gold) + "g";
+        if (silver)
+            text += (text.empty() ? "" : " ") + std::to_string(silver) + "s";
+        if (rest || text.empty())
+            text += (text.empty() ? "" : " ") + std::to_string(rest) + "c";
+        return text;
+    }
+
+    template <size_t N>
+    bool IsOneOf(std::string const& text, char const* const (&list)[N])
+    {
+        for (char const* entry : list)
+            if (text == entry)
+                return true;
+        return false;
+    }
+
+    /// What a player asked for in a channel.
+    struct Ask
+    {
+        bool buy = false;               // the player wants to buy; a bot sells
+        uint32 count = 0;               // 0: did not say
+        uint64 price = 0;               // 0: did not say
+        bool each = false;
+        std::vector<uint32> items;      // every item of that name
+    };
+
+    /// Reads a line of chat: which way the trade goes, how many, of what, for how much. False: not about trade.
+    bool Parse(std::string const& msg, Ask& ask, std::string& name, uint32& linked)
+    {
+        linked = 0;
+        std::string const text = Lower(Plain(msg, linked));
+
+        // The first word of trade in the line says which way it goes.
+        size_t at = std::string::npos, length = 0;
+        auto look = [&](char const* word, bool buy)
+        {
+            size_t const size = std::strlen(word);
+            for (size_t pos = text.find(word); pos != std::string::npos; pos = text.find(word, pos + 1))
+            {
+                bool const before = pos == 0 || !IsWordChar(text[pos - 1]);
+                bool const after = pos + size >= text.size() || !IsWordChar(text[pos + size]);
+                if (before && after && (pos < at || (pos == at && size > length)))
+                {
+                    at = pos;
+                    length = size;
+                    ask.buy = buy;
+                }
+                if (before && after)
+                    break;
+            }
+        };
+        for (char const* word : BuyWords)
+            look(word, true);
+        for (char const* word : SellWords)
+            look(word, false);
+        if (at == std::string::npos)
+            return false;
+
+        std::vector<std::string> const words = Words(text.substr(at + length));
+        name.clear();
+        for (size_t i = 0; i < words.size(); ++i)
+        {
+            std::string const& word = words[i];
+            // "20", "20x", "x20": how many. A bare number counts as that only before the name - "20 copper ore" is
+            // twenty pieces of ore, not twenty copper.
+            {
+                std::string digits = word;
+                bool marked = false;
+                if (digits.size() > 1 && digits.back() == 'x')
+                {
+                    digits.pop_back();
+                    marked = true;
+                }
+                else if (digits.size() > 1 && digits.front() == 'x')
+                {
+                    digits.erase(0, 1);
+                    marked = true;
+                }
+                bool const shortUnit = i + 1 < words.size() && words[i + 1].size() <= 2 && UnitOf(words[i + 1]);
+                if (!ask.count && IsNumber(digits) && digits.size() <= 4 && (marked || (name.empty() && !shortUnit)))
+                {
+                    ask.count = uint32(std::strtoul(digits.c_str(), nullptr, 10));
+                    continue;
+                }
+            }
+            uint64 money = 0;
+            if (size_t const taken = ReadMoney(words, i, money))
+            {
+                ask.price = money;
+                ask.each = i + taken < words.size() && IsEachWord(words[i + taken]);
+                break;
+            }
+            if (word == "for" || word == "at" || word == "@")
+            {
+                if (ReadMoney(words, i + 1, money))
+                    continue;
+                if (name.empty())
+                    continue;
+            }
+            if (IsOneOf(word, Filler) && (name.empty() || i + 1 == words.size()))
+                continue;
+            name += (name.empty() ? "" : " ") + word;
+        }
+        return true;
+    }
+    struct Deal
+    {
+        ObjectGuid bot, player;
+        bool botSells = false;
+        uint32 item = 0;
+        std::vector<uint32> items;      // before the offer is made: the items the name can mean
+        uint32 count = 0;
+        uint64 asked = 0;               // what the player named, 0 if nothing
+        bool askedEach = false;
+        uint64 price = 0;               // what the bot stands at, for all of it
+        uint64 limit = 0;               // as far as it would go: the least it sells for, the most it pays
+        uint8 stage = 0;                // 0 has not answered yet, 1 made its offer
+        uint8 haggled = 0;
+        time_t at = 0;                  // when it answers
+        time_t until = 0;               // when it stops waiting
+    };
+
+    struct Heard
+    {
+        ObjectGuid player, bot;         // bot: a whisper to it
+        std::string text;
+    };
+
+    class Deals
+    {
+    public:
+        // Chat is handled wherever the server reads the player's packets; the bots are thought about later, in the
+        // world's own update.
+        void Hear(Player* player, Player* bot, std::string const& text)
+        {
+            std::lock_guard<std::mutex> guard(_lock);
+            if (_heard.size() < 200)
+                _heard.push_back({ player->GetGUID(), bot ? bot->GetGUID() : ObjectGuid::Empty, text });
+        }
+
+        void Update(uint32 diff)
+        {
+            if (!cfg.enabled || !cfg.deals)
+                return;
+            _timer += diff;
+            if (_timer < 1 * IN_MILLISECONDS)
+                return;
+            _timer = 0;
+            time_t const now = GameTime::GetGameTime().count();
+
+            std::vector<Heard> heard;
+            {
+                std::lock_guard<std::mutex> guard(_lock);
+                heard.swap(_heard);
+            }
+            for (Heard const& one : heard)
+            {
+                Player* player = ObjectAccessor::FindConnectedPlayer(one.player);
+                if (!player || !player->IsInWorld())
+                    continue;
+                if (one.bot)
+                    Answered(player, one.bot, one.text, now);
+                else
+                    Asked(player, one.text, now);
+            }
+
+            for (size_t i = 0; i < _deals.size();)
+            {
+                Deal& deal = _deals[i];
+                bool keep = deal.until > now;
+                if (keep && deal.stage == 0 && deal.at <= now)
+                    keep = Offer(deal, now);
+                if (keep)
+                    ++i;
+                else
+                    _deals.erase(_deals.begin() + i);
+            }
+
+            // Parcels a player sent to a bot that buys, and the money of parcels a bot sent.
+            if (++_mailTicks >= 20)
+            {
+                _mailTicks = 0;
+                for (size_t i = 0; i < _deals.size();)
+                {
+                    if (_deals[i].stage == 1 && !_deals[i].botSells && Parcel(_deals[i], now))
+                        _deals.erase(_deals.begin() + i);
+                    else
+                        ++i;
+                }
+                for (auto waiting = _awaiting.begin(); waiting != _awaiting.end();)
+                {
+                    if (waiting->second < now)
+                    {
+                        waiting = _awaiting.erase(waiting);
+                        continue;
+                    }
+                    if (Player* bot = ObjectAccessor::FindConnectedPlayer(waiting->first))
+                        if (bot->IsInWorld() && !bot->IsBeingTeleported())
+                            CollectBotMail(bot);
+                    ++waiting;
+                }
+            }
+        }
+
+        /// The names of everything that can be traded, read once: the first line of chat does not have to wait for it.
+        void Names()
+        {
+            _names.clear();
+            LoadNames();
+        }
+
+    private:
+        // ------------------------------------------------------------------------------------- understanding
+
+        void LoadNames()
+        {
+            if (!_names.empty())
+                return;
+            for (auto const& entry : *sObjectMgr->GetItemTemplateStore())
+            {
+                ItemTemplate const& proto = entry.second;
+                if (proto.Bonding == BIND_WHEN_PICKED_UP || proto.Bonding == BIND_QUEST_ITEM || !IsAllowedKind(&proto) || proto.Name1.empty())
+                    continue;
+                _names[Squeeze(proto.Name1)].push_back(proto.ItemId);
+            }
+        }
+
+        std::vector<uint32> const* ItemsNamed(std::string const& name)
+        {
+            LoadNames();
+            std::string const key = Squeeze(name);
+            if (key.size() < 3)
+                return nullptr;
+            auto found = _names.find(key);
+            if (found == _names.end() && key.back() == 's')
+                found = _names.find(key.substr(0, key.size() - 1));       // "copper bars"
+            return found != _names.end() ? &found->second : nullptr;
+        }
+
+        bool Understand(std::string const& msg, Ask& ask)
+        {
+            std::string name;
+            uint32 linked = 0;
+            if (!Parse(msg, ask, name, linked))
+                return false;
+
+            // Linked with a shift-click or typed out: both will do. A link says exactly which item is meant; other
+            // items of the same name are the same thing to whoever reads it.
+            if (linked)
+            {
+                ItemTemplate const* proto = sObjectMgr->GetItemTemplate(linked);
+                if (!proto || !IsAllowedKind(proto))
+                    return false;
+                ask.items.push_back(linked);
+                name = proto->Name1;
+            }
+            if (std::vector<uint32> const* items = ItemsNamed(name))
+                for (uint32 const id : *items)
+                    if (id != linked)
+                        ask.items.push_back(id);
+            return !ask.items.empty();
+        }
+
+        // ------------------------------------------------------------------------------------- the bots' side
+
+        /// Would this bot part with it? What it neither wears nor uses, has no plan for and no craft that works it.
+        static bool Spares(Player* bot, PlayerbotAI* botAI, Item* item)
+        {
+            if (!IsSellable(bot, item))
+                return false;
+            ItemTemplate const* proto = item->GetTemplate();
+            if (ReservedForCraft(bot, proto->ItemId) || IsHandout(bot, proto) || !Market::Base(proto))
+                return false;
+            if (proto->TotemCategory && bot->GetItemCount(proto->ItemId) <= 1)
+                return false;
+            ItemUsage const usage = botAI->GetAiObjectContext()->GetValue<ItemUsage>("item usage", proto->ItemId)->Get();
+            if (usage == ITEM_USAGE_AH || usage == ITEM_USAGE_VENDOR || (usage == ITEM_USAGE_NONE && !proto->SellPrice))
+                return true;
+            return (usage == ITEM_USAGE_SKILL || usage == ITEM_USAGE_KEEP) &&
+                (proto->Class == ITEM_CLASS_TRADE_GOODS || proto->Class == ITEM_CLASS_GEM) && !UsesInCraft(bot, proto->ItemId);
+        }
+
+        static void Spare(Player* bot, PlayerbotAI* botAI, uint32 itemId, std::vector<Item*>& stacks)
+        {
+            auto look = [&](Item* item)
+            {
+                if (item && item->GetEntry() == itemId && Spares(bot, botAI, item))
+                    stacks.push_back(item);
+            };
+            for (uint8 slot = INVENTORY_SLOT_ITEM_START; slot < INVENTORY_SLOT_ITEM_END; ++slot)
+                look(bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot));
+            for (uint8 bagSlot = INVENTORY_SLOT_BAG_START; bagSlot < INVENTORY_SLOT_BAG_END; ++bagSlot)
+                if (Bag* bag = bot->GetBagByPos(bagSlot))
+                    for (uint32 slot = 0; slot < bag->GetBagSize(); ++slot)
+                        look(bag->GetItemByPos(slot));
+        }
+
+        /// How much a bot wants something a player offers, as in the auction house: 0 not at all.
+        double Interest(Player* bot, PlayerbotAI* botAI, ItemTemplate const* proto, bool& resale, time_t now)
+        {
+            resale = false;
+            if (!Market::Base(proto) || IsHandout(bot, proto))
+                return 0.0;
+            bool const material = UsesInCraft(bot, proto->ItemId);
+            auto had = _bought.find(bot->GetGUID().GetCounter());
+            if (!material && had != _bought.end())
+            {
+                auto before = had->second.find(proto->ItemId);
+                if (before != had->second.end() && before->second + 4 * HOUR > now)
+                    return 0.0;                 // one of a kind is enough for now
+            }
+            switch (botAI->GetAiObjectContext()->GetValue<ItemUsage>("item usage", proto->ItemId)->Get())
+            {
+                case ITEM_USAGE_EQUIP:
+                case ITEM_USAGE_REPLACE:
+                    return 1.5;
+                case ITEM_USAGE_USE:
+                case ITEM_USAGE_SKILL:
+                case ITEM_USAGE_AMMO:
+                    return 1.2;
+                case ITEM_USAGE_AH:
+                case ITEM_USAGE_VENDOR:
+                case ITEM_USAGE_NONE:
+                    if (material && bot->GetItemCount(proto->ItemId) < proto->GetMaxStackSize())
+                        return 1.0;
+                    if (TraitOf(bot, TRAIT_TRADING) > 0.75f && TraitOf(bot, TRAIT_KNOWLEDGE) > 0.5f && IsAllowedKind(proto))
+                    {
+                        resale = true;          // a trader takes what is clearly cheap, to sell it on
+                        return 0.6;
+                    }
+                    return 0.0;
+                default:
+                    return 0.0;
+            }
+        }
+
+        static double Spendable(Player* bot)
+        {
+            if (!cfg.buyUseBotMoney)
+                return double(MAX_MONEY_AMOUNT);
+            return double(bot->GetMoney()) * (0.85 - 0.5 * TraitOf(bot, TRAIT_THRIFT));
+        }
+
+        static void Tell(Player* bot, Player* player, std::string const& text)
+        {
+            bot->Whisper(text, LANG_UNIVERSAL, player);
+        }
+
+        static std::string Goods(uint32 count, ItemTemplate const* proto)
+        {
+            return count > 1 ? std::to_string(count) + " " + proto->Name1 : proto->Name1;
+        }
+
+        /// One of a few ways to say it; which one is a habit of the bot.
+        static std::string Pick(Player* bot, std::initializer_list<char const*> lines)
+        {
+            return *(lines.begin() + (uint32(TraitOf(bot, TRAIT_HABIT) * 97.0f) + urand(0, 1)) % lines.size());
+        }
+
+        static std::string Fill(std::string text, std::string const& goods, std::string const& money)
+        {
+            for (size_t pos; (pos = text.find("{g}")) != std::string::npos;)
+                text.replace(pos, 3, goods);
+            for (size_t pos; (pos = text.find("{m}")) != std::string::npos;)
+                text.replace(pos, 3, money);
+            return text;
+        }
+
+        // ------------------------------------------------------------------------------------- a player asks
+
+        void Asked(Player* player, std::string const& text, time_t now)
+        {
+            Ask ask;
+            if (!Understand(text, ask))
+                return;
+            // Not every few seconds anew.
+            time_t& last = _lastAsk[player->GetGUID().GetCounter()];
+            if (last + 10 > now)
+                return;
+            last = now;
+
+            // What the player sells it has to carry.
+            if (!ask.buy)
+            {
+                ask.items.erase(std::remove_if(ask.items.begin(), ask.items.end(), [&](uint32 id) { return !player->GetItemCount(id); }), ask.items.end());
+                if (ask.items.empty())
+                    return;
+            }
+
+            std::vector<Player*> willing;
+            PlayerBotMap const bots = sRandomPlayerbotMgr.GetAllBots();
+            for (auto const& entry : bots)
+            {
+                Player* bot = entry.second;
+                if (!bot || !bot->IsInWorld() || bot->IsBeingTeleported() || bot->GetTeamId() != player->GetTeamId() || bot->GetLevel() < cfg.minLevel)
+                    continue;
+                PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
+                if (!botAI || botAI->GetMaster())
+                    continue;
+                if (std::any_of(_deals.begin(), _deals.end(), [&](Deal const& deal) { return deal.bot == bot->GetGUID() && deal.player == player->GetGUID(); }))
+                    continue;
+                bool fits = false;
+                if (ask.buy)
+                {
+                    for (uint32 const id : ask.items)
+                    {
+                        std::vector<Item*> stacks;
+                        if (bot->GetItemCount(id))
+                            Spare(bot, botAI, id, stacks);
+                        if (!stacks.empty())
+                        {
+                            fits = true;
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    bool resale;
+                    for (uint32 const id : ask.items)
+                        if (Interest(bot, botAI, sObjectMgr->GetItemTemplate(id), resale, now) > 0.0)
+                        {
+                            fits = true;
+                            break;
+                        }
+                }
+                // Not everybody reads the channel, and not everybody can be bothered.
+                if (fits && frand(0.0f, 1.0f) < 0.4f + 0.5f * TraitOf(bot, TRAIT_TRADING))
+                    willing.push_back(bot);
+            }
+            if (cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: {} wants to {} \"{}\" - {} bot(s) could answer.", player->GetName(), ask.buy ? "buy" : "sell",
+                    sObjectMgr->GetItemTemplate(ask.items.front())->Name1, willing.size());
+            if (willing.empty())
+                return;
+
+            Acore::Containers::RandomShuffle(willing);
+            if (willing.size() > cfg.dealAnswers)
+                willing.resize(cfg.dealAnswers);
+            time_t at = now + urand(4, 12);
+            for (Player* bot : willing)
+            {
+                Deal deal;
+                deal.bot = bot->GetGUID();
+                deal.player = player->GetGUID();
+                deal.botSells = ask.buy;
+                deal.items = ask.items;
+                deal.count = ask.count;
+                deal.asked = ask.price;
+                deal.askedEach = ask.each;
+                deal.at = at;
+                deal.until = at + 10 * MINUTE;
+                _deals.push_back(deal);
+                at += urand(5, 20);
+            }
+        }
+
+        /// The bot makes its offer. False: it has thought better of it.
+        bool Offer(Deal& deal, time_t now)
+        {
+            Player* bot = ObjectAccessor::FindConnectedPlayer(deal.bot);
+            Player* player = ObjectAccessor::FindConnectedPlayer(deal.player);
+            if (!bot || !player || !bot->IsInWorld() || !player->IsInWorld() || bot->IsBeingTeleported())
+                return false;
+            PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
+            if (!botAI)
+                return false;
+            float const greed = TraitOf(bot, TRAIT_GREED), patience = TraitOf(bot, TRAIT_PATIENCE), thrift = TraitOf(bot, TRAIT_THRIFT);
+
+            if (deal.botSells)
+            {
+                ItemTemplate const* proto = nullptr;
+                uint32 have = 0;
+                for (uint32 const id : deal.items)
+                {
+                    std::vector<Item*> stacks;
+                    Spare(bot, botAI, id, stacks);
+                    uint32 count = 0;
+                    for (Item* stack : stacks)
+                        count += stack->GetCount();
+                    if (count > have)
+                    {
+                        have = count;
+                        proto = sObjectMgr->GetItemTemplate(id);
+                    }
+                }
+                if (!proto || !have)
+                    return false;
+                deal.item = proto->ItemId;
+                // As many as were asked for; without a number a few stacks at the most.
+                uint32 const stack = std::max<uint32>(1, proto->GetMaxStackSize());
+                deal.count = std::min(have, deal.count ? deal.count : (stack > 1 ? stack * 2 : 1));
+                deal.count = std::min<uint32>(deal.count, stack * MAX_MAIL_ITEMS);
+
+                // Its price as at the auctioneers, with nobody to undercut - and without the cut of the house.
+                double const value = std::max(market.Value(proto), Market::Regular(proto) * 0.6);
+                double each = value * (0.95 + 0.25 * greed) * frand(0.97f, 1.08f);
+                double const least = std::max(each * (0.8 + 0.14 * patience), double(proto->SellPrice) * cfg.minVendorFactor);
+                each = std::max(each, least);
+                deal.price = std::max<uint64>(HumanPrice(each * deal.count), 2);
+                deal.limit = std::min<uint64>(deal.price, uint64(std::ceil(least * deal.count)));
+
+                uint64 const named = deal.asked * (deal.askedEach ? deal.count : 1);
+                std::string const goods = Goods(deal.count, proto);
+                if (named && named >= deal.limit)
+                {
+                    deal.price = std::min<uint64>(named, MAX_MONEY_AMOUNT);       // the player's own price will do
+                    Tell(bot, player, Fill(Pick(bot, { "i have {g}, {m} is fine. want me to mail it COD?", "{g} for {m}? sure. say yes and i mail it to you COD",
+                        "got {g} here, {m} works for me. shall i send it COD?" }), goods, MoneyText(deal.price)));
+                }
+                else
+                    Tell(bot, player, Fill(Pick(bot, { "i have {g}, {m} for all of it? say yes and i mail it COD", "got {g} for you, {m}. want it? i'd send it COD",
+                        "{g} here, {m} and it's yours. i can mail it COD", "i can sell you {g} for {m}, sent COD if you want" }), goods, MoneyText(deal.price)));
+            }
+            else
+            {
+                ItemTemplate const* proto = nullptr;
+                double interest = 0.0;
+                bool resale = false;
+                for (uint32 const id : deal.items)
+                {
+                    bool trader;
+                    ItemTemplate const* candidate = sObjectMgr->GetItemTemplate(id);
+                    double const wants = player->GetItemCount(id) ? Interest(bot, botAI, candidate, trader, now) : 0.0;
+                    if (wants > interest)
+                    {
+                        interest = wants;
+                        resale = trader;
+                        proto = candidate;
+                    }
+                }
+                if (!proto)
+                    return false;
+                deal.item = proto->ItemId;
+                uint32 const stack = std::max<uint32>(1, proto->GetMaxStackSize());
+                uint32 const offered = player->GetItemCount(proto->ItemId);
+                deal.count = std::min(offered, deal.count ? deal.count : offered);
+                // One piece of gear is enough; of a material as much as fills its stock.
+                if (stack == 1 && !resale)
+                    deal.count = 1;
+                else if (!resale)
+                    deal.count = std::min<uint32>(deal.count, stack * 2);
+                deal.count = std::min<uint32>(deal.count, stack * MAX_MAIL_ITEMS);
+
+                double const value = market.Value(proto);
+                double const spendable = Spendable(bot);
+                double each = value * interest * frand(0.8f, 1.1f);
+                if (!resale)
+                {
+                    each *= std::clamp(1.0 + 0.25 * std::log10(std::max(1.0, spendable / std::max(1.0, value * deal.count))), 0.85, 1.4);
+                    each = std::max(each, double(proto->SellPrice) * cfg.buyMinVendorFactor);
+                }
+                double most = each * (1.05 + 0.15 * (1.0 - thrift));
+                // Less than a vendor asks, or buying from a vendor and selling to the bots would print money.
+                if (proto->BuyPrice > 0 && market.IsVendorItem(proto->ItemId))
+                {
+                    double const cap = double(proto->BuyPrice) / std::max<uint32>(1, proto->BuyCount) * cfg.buyVendorItemPercent / 100.0;
+                    each = std::min(each, cap);
+                    most = std::min(most, cap);
+                }
+                double const purse = std::min(spendable * 0.6, cfg.maxBuyout ? double(cfg.maxBuyout) : double(MAX_MONEY_AMOUNT));
+                if (most * deal.count > purse)
+                    deal.count = uint32(purse / std::max(1.0, most));
+                if (!deal.count || each < 1.0)
+                    return false;
+
+                deal.limit = uint64(most * deal.count);
+                deal.price = std::min<uint64>(std::max<uint64>(HumanPrice(each * deal.count), 1), deal.limit);
+                uint64 const named = deal.asked * (deal.askedEach ? deal.count : 1);
+                std::string const goods = Goods(deal.count, proto);
+                if (named && named <= deal.limit)
+                {
+                    deal.price = named;
+                    Tell(bot, player, Fill(Pick(bot, { "i'll take {g} for {m}. mail it to me COD", "{g} for {m}, ok. send it COD and i'll pay",
+                        "{m} for {g} is fine, just mail it COD" }), goods, MoneyText(deal.price)));
+                }
+                else
+                    Tell(bot, player, Fill(Pick(bot, { "i'd give you {m} for {g}. mail it to me COD if that works", "i could use {g}, {m}? send it COD and i'll pay",
+                        "{m} for {g}? if ok just mail it COD", "i'll take {g} for {m}, COD by mail" }), goods, MoneyText(deal.price)));
+                // The parcel of a player takes its time to arrive.
+                deal.until = now + 3 * HOUR + sWorld->getIntConfig(CONFIG_MAIL_DELIVERY_DELAY);
+            }
+
+            if (deal.botSells)
+                deal.until = now + 10 * MINUTE;
+            deal.stage = 1;
+            if (cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: {} offers {} to {} {} x{} for {} copper (as far as {}).", bot->GetName(), player->GetName(),
+                    deal.botSells ? "sell" : "buy", sObjectMgr->GetItemTemplate(deal.item)->Name1, deal.count, deal.price, deal.limit);
+            return true;
+        }
+
+        // ------------------------------------------------------------------------------------- the player answers
+
+        void Answered(Player* player, ObjectGuid botGuid, std::string const& msg, time_t now)
+        {
+            auto found = std::find_if(_deals.begin(), _deals.end(), [&](Deal const& deal) { return deal.bot == botGuid && deal.player == player->GetGUID() && deal.stage == 1; });
+            if (found == _deals.end())
+                return;
+            Deal& deal = *found;
+            Player* bot = ObjectAccessor::FindConnectedPlayer(botGuid);
+            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(deal.item);
+            if (!bot || !proto)
+                return;
+
+            uint32 linked = 0;
+            std::string const text = Lower(Plain(msg, linked));
+            std::vector<std::string> const words = Words(text);
+            std::string joined;
+            for (std::string const& word : words)
+                joined += (joined.empty() ? "" : " ") + word;
+            while (!joined.empty() && (joined.back() == '.' || joined.back() == '!'))
+                joined.pop_back();
+
+            uint64 named = 0;
+            for (size_t i = 0; i < words.size() && !named; ++i)
+            {
+                uint64 money = 0;
+                if (size_t const taken = ReadMoney(words, i, money))
+                    named = money * ((i + taken < words.size() && IsEachWord(words[i + taken])) ? deal.count : 1);
+            }
+            bool const yes = IsOneOf(joined, YesWords) || (!words.empty() && IsOneOf(words.front(), YesWords) && !named);
+            bool const no = !yes && (IsOneOf(joined, NoWords) || (!words.empty() && IsOneOf(words.front(), NoWords) && !named));
+            std::string const goods = Goods(deal.count, proto);
+
+            if (no)
+            {
+                Tell(bot, player, Pick(bot, { "ok, no problem", "alright, maybe next time", "np" }));
+                _deals.erase(found);
+                return;
+            }
+
+            if (deal.botSells)
+            {
+                if (named && named < deal.price)
+                {
+                    if (named >= deal.limit)
+                        deal.price = named;                     // it can live with that
+                    else if (!deal.haggled)
+                    {
+                        deal.haggled = 1;
+                        deal.price = std::max<uint64>(deal.limit, std::min<uint64>(deal.price, HumanPrice(double(deal.price + named) / 2.0)));
+                        deal.until = now + 10 * MINUTE;
+                        Tell(bot, player, Fill(Pick(bot, { "can't go that low. {m} is the best i can do", "hm no. {m} and we have a deal", "too low for me, {m}?" }),
+                            goods, MoneyText(deal.price)));
+                        return;
+                    }
+                    else
+                    {
+                        Tell(bot, player, Pick(bot, { "sorry, then i'd rather keep it", "no deal then, sorry", "nah, can't do that" }));
+                        _deals.erase(found);
+                        return;
+                    }
+                }
+                else if (!yes && !named)
+                    return;                                     // something else it was told: not about the deal
+                Ship(deal, bot, player, proto, now);
+                _deals.erase(found);
+                return;
+            }
+
+            // The bot buys.
+            if (named && named > deal.price)
+            {
+                if (named <= deal.limit)
+                    deal.price = named;
+                else if (!deal.haggled)
+                {
+                    deal.haggled = 1;
+                    deal.price = std::min<uint64>(deal.limit, std::max<uint64>(deal.price, HumanPrice(double(deal.price + named) / 2.0)));
+                    Tell(bot, player, Fill(Pick(bot, { "that's too much for me. {m} is as far as i go", "hm, {m} and i take it", "can't pay that. {m}?" }),
+                        goods, MoneyText(deal.price)));
+                    return;
+                }
+                else
+                {
+                    Tell(bot, player, Pick(bot, { "then no thanks", "too much for me, sorry", "i'll pass then" }));
+                    _deals.erase(found);
+                    return;
+                }
+            }
+            else if (named)
+                deal.price = named;                             // cheaper than it offered: gladly
+            else if (!yes)
+                return;
+            Tell(bot, player, Fill(Pick(bot, { "deal. mail me {g} COD for {m} and i pay when it arrives", "ok! send {g} COD, {m}", "great, {g} for {m}, COD by mail" }),
+                goods, MoneyText(deal.price)));
+        }
+
+        // ------------------------------------------------------------------------------------- the mail
+
+        /// The bot puts the goods into the mail, cash on delivery.
+        void Ship(Deal const& deal, Player* bot, Player* player, ItemTemplate const* proto, time_t now)
+        {
+            PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
+            std::vector<Item*> stacks;
+            if (botAI && bot->IsInWorld() && !bot->IsBeingTeleported())
+                Spare(bot, botAI, deal.item, stacks);
+            uint32 have = 0;
+            for (Item* stack : stacks)
+                have += stack->GetCount();
+            if (have < deal.count)
+            {
+                Tell(bot, player, Pick(bot, { "ah sorry, i don't have it anymore", "sorry, just sold it", "damn, it's gone already. sorry" }));
+                return;
+            }
+
+            // Whole stacks first, so as little as possible has to be split.
+            std::sort(stacks.begin(), stacks.end(), [](Item* a, Item* b) { return a->GetCount() > b->GetCount(); });
+            MailDraft draft(proto->Name1, "As agreed. Thanks!");
+            CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+            uint32 left = deal.count, parcels = 0;
+            for (Item* stack : stacks)
+            {
+                if (!left || parcels >= MAX_MAIL_ITEMS)
+                    break;
+                Item* sent;
+                if (stack->GetCount() <= left)
+                {
+                    left -= stack->GetCount();
+                    sent = stack;
+                    sent->SetNotRefundable(bot);
+                    bot->MoveItemFromInventory(sent->GetBagSlot(), sent->GetSlot(), true);
+                    sent->DeleteFromInventoryDB(trans);
+                    if (sent->GetState() == ITEM_UNCHANGED)
+                        sent->FSetState(ITEM_CHANGED);
+                }
+                else
+                {
+                    sent = Item::CreateItem(deal.item, left, bot);
+                    if (!sent)
+                        break;
+                    uint32 taken = left;
+                    bot->DestroyItemCount(stack, taken, true);
+                    left = 0;
+                }
+                sent->SetOwnerGUID(player->GetGUID());
+                sent->SaveToDB(trans);
+                draft.AddItem(sent);
+                ++parcels;
+            }
+
+            if (!parcels)
+            {
+                Tell(bot, player, Pick(bot, { "sorry, something's wrong with my bags. another time", "hm, can't send it right now, sorry" }));
+                return;
+            }
+
+            // Postage, as a player pays it.
+            uint32 const postage = 30 * parcels;
+            if (cfg.buyUseBotMoney && bot->HasEnoughMoney(postage))
+                bot->ModifyMoney(-int32(postage));
+            uint64 const due = deal.price * (deal.count - left) / deal.count;
+            uint32 const delay = cfg.dealMailDelay < 0 ? sWorld->getIntConfig(CONFIG_MAIL_DELIVERY_DELAY) : uint32(cfg.dealMailDelay);
+            draft.AddCOD(uint32(std::min<uint64>(due, MAX_MONEY_AMOUNT)))
+                .SendMailTo(trans, MailReceiver(player, player->GetGUID().GetCounter()), MailSender(bot), MAIL_CHECK_MASK_HAS_BODY, delay);
+            bot->SaveInventoryAndGoldToDB(trans);
+            CharacterDatabase.CommitTransaction(trans);
+
+            // The money comes back by mail when the player takes the goods; unpaid, the parcel returns after three days.
+            _awaiting[bot->GetGUID()] = now + delay + 4 * DAY;
+            std::string const when = delay >= 50 * MINUTE ? "in about an hour" : delay >= 2 * MINUTE ? "in a few minutes" : "now";
+            Tell(bot, player, Fill(Pick(bot, { "sent! {m} COD, should be in your mailbox ", "it's in the mail, {m} COD. arrives ", "done, mailed it COD for {m}. you'll have it " }),
+                "", MoneyText(due)) + when);
+            if (cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: {} mailed {} x{} to {}, {} copper on delivery.", bot->GetName(), proto->Name1, deal.count - left, player->GetName(), due);
+        }
+
+        /// Has the player's parcel arrived at the bot that buys? It pays if it holds what was agreed. True: the deal is over.
+        bool Parcel(Deal& deal, time_t now)
+        {
+            Player* bot = ObjectAccessor::FindConnectedPlayer(deal.bot);
+            if (!bot || !bot->IsInWorld() || bot->IsBeingTeleported())
+                return false;
+            Player* player = ObjectAccessor::FindConnectedPlayer(deal.player);
+
+            std::vector<Mail*> const mails(bot->GetMails().begin(), bot->GetMails().end());
+            for (Mail* mail : mails)
+            {
+                if (!mail || mail->state == MAIL_STATE_DELETED || mail->messageType != MAIL_NORMAL || !mail->COD || mail->deliver_time > now ||
+                    mail->sender != deal.player.GetCounter() || mail->items.empty())
+                    continue;
+
+                // Only what was agreed, and not for more than was agreed.
+                uint32 count = 0;
+                bool only = true;
+                std::vector<Item*> items;
+                for (MailItemInfo const& info : mail->items)
+                {
+                    Item* item = bot->GetMItem(info.item_guid);
+                    if (!item || info.item_template != deal.item)
+                    {
+                        only = false;
+                        break;
+                    }
+                    count += item->GetCount();
+                    items.push_back(item);
+                }
+                uint64 const fair = deal.price * std::min(count, deal.count) / deal.count;
+                if (!only || !count || mail->COD > fair)
+                {
+                    if (player && player->IsInWorld())
+                        Tell(bot, player, Fill(Pick(bot, { "that's not what we said ({m} for {g}). i'll leave the parcel, it comes back to you",
+                            "hm, we said {g} for {m}. not taking this one, sorry" }), Goods(deal.count, sObjectMgr->GetItemTemplate(deal.item)), MoneyText(deal.price)));
+                    return true;
+                }
+
+                // Room for all of it and the money to pay, or it waits.
+                ItemPosCountVec all;
+                if (items.size() == 1 ? bot->CanStoreItem(NULL_BAG, NULL_SLOT, all, items.front(), false) != EQUIP_ERR_OK
+                                      : bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, all, deal.item, count) != EQUIP_ERR_OK)
+                    return false;
+                uint32 const cost = mail->COD;
+                if (cfg.buyUseBotMoney && !bot->HasEnoughMoney(cost))
+                    return false;
+
+                CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+                std::vector<MailItemInfo> const attached = mail->items;
+                for (MailItemInfo const& info : attached)
+                {
+                    Item* item = bot->GetMItem(info.item_guid);
+                    ItemPosCountVec dest;
+                    if (!item || bot->CanStoreItem(NULL_BAG, NULL_SLOT, dest, item, false) != EQUIP_ERR_OK)
+                        continue;
+                    mail->RemoveItem(info.item_guid);
+                    mail->removedItems.push_back(info.item_guid);
+                    bot->RemoveMItem(info.item_guid);
+                    item->SetState(ITEM_UNCHANGED);
+                    bot->MoveItemToInventory(dest, item, true);
+                }
+                if (cfg.buyUseBotMoney)
+                    bot->ModifyMoney(-int32(cost));
+                MailDraft(mail->subject, "")
+                    .AddMoney(cost)
+                    .SendMailTo(trans, MailReceiver(player, mail->sender), MailSender(MAIL_NORMAL, mail->receiver), MAIL_CHECK_MASK_COD_PAYMENT);
+                mail->COD = 0;
+
+                bot->SaveInventoryAndGoldToDB(trans);
+                if (mail->items.empty())
+                {
+                    mail->state = MAIL_STATE_DELETED;
+                    PBA_MAIL_DELETED(bot->GetGUID());
+                    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_MAIL_BY_ID);
+                    stmt->SetData(0, mail->messageID);
+                    trans->Append(stmt);
+                    stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_MAIL_ITEM_BY_ID);
+                    stmt->SetData(0, mail->messageID);
+                    trans->Append(stmt);
+                    mail->removedItems.clear();
+                }
+                else
+                {
+                    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_MAIL);
+                    stmt->SetData(0, uint8(1));
+                    stmt->SetData(1, uint32(mail->expire_time));
+                    stmt->SetData(2, uint32(mail->deliver_time));
+                    stmt->SetData(3, mail->money);
+                    stmt->SetData(4, mail->COD);
+                    stmt->SetData(5, uint8(mail->checked));
+                    stmt->SetData(6, mail->messageID);
+                    trans->Append(stmt);
+                    for (uint32 const itemGuid : mail->removedItems)
+                    {
+                        stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_MAIL_ITEM);
+                        stmt->SetData(0, itemGuid);
+                        trans->Append(stmt);
+                    }
+                    mail->removedItems.clear();
+                    mail->state = MAIL_STATE_UNCHANGED;
+                }
+                CharacterDatabase.CommitTransaction(trans);
+                bot->m_mailsUpdated = true;
+
+                _bought[bot->GetGUID().GetCounter()][deal.item] = now;
+                market.RecordSale(deal.item, cost, count);
+                if (player && player->IsInWorld())
+                    Tell(bot, player, Fill(Pick(bot, { "got it, thanks! {m} is in the mail to you", "parcel arrived, paid {m}. thx!", "thanks, money's on its way ({m})" }),
+                        "", MoneyText(cost)));
+                if (cfg.debug)
+                    LOG_INFO("module", "PlayerbotsAuctions: {} paid {} copper for a parcel with {} x{} from a player.", bot->GetName(), cost,
+                        sObjectMgr->GetItemTemplate(deal.item)->Name1, count);
+                return true;
+            }
+            return false;
+        }
+
+        std::mutex _lock;
+        std::vector<Heard> _heard;
+        std::vector<Deal> _deals;
+        std::unordered_map<std::string, std::vector<uint32>> _names;
+        std::unordered_map<ObjectGuid::LowType, time_t> _lastAsk;
+        std::unordered_map<ObjectGuid::LowType, std::unordered_map<uint32, time_t>> _bought;
+        std::map<ObjectGuid, time_t> _awaiting;       // bots that wait for the money of a parcel
+        uint32 _timer = 0;
+        uint32 _mailTicks = 0;
+    };
+
+    Deals deals;
+}
+
+    void LoadDealNames()
+    {
+        deals.Names();
+    }
+
+    void DealsUpdate(uint32 diff)
+    {
+        deals.Update(diff);
+    }
+
+    void DealsHeard(Player* player, Player* bot, std::string const& text, std::string const& channel)
+    {
+        if (!cfg.enabled || !cfg.deals || !player || text.empty() || text.size() > 255)
+            return;
+        // A bot does not haggle with a bot.
+        if (GET_PLAYERBOT_AI(player) || sPlayerbotAIConfig.IsInRandomAccountList(player->GetSession()->GetAccountId()))
+            return;
+        if (!bot && !cfg.dealChannels.empty())
+        {
+            std::string const name = Lower(channel);
+            if (std::none_of(cfg.dealChannels.begin(), cfg.dealChannels.end(), [&](std::string const& part) { return name.find(part) != std::string::npos; }))
+                return;
+        }
+        deals.Hear(player, bot, text);
+    }
+}

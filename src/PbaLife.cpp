@@ -1013,6 +1013,24 @@ namespace
             return std::find(plan.keep.begin(), plan.keep.end(), itemId) != plan.keep.end();
         }
 
+    public:
+        /// Is this material set aside for what the bot is about to craft?
+        bool Reserved(Player* bot, uint32 itemId)
+        {
+            time_t const now = GameTime::GetGameTime().count();
+            auto plan = _plans.find(bot->GetGUID().GetCounter());
+            if (plan == _plans.end())
+                return false;
+            if (plan->second.keepUntil > now && Keeps(plan->second, itemId))
+                return true;
+            if (plan->second.left || plan->second.until > now)
+                for (auto const& reagent : plan->second.recipe.reagents)
+                    if (reagent.first == itemId)
+                        return true;
+            return false;
+        }
+
+    private:
         void ConsiderItem(Player* bot, PlayerbotAI* botAI, Item* item, std::vector<Item*>& items)
         {
             if (!item)
@@ -1874,6 +1892,7 @@ namespace
             return answer && *answer == AUCTION_EXPIRED;
         }
 
+    public:
         /// The bot empties its auction mail: the money of sold items, the items nobody bought and what it
         /// bought itself. Without this the mail would pile up, because the bots never open a mailbox for it.
         void CollectMail(Player* bot, time_t now)
@@ -1886,7 +1905,8 @@ namespace
             for (Mail* mail : mails)
             {
                 bool changed = false;
-                if (!mail || mail->state == MAIL_STATE_DELETED || mail->messageType != MAIL_AUCTION ||
+                // Auction mail, and what a player sent: the money of a parcel it paid for, a parcel that came back unpaid.
+                if (!mail || mail->state == MAIL_STATE_DELETED || (mail->messageType != MAIL_AUCTION && mail->messageType != MAIL_NORMAL) ||
                     mail->COD || mail->deliver_time > now)
                     continue;
 
@@ -1898,7 +1918,7 @@ namespace
                     changed = true;
                 }
 
-                bool const expired = !mail->items.empty() && IsExpiredAuction(mail);
+                bool const expired = mail->messageType == MAIL_AUCTION && !mail->items.empty() && IsExpiredAuction(mail);
                 std::vector<MailItemInfo> const attached = mail->items;
                 for (MailItemInfo const& info : attached)
                 {
@@ -1982,10 +2002,11 @@ namespace
                 EquipNewBags(bot);      // a bag it bought goes into a free bag slot
 
             if (cfg.debug)
-                LOG_INFO("module", "PlayerbotsAuctions: {} collected {} copper and {} item(s) from its auction mail.",
+                LOG_INFO("module", "PlayerbotsAuctions: {} collected {} copper and {} item(s) from its mail.",
                     bot->GetName(), money, returned);
         }
 
+    private:
         uint32 _timer = 0;
         uint32 _watchTimer = 0;
         struct Stat
@@ -2019,6 +2040,17 @@ namespace
 
     Life life;
 }
+
+    bool ReservedForCraft(Player* bot, uint32 itemId)
+    {
+        return life.Reserved(bot, itemId);
+    }
+
+    void CollectBotMail(Player* bot)
+    {
+        if (cfg.collectMail)
+            life.CollectMail(bot, GameTime::GetGameTime().count());
+    }
 }
 
 class PlayerbotsAuctionsWorld : public WorldScript
@@ -2042,6 +2074,8 @@ public:
         pba::LoadPotionRecipes();
         pba::LoadMadeValues();
         pba::market.LoadMemory();
+        if (pba::cfg.enabled && pba::cfg.deals)
+            pba::LoadDealNames();
         if (pba::cfg.enabled)
             LOG_INFO("server.loading", ">> PlayerbotsAuctions: the bots use the auction house.");
     }
@@ -2049,6 +2083,7 @@ public:
     void OnUpdate(uint32 diff) override
     {
         pba::life.Update(diff);
+        pba::DealsUpdate(diff);
     }
 
     void OnShutdown() override
@@ -2060,7 +2095,25 @@ public:
 class PlayerbotsAuctionsPlayer : public PlayerScript
 {
 public:
-    PlayerbotsAuctionsPlayer() : PlayerScript("PlayerbotsAuctionsPlayer", { PLAYERHOOK_CAN_SELL_ITEM, PLAYERHOOK_ON_LOOT_ITEM }) { }
+    PlayerbotsAuctionsPlayer() : PlayerScript("PlayerbotsAuctionsPlayer", { PLAYERHOOK_CAN_SELL_ITEM, PLAYERHOOK_ON_LOOT_ITEM,
+        PLAYERHOOK_CAN_PLAYER_USE_CHANNEL_CHAT, PLAYERHOOK_CAN_PLAYER_USE_PRIVATE_CHAT }) { }
+
+    using PlayerScript::OnPlayerCanUseChat;
+
+    // "WTB copper ore" in a channel, and what a player answers the bot that made an offer.
+    bool OnPlayerCanUseChat(Player* player, uint32 /*type*/, uint32 language, std::string& msg, Channel* channel) override
+    {
+        if (language != LANG_ADDON && channel)
+            pba::DealsHeard(player, nullptr, msg, channel->GetName());
+        return true;
+    }
+
+    bool OnPlayerCanUseChat(Player* player, uint32 type, uint32 language, std::string& msg, Player* receiver) override
+    {
+        if (type == CHAT_MSG_WHISPER && language != LANG_ADDON && receiver && receiver != player)
+            pba::DealsHeard(player, receiver, msg, "");
+        return true;
+    }
 
     void OnPlayerLootItem(Player* player, Item* item, uint32 count, ObjectGuid source) override
     {

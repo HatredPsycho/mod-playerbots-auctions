@@ -104,6 +104,20 @@ namespace pba
         cfg.refine              = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Crafting.TakeApart", true);
         cfg.scrolls             = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Crafting.Scrolls", true);
         cfg.glyphs              = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Crafting.Glyphs", false);
+
+        cfg.deals               = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chat.Enable", true);
+        cfg.dealAnswers         = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chat.Answers", 2), 1, 10);
+        cfg.dealMailDelay       = sConfigMgr->GetOption<int32>("PlayerbotsAuctions.Chat.MailDelay", -1);
+        cfg.dealChannels.clear();
+        std::string const channels = sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.Chat.Channels", "");
+        for (std::string_view part : Acore::Tokenize(channels, ',', false))
+        {
+            std::string name = Lower(std::string(part));
+            name.erase(0, name.find_first_not_of(' '));
+            name.erase(name.find_last_not_of(' ') + 1);
+            if (!name.empty())
+                cfg.dealChannels.push_back(name);
+        }
     }
 
     // ------------------------------------------------------------------------------------------ character

@@ -40,7 +40,16 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
 - **Memory.** The bots learn what things really sell for and remember what did not sell. That survives a
   restart in two small tables of the characters database, which the module creates itself.
 
-All business is done standing at an auctioneer. Bots that travel with a real player neither sell nor buy.
+- **Deals by chat.** Write `WTB copper ore` or `WTS 20 linen cloth` into a channel - the name typed out or
+  the item linked with a shift-click, a number for how many and a price if you have one in mind
+  (`wtb 20 copper ore 15s`, `wts [Linen Cloth] x20 for 10s`). After a few seconds one or two bots of your
+  faction whisper an offer: those that have the item to spare, or a use for it, each at its own price. Answer
+  the whisper with `yes`, `no` or another price; a bot gives way a little, depending on its character, and no
+  further. The goods go by mail, cash on delivery. A bot that sells sends the parcel and gets its money when
+  you take it. A bot that buys asks you to send the parcel to it and pays when it arrives - if it holds what
+  was agreed, for no more than was agreed. *New, compiled and not yet tried on a server.*
+
+All auction business is done standing at an auctioneer. Bots that travel with a real player neither sell nor buy.
 
 The travelling uses the city visits of the CoA Playerbots fork. With other versions of mod-playerbots the bots
 are not sent anywhere and only do their business when they happen to pass an auctioneer.

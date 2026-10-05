@@ -14,6 +14,7 @@
 #include "AuctionHouseMgr.h"
 #include "AuctionHouseSearcher.h"
 #include "Bag.h"
+#include "Channel.h"
 #include "CharacterCache.h"
 #include "Config.h"
 #include "Containers.h"
@@ -62,6 +63,8 @@
 #include <mutex>
 #include <set>
 #include <cctype>
+#include <cstring>
+#include <initializer_list>
 #include <cmath>
 #include <iterator>
 #include <limits>
@@ -139,6 +142,12 @@ namespace pba
         bool   refine = true;                  // prospecting, milling, disenchanting
         bool   scrolls = true;                 // enchanters put enchantments on vellum
         bool   glyphs = false;                 // scribes make glyphs - of no use to the classes of Conquest of Azeroth
+
+        // deals by chat
+        bool   deals = true;                   // bots answer "WTB ..." and "WTS ..." in a channel
+        uint32 dealAnswers = 2;                // how many bots answer one line at the most
+        int32  dealMailDelay = -1;             // seconds a bot's parcel travels; -1: as long as the server's mail
+        std::vector<std::string> dealChannels; // parts of channel names that are listened to; empty: every channel
     };
 
     extern Settings cfg;
@@ -319,6 +328,18 @@ namespace pba
     void AddRefining(Player* bot, PlayerbotAI* botAI, std::vector<Recipe>& recipes);
     /// Takes it apart - or puts an enchantment on vellum: the source is gone, what comes out is in the bags.
     bool Refine(Player* bot, Recipe const& recipe);
+
+    // ------------------------------------------------------------------------------------------ deals by chat
+
+    /// Is this material set aside for something the bot is about to craft?
+    bool ReservedForCraft(Player* bot, uint32 itemId);
+    /// The bot empties its mail: auction money, returned and bought items, and what players sent or paid it.
+    void CollectBotMail(Player* bot);
+    /// A line a player wrote into a channel (bot null), or whispered to a bot.
+    void DealsHeard(Player* player, Player* bot, std::string const& text, std::string const& channel);
+    void DealsUpdate(uint32 diff);
+    /// After the settings: the names players can type.
+    void LoadDealNames();
 }
 
 #endif

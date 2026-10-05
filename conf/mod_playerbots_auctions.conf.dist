@@ -548,3 +548,57 @@ PlayerbotsAuctions.Crafting.Scrolls = 1
 #                     1 - Enabled
 
 PlayerbotsAuctions.Crafting.Glyphs = 0
+
+###################################################################################################
+# DEALS BY CHAT
+#
+#    A player writes into a channel what he wants to buy or sell, and bots answer by whisper:
+#
+#        WTB copper ore                 WTS 20 linen cloth
+#        wtb 20 copper ore 15s          wts [Linen Cloth] x20 for 10s
+#
+#    The item can be typed out or linked with a shift-click; a number before it says how many, a
+#    price after it what the player has in mind ("5s", "1g20s", "50c each"). The words that are
+#    understood: WTB, LTB, buying, want to buy, looking to buy, looking for, LF - and WTS, LTS,
+#    selling, want to sell, looking to sell.
+#
+#    A bot that has the item to spare, or a use for it, names its price. The player answers the
+#    whisper with "yes", "no" or another price; a bot gives way a little, depending on its
+#    character. The goods go by mail, cash on delivery: a bot that sells sends the parcel, a bot
+#    that buys pays for the parcel the player sends it - if it holds what was agreed, for no more
+#    than was agreed. Only bots of the player's own faction answer, because mail does not cross.
+#
+###################################################################################################
+
+#
+#    PlayerbotsAuctions.Chat.Enable
+#        Description: Bots answer WTB and WTS lines of players.
+#        Default:     1 - Enabled
+#                     0 - Disabled
+
+PlayerbotsAuctions.Chat.Enable = 1
+
+#
+#    PlayerbotsAuctions.Chat.Answers
+#        Description: How many bots answer one line at the most (1 to 10). They answer one after the
+#                     other, a few seconds apart, each with its own price.
+#        Default:     2
+
+PlayerbotsAuctions.Chat.Answers = 2
+
+#
+#    PlayerbotsAuctions.Chat.Channels
+#        Description: The channels the bots read, as parts of their names separated by commas, for
+#                     example "general, trade". Empty: every channel.
+#        Default:     ""
+
+PlayerbotsAuctions.Chat.Channels = ""
+
+#
+#    PlayerbotsAuctions.Chat.MailDelay
+#        Description: How long the parcel of a bot takes to arrive, in seconds. -1: as long as mail
+#                     between players takes on this server (Mail.DeliveryDelay in worldserver.conf,
+#                     one hour unless changed). 0: at once.
+#        Default:     -1
+
+PlayerbotsAuctions.Chat.MailDelay = -1
