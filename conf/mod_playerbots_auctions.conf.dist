@@ -552,7 +552,8 @@ PlayerbotsAuctions.Crafting.Glyphs = 0
 ###################################################################################################
 # DEALS BY CHAT
 #
-#    A player writes into a channel what he wants to buy or sell, and bots answer by whisper:
+#    A player writes into a channel - General, Trade or any other; not /say, /yell or a whisper -
+#    what he wants to buy or sell, and bots answer by whisper:
 #
 #        WTB copper ore                 WTS 20 linen cloth
 #        wtb 20 copper ore 15s          wts [Linen Cloth] x20 for 10s
@@ -568,6 +569,10 @@ PlayerbotsAuctions.Crafting.Glyphs = 0
 #    that buys pays for the parcel the player sends it - if it holds what was agreed, for no more
 #    than was agreed. Only bots of the player's own faction answer, because mail does not cross.
 #
+#    mod-playerbots has a reply of its own to "WTS [item]": every bot that hears it may whisper
+#    "I'll buy ... for ..." - dozens at once, and none of them means it. The module carries a small
+#    change for mod-playerbots that keeps it quiet while this is enabled.
+#
 ###################################################################################################
 
 #
@@ -582,9 +587,9 @@ PlayerbotsAuctions.Chat.Enable = 1
 #    PlayerbotsAuctions.Chat.Answers
 #        Description: How many bots answer one line at the most (1 to 10). They answer one after the
 #                     other, a few seconds apart, each with its own price.
-#        Default:     2
+#        Default:     3
 
-PlayerbotsAuctions.Chat.Answers = 2
+PlayerbotsAuctions.Chat.Answers = 3
 
 #
 #    PlayerbotsAuctions.Chat.Channels

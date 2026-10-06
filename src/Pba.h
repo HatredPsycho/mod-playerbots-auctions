@@ -145,7 +145,7 @@ namespace pba
 
         // deals by chat
         bool   deals = true;                   // bots answer "WTB ..." and "WTS ..." in a channel
-        uint32 dealAnswers = 2;                // how many bots answer one line at the most
+        uint32 dealAnswers = 3;                // how many bots answer one line at the most
         int32  dealMailDelay = -1;             // seconds a bot's parcel travels; -1: as long as the server's mail
         std::vector<std::string> dealChannels; // parts of channel names that are listened to; empty: every channel
     };

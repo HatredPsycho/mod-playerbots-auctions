@@ -24,6 +24,12 @@
       "target": "mod-playerbots",
       "file": "patches/mod-playerbots/gather-farther.patch",
       "why": "mod-playerbots only gathers what lies within the distance a bot walks for a corpse. A gatherer now goes for every vein and herb in sight, as a player follows the dots on the minimap."
+    },
+    {
+      "name": "One answer to WTS, not fifty",
+      "target": "mod-playerbots",
+      "file": "patches/mod-playerbots/quiet-wts.patch",
+      "why": "mod-playerbots lets every bot that hears \"WTS [item]\" whisper a price it does not mean. With deals by chat enabled, the few bots that really want the item answer instead."
     }
   ],
   "settings": [

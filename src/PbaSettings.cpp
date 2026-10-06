@@ -106,7 +106,7 @@ namespace pba
         cfg.glyphs              = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Crafting.Glyphs", false);
 
         cfg.deals               = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chat.Enable", true);
-        cfg.dealAnswers         = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chat.Answers", 2), 1, 10);
+        cfg.dealAnswers         = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chat.Answers", 3), 1, 10);
         cfg.dealMailDelay       = sConfigMgr->GetOption<int32>("PlayerbotsAuctions.Chat.MailDelay", -1);
         cfg.dealChannels.clear();
         std::string const channels = sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.Chat.Channels", "");

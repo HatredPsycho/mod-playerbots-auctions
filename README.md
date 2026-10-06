@@ -40,10 +40,11 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
 - **Memory.** The bots learn what things really sell for and remember what did not sell. That survives a
   restart in two small tables of the characters database, which the module creates itself.
 
-- **Deals by chat.** Write `WTB copper ore` or `WTS 20 linen cloth` into a channel - the name typed out or
+- **Deals by chat.** Write `WTB copper ore` or `WTS 20 linen cloth` into a channel (General, Trade or any
+  other - not `/say` or `/yell`) - the name typed out or
   the item linked with a shift-click, a number for how many and a price if you have one in mind
   (`wtb 20 copper ore 15s`, `wts [Linen Cloth] x20 for 10s`). After a few seconds one or two bots of your
-  faction whisper an offer: those that have the item to spare, or a use for it, each at its own price. Answer
+  faction whisper an offer (three at the most, a setting): those that have the item to spare, or a use for it, each at its own price. Answer
   the whisper with `yes`, `no` or another price; a bot gives way a little, depending on its character, and no
   further. The goods go by mail, cash on delivery. A bot that sells sends the parcel and gets its money when
   you take it. A bot that buys asks you to send the parcel to it and pays when it arrives - if it holds what
@@ -57,7 +58,7 @@ are not sent anywhere and only do their business when they happen to pass an auc
 ## Requirements
 
 - AzerothCore with **mod-playerbots** installed (this module does not build without it)
-- Four small changes to mod-playerbots, in `patches/mod-playerbots`:
+- Five small changes to mod-playerbots, in `patches/mod-playerbots`:
   - **keep-bags-on-refresh.patch** - mod-playerbots empties the bags of every random bot every 10 to 40
     minutes and after every death. With that the bots never have anything to sell. The patch keeps the bags
     and only renews food, drink and potions.
@@ -68,6 +69,9 @@ are not sent anywhere and only do their business when they happen to pass an auc
     the distance (half a yard per yard, 25 at most).
   - **gather-farther.patch** - mod-playerbots only gathers what lies within the distance a bot walks for a
     corpse. With the patch a gatherer goes for every vein and herb in sight.
+  - **quiet-wts.patch** - mod-playerbots lets every bot that hears `WTS [item]` whisper "I'll buy ... for ...",
+    a price it does not mean; with a few hundred bots that is dozens of whispers. With deals by chat enabled
+    the patch keeps that quiet, and the few bots that really want the item answer instead.
 
 ## Installation
 

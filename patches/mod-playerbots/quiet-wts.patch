@@ -1,0 +1,24 @@
+diff --git a/src/Ai/Base/Actions/WtsAction.cpp b/src/Ai/Base/Actions/WtsAction.cpp
+index 34f2fe5..2e457e3 100644
+--- a/src/Ai/Base/Actions/WtsAction.cpp
++++ b/src/Ai/Base/Actions/WtsAction.cpp
+@@ -6,6 +6,7 @@
+ 
+ #include "WtsAction.h"
+ #include "AiFactory.h"
++#include "Config.h"
+ #include "Event.h"
+ #include "ItemUsageValue.h"
+ #include "ItemVisitors.h"
+@@ -17,6 +18,11 @@ bool WtsAction::Execute(Event event)
+     if (!owner)
+         return false;
+ 
++    // With mod-playerbots-auctions the bots answer a "WTS" line themselves: one or two of them, with an
++    // offer they stand by. This line - a price nobody means, from every bot that hears it - stays away.
++    if (sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Enable", true) && sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chat.Enable", true))
++        return false;
++
+     std::ostringstream out;
+     std::string const text = event.getParam();
+ 
