@@ -11,6 +11,7 @@
 #include "Pba.h"
 
 #include <cstdlib>
+#include <unordered_set>
 
 namespace pba
 {
@@ -435,14 +436,14 @@ namespace
         } };
         // A parcel held more than was agreed: the rest goes back.
         Pool const ParcelExtra = { "trade.parcel_extra", {
-            "you sent more than we said, so {g} is in the mail back to you",
-            "that was more than i asked for. sent {g} back to you",
-            "thanks! there was too much in the parcel though, {g} is on its way back",
-            "i only needed what we agreed on. the other {g} is in your mailbox",
-            "got more than we said, mailed {g} back. only paying for what i asked for wouldn't be fair either way",
-            "you put in too many, {g} coming back to you by mail",
-            "careful, you sent extra. {g} returned to you",
-            "kept what we agreed, the rest ({g}) is in the mail to you"
+            "you sent more than we agreed on, so {g} comes back to you",
+            "that was more than i asked for. {g} is yours again, check your mail",
+            "there was too much in the parcel, i'm returning {g}",
+            "i only needed what we agreed on. the other {g} goes back to you",
+            "you put in too many, {g} coming back by mail",
+            "careful, you sent extra. returning {g}",
+            "kept what we agreed on, the rest ({g}) is in the mail to you",
+            "more than we said! i'm not keeping what i didn't pay for, {g} goes back"
         } };
         // A bot paid for the player's parcel.
         Pool const ParcelPaid = { "trade.parcel_paid", {
@@ -1447,8 +1448,112 @@ namespace
                 LOG_INFO("module", "PlayerbotsAuctions: {} mailed {} x{} to {}, {} copper on delivery.", bot->GetName(), proto->Name1, deal.count - left, player->GetName(), due);
         }
 
-        /// What the server does when a player presses "Return" on a mail.
-        void SendBack(Player* bot, Mail* mail)
+        // ------------------------------------------------------------------------------- the player's parcel
+        //
+        // A bot that buys waits for a parcel with cash on delivery. When it has arrived (mail takes its hour),
+        // the bot pays for what was agreed and sends back what was too much; a parcel that is something else
+        // goes back whole. None of this waits for the bot to be online: random bots take turns, and one that
+        // is off can stay off for hours. What an absent bot bought lies in its mailbox until it is back.
+
+        /// What a letter or a whisper says: the bot's own way of putting it, or anybody's when the bot is away.
+        static std::string Wording(Player* bot, Lines::Pool const& pool, std::string const& goods, std::string const& money)
+        {
+            std::string const line = bot ? Pick(bot, pool) : std::string(pool.lines[urand(0, uint32(pool.lines.size()) - 1)]);
+            return Fill(line, goods, money);
+        }
+
+        /// The items in the mail of a character that is not online, loaded the way the server loads them at
+        /// login. They belong to whoever asked: what is not handed on to a letter has to be deleted.
+        static std::vector<Item*> AwayItems(ObjectGuid::LowType owner, uint32 mailId)
+        {
+            std::vector<Item*> items;
+            CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_MAILITEMS);
+            stmt->SetData(0, owner);
+            PreparedQueryResult result = CharacterDatabase.Query(stmt);
+            if (!result)
+                return items;
+            do
+            {
+                Field* fields = result->Fetch();
+                if (fields[14].Get<uint32>() != mailId)
+                    continue;
+                uint32 const entry = fields[12].Get<uint32>();
+                ItemTemplate const* proto = sObjectMgr->GetItemTemplate(entry);
+                if (!proto)
+                    continue;
+                Item* item = NewItemOrBag(proto);
+                ObjectGuid const itemOwner = fields[13].Get<uint32>() ? ObjectGuid::Create<HighGuid::Player>(fields[13].Get<uint32>()) : ObjectGuid::Empty;
+                if (!item->LoadFromDB(fields[11].Get<uint32>(), itemOwner, fields, entry))
+                {
+                    delete item;
+                    continue;
+                }
+                items.push_back(item);
+            } while (result->NextRow());
+            return items;
+        }
+
+        /// Takes out of a parcel what it holds beyond what was agreed and puts it into a letter to the player.
+        /// `released` is told about every whole stack that leaves the parcel. Returns how many pieces go back.
+        template <typename Released>
+        static uint32 Surplus(std::vector<Item*> const& items, Deal const& deal, MailDraft& letter, CharacterDatabaseTransaction trans, Released released)
+        {
+            uint32 total = 0;
+            for (Item* item : items)
+                total += item->GetCount();
+            if (total <= deal.count)
+                return 0;
+            uint32 left = total - deal.count, parcels = 0;
+            uint32 const surplus = left;
+            for (Item* item : items)
+            {
+                if (!left || parcels >= MAX_MAIL_ITEMS)
+                    break;
+                Item* back;
+                if (item->GetCount() <= left)
+                {
+                    left -= item->GetCount();
+                    back = item;
+                    released(item);
+                    // Its place in the old mail is given up here and now: the same statement run after the new
+                    // letter is written would take it out of that one as well.
+                    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_MAIL_ITEM);
+                    stmt->SetData(0, item->GetGUID().GetCounter());
+                    trans->Append(stmt);
+                }
+                else
+                {
+                    // Part of a stack: a new item for the player, the stack in the parcel gets smaller.
+                    back = item->CloneItem(left);
+                    if (!back)
+                        break;
+                    item->SetCount(item->GetCount() - left);
+                    if (item->GetState() == ITEM_UNCHANGED)
+                        item->FSetState(ITEM_CHANGED);
+                    item->SaveToDB(trans);
+                    left = 0;
+                }
+                back->SetOwnerGUID(deal.player);
+                if (back->GetState() == ITEM_UNCHANGED)
+                    back->FSetState(ITEM_CHANGED);
+                back->SaveToDB(trans);
+                letter.AddItem(back);
+                ++parcels;
+            }
+            return surplus - left;
+        }
+
+        /// The money for a parcel goes to the player - as the plain payment the server sends for cash on
+        /// delivery, or, when something comes back with it, as a letter that says so.
+        static void SendPayment(MailDraft& letter, uint32 cost, uint32 back, Player* player, ObjectGuid::LowType playerLow, ObjectGuid::LowType botLow,
+            CharacterDatabaseTransaction trans)
+        {
+            letter.AddMoney(cost).SendMailTo(trans, MailReceiver(player, playerLow), MailSender(MAIL_NORMAL, botLow),
+                back ? MAIL_CHECK_MASK_HAS_BODY : MAIL_CHECK_MASK_COD_PAYMENT);
+        }
+
+        /// What the server does when a player presses "Return" on a mail, with a line about why.
+        void SendBack(Player* bot, Mail* mail, std::string const& why)
         {
             uint32 const id = mail->messageID;
             CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
@@ -1460,7 +1565,7 @@ namespace
             trans->Append(stmt);
             bot->RemoveMail(id);
 
-            MailDraft draft(mail->subject, mail->body);
+            MailDraft draft(mail->subject, why);
             for (MailItemInfo const& info : mail->items)
             {
                 if (Item* item = bot->GetMItem(info.item_guid))
@@ -1472,71 +1577,6 @@ namespace
             delete mail;
             bot->m_mailsUpdated = true;
             PBA_MAIL_DELETED(bot->GetGUID());
-        }
-
-        /// A parcel that holds more than was agreed: what is too much goes back to the player by mail, the
-        /// bot keeps what it asked for. Works on the mail before anything is taken out of it. Returns how many
-        /// pieces went back.
-        uint32 SendSurplus(Player* bot, Player* player, Mail* mail, Deal const& deal, CharacterDatabaseTransaction trans)
-        {
-            uint32 total = 0;
-            for (MailItemInfo const& info : mail->items)
-                if (Item* item = bot->GetMItem(info.item_guid))
-                    total += item->GetCount();
-            if (total <= deal.count)
-                return 0;
-            uint32 left = total - deal.count;
-            uint32 const surplus = left;
-
-            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(deal.item);
-            MailDraft draft(proto ? proto->Name1 : "Too many", "You sent more than we agreed on. Here is the rest back.");
-            std::vector<MailItemInfo> const attached = mail->items;
-            uint32 parcels = 0;
-            for (MailItemInfo const& info : attached)
-            {
-                if (!left || parcels >= MAX_MAIL_ITEMS)
-                    break;
-                Item* item = bot->GetMItem(info.item_guid);
-                if (!item)
-                    continue;
-                Item* back;
-                if (item->GetCount() <= left)
-                {
-                    // The whole stack leaves the bot's mail.
-                    left -= item->GetCount();
-                    back = item;
-                    mail->RemoveItem(info.item_guid);
-                    bot->RemoveMItem(info.item_guid);
-                    // Its place in the old mail is given up here and now: the same statement run after the
-                    // new mail is written would take it out of that one as well.
-                    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_MAIL_ITEM);
-                    stmt->SetData(0, info.item_guid);
-                    trans->Append(stmt);
-                    if (back->GetState() == ITEM_UNCHANGED)
-                        back->FSetState(ITEM_CHANGED);
-                }
-                else
-                {
-                    // Part of a stack: a new item for the player, the stack in the mail gets smaller.
-                    back = item->CloneItem(left, bot);
-                    if (!back)
-                        break;
-                    item->SetCount(item->GetCount() - left);
-                    if (item->GetState() == ITEM_UNCHANGED)
-                        item->FSetState(ITEM_CHANGED);
-                    item->SaveToDB(trans);
-                    left = 0;
-                }
-                back->SetOwnerGUID(deal.player);
-                back->SaveToDB(trans);
-                draft.AddItem(back);
-                ++parcels;
-            }
-            if (!parcels)
-                return 0;
-            draft.SendMailTo(trans, MailReceiver(player, deal.player.GetCounter()), MailSender(bot), MAIL_CHECK_MASK_HAS_BODY, 0);
-            mail->state = MAIL_STATE_CHANGED;
-            return surplus - left;
         }
 
         /// Writes down what was taken out of a mail; a mail with nothing left in it is gone.
@@ -1574,90 +1614,141 @@ namespace
             mail->state = MAIL_STATE_UNCHANGED;
         }
 
-        void SaySurplus(Player* bot, Player* player, Deal const& deal, uint32 back)
+        static void NoteSurplus(Deal const& deal, uint32 back)
         {
-            if (!back)
-                return;
-            if (player && player->IsInWorld())
-                Tell(bot, player, Fill(Pick(bot, Lines::ParcelExtra), Goods(back, sObjectMgr->GetItemTemplate(deal.item)), ""));
-            if (cfg.debug)
-                LOG_INFO("module", "PlayerbotsAuctions: {} mailed {} piece(s) of item {} back to a player: the parcel held more than the {} agreed on.",
-                    bot->GetName(), back, deal.item, deal.count);
+            if (back && cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: {} piece(s) of item {} went back to a player: the parcel held more than the {} agreed on.",
+                    back, deal.item, deal.count);
         }
 
-        /// The parcel for a bot that is not online, straight in the database. True: paid, the deal is over.
+        /// The parcel for a bot that is not online. True: the deal is over.
         template <typename Waits>
-        bool PaidWhileAway(Deal& deal, time_t now, Waits& waits)
+        bool ParcelWhileAway(Deal& deal, time_t now, Waits& waits)
         {
             ObjectGuid::LowType const botLow = deal.bot.GetCounter(), playerLow = deal.player.GetCounter();
+            Player* player = ObjectAccessor::FindConnectedPlayer(deal.player);
+            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(deal.item);
+            if (!proto)
+                return true;
+            // Not somebody who is just logging in or out.
+            if (!CharacterDatabase.Query("SELECT 1 FROM `characters` WHERE `guid` = {} AND `online` = 0", botLow))
+            {
+                waits("the bot is logging in or out");
+                return false;
+            }
+
+            // A parcel it paid for earlier, out of which the surplus still has to go back.
+            if (deal.stage == 2)
+            {
+                std::vector<Item*> items = AwayItems(botLow, deal.mail);
+                uint32 total = 0;
+                for (Item* item : items)
+                    total += item->GetCount();
+                uint32 const extra = total > deal.count ? total - deal.count : 0;
+                std::unordered_set<Item*> gone;
+                if (extra)
+                {
+                    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+                    MailDraft letter(proto->Name1, Wording(nullptr, Lines::ParcelExtra, Goods(extra, proto), ""));
+                    uint32 const back = Surplus(items, deal, letter, trans, [&](Item* item) { gone.insert(item); });
+                    if (back)
+                        letter.SendMailTo(trans, MailReceiver(player, playerLow), MailSender(MAIL_NORMAL, botLow), MAIL_CHECK_MASK_HAS_BODY, 0);
+                    CharacterDatabase.CommitTransaction(trans);
+                    NoteSurplus(deal, back);
+                }
+                for (Item* item : items)
+                    if (!gone.count(item))
+                        delete item;
+                return true;
+            }
+
             QueryResult result = CharacterDatabase.Query(
-                "SELECT m.`id`, m.`cod`, m.`subject`, COUNT(mi.`item_guid`), COALESCE(SUM(ii.`count`), 0), COALESCE(SUM(ii.`itemEntry` <> {}), 0) "
-                "FROM `mail` m LEFT JOIN `mail_items` mi ON mi.`mail_id` = m.`id` LEFT JOIN `item_instance` ii ON ii.`guid` = mi.`item_guid` "
-                "WHERE m.`receiver` = {} AND m.`sender` = {} AND m.`messageType` = 0 AND m.`cod` > 0 AND m.`deliver_time` <= {} "
-                "GROUP BY m.`id`, m.`cod`, m.`subject` ORDER BY m.`id` LIMIT 1", deal.item, botLow, playerLow, uint64(now));
+                "SELECT `id`, `cod`, `subject` FROM `mail` WHERE `receiver` = {} AND `sender` = {} AND `messageType` = 0 AND `cod` > 0 AND `deliver_time` <= {} "
+                "ORDER BY `id` LIMIT 1", botLow, playerLow, uint64(now));
             if (!result)
             {
                 waits("the bot is not online, and no parcel has arrived for it");
                 return false;
             }
-            Field* fields = result->Fetch();
-            uint32 const mailId = fields[0].Get<uint32>();
-            uint32 const cost = fields[1].Get<uint32>();
-            std::string const subject = fields[2].Get<std::string>();
-            uint32 const count = fields[4].Get<uint32>();
-            bool const only = fields[3].Get<uint64>() > 0 && fields[5].Get<uint64>() == 0;
+            uint32 const mailId = result->Fetch()[0].Get<uint32>();
+            uint32 const cost = result->Fetch()[1].Get<uint32>();
+            std::string const subject = result->Fetch()[2].Get<std::string>();
+
+            std::vector<Item*> items = AwayItems(botLow, mailId);
+            uint32 count = 0;
+            bool only = !items.empty();
+            for (Item* item : items)
+            {
+                count += item->GetCount();
+                only = only && item->GetEntry() == deal.item;
+            }
+            auto forget = [&](std::unordered_set<Item*> const& gone)
+            {
+                for (Item* item : items)
+                    if (!gone.count(item))
+                        delete item;
+            };
+
             uint64 const fair = deal.price * std::min(count, deal.count) / deal.count;
             if (!only || !count || cost > fair)
             {
-                waits("the bot is not online, and the parcel is not what was agreed - it goes back when the bot returns");
+                if (items.empty())
+                {
+                    waits("the bot is not online, and its parcel could not be read");
+                    return false;
+                }
+                // Not what was agreed: back to the player, as with "Return" at a mailbox. The deal stands.
+                CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+                trans->Append("DELETE FROM `mail` WHERE `id` = {}", mailId);
+                trans->Append("DELETE FROM `mail_items` WHERE `mail_id` = {}", mailId);
+                MailDraft draft(subject, Wording(nullptr, Lines::ParcelWrong, Goods(deal.count, proto), MoneyText(deal.price)));
+                for (Item* item : items)
+                    draft.AddItem(item);
+                draft.SendReturnToSender(0, botLow, playerLow, trans);
+                CharacterDatabase.CommitTransaction(trans);
+                PBA_MAIL_DELETED(deal.bot);
+                if (cfg.debug)
+                    LOG_INFO("module", "PlayerbotsAuctions: a parcel for a bot that is not online went back: {}, {} piece(s), {} copper on delivery; agreed were {} piece(s) of item {} for {} copper.",
+                        only ? "the agreed item" : "something else in it", count, cost, deal.count, deal.item, deal.price);
                 return false;
             }
+
             if (cfg.buyUseBotMoney)
             {
                 uint32 money = 0;
-                if (QueryResult purse = CharacterDatabase.Query("SELECT `money` FROM `characters` WHERE `guid` = {} AND `online` = 0", botLow))
+                if (QueryResult purse = CharacterDatabase.Query("SELECT `money` FROM `characters` WHERE `guid` = {}", botLow))
                     money = purse->Fetch()[0].Get<uint32>();
-                else
-                {
-                    waits("the bot is logging in");
-                    return false;
-                }
                 if (money < cost)
                 {
                     waits(Acore::StringFormat("the bot is not online, has {} copper and needs {}", money, cost));
+                    forget({});
                     return false;
                 }
             }
 
+            std::unordered_set<Item*> gone;
             CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
             if (cfg.buyUseBotMoney)
                 trans->Append("UPDATE `characters` SET `money` = `money` - {} WHERE `guid` = {} AND `money` >= {}", cost, botLow, cost);
+            // What is too much comes back with the money.
+            uint32 total = 0;
+            for (Item* item : items)
+                total += item->GetCount();
+            uint32 const extra = total > deal.count ? total - deal.count : 0;
+            MailDraft letter(subject, extra ? Wording(nullptr, Lines::ParcelPaid, "", MoneyText(cost)) + " " + Wording(nullptr, Lines::ParcelExtra, Goods(extra, proto), "") : std::string());
+            uint32 const back = Surplus(items, deal, letter, trans, [&](Item* item) { gone.insert(item); });
+            SendPayment(letter, cost, back, player, playerLow, botLow, trans);
             // Paid goods wait like any mail without cash on delivery: thirty days, not the three of an unpaid parcel
             // (after which the server would send them back to the player, who has the money already).
             trans->Append("UPDATE `mail` SET `cod` = 0, `expire_time` = {} WHERE `id` = {}", uint64(now + 30 * DAY), mailId);
-            Player* player = ObjectAccessor::FindConnectedPlayer(deal.player);
-            MailDraft(subject, "")
-                .AddMoney(cost)
-                .SendMailTo(trans, MailReceiver(player, playerLow), MailSender(MAIL_NORMAL, botLow), MAIL_CHECK_MASK_COD_PAYMENT);
             CharacterDatabase.CommitTransaction(trans);
+            forget(gone);
 
             _bought[botLow][deal.item] = now;
-            market.RecordSale(deal.item, cost, count);
+            market.RecordSale(deal.item, cost, count - back);
             if (cfg.debug)
-            {
-                ItemTemplate const* proto = sObjectMgr->GetItemTemplate(deal.item);
-                LOG_INFO("module", "PlayerbotsAuctions: a bot that is not online paid {} copper for a parcel with {} x{} from a player.",
-                    cost, proto ? proto->Name1 : "?", count);
-            }
-            if (count > deal.count)
-            {
-                // More than was agreed: what is too much goes back as soon as the bot is here to send it.
-                deal.stage = 2;
-                deal.mail = mailId;
-                deal.until = now + 30 * DAY;
-                deal.noted = 0;
-                return false;
-            }
+                LOG_INFO("module", "PlayerbotsAuctions: a bot that is not online paid {} copper for a parcel with {} x{} from a player.", cost, proto->Name1, count);
+            NoteSurplus(deal, back);
             return true;
         }
 
@@ -1678,36 +1769,51 @@ namespace
             };
 
             Player* bot = ObjectAccessor::FindConnectedPlayer(deal.bot);
-            if (deal.stage == 2)
-            {
-                if (!bot || !bot->IsInWorld() || bot->IsBeingTeleported())
-                    return false;
-                Mail* mail = bot->GetMail(deal.mail);
-                if (mail && mail->state != MAIL_STATE_DELETED)
-                {
-                    Player* player = ObjectAccessor::FindConnectedPlayer(deal.player);
-                    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
-                    uint32 const back = SendSurplus(bot, player, mail, deal, trans);
-                    StoreMail(bot, mail, trans);
-                    CharacterDatabase.CommitTransaction(trans);
-                    bot->m_mailsUpdated = true;
-                    SaySurplus(bot, player, deal, back);
-                }
-                return true;
-            }
-            // Random bots take turns being online, and one that is off can stay off for hours. The player is
-            // not kept waiting for that: the parcel is paid from what the bot has, and the goods lie in its
-            // mailbox until it is back.
             if (!bot)
-                return PaidWhileAway(deal, now, waits);
+                return ParcelWhileAway(deal, now, waits);
             if (!bot->IsInWorld() || bot->IsBeingTeleported())
             {
                 waits("the bot is on its way into the world");
                 return false;
             }
             Player* player = ObjectAccessor::FindConnectedPlayer(deal.player);
-            uint32 fromPlayer = 0, onTheWay = 0;
+            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(deal.item);
+            if (!proto)
+                return true;
 
+            // A parcel it paid for while it was away, out of which the surplus still has to go back.
+            if (deal.stage == 2)
+            {
+                Mail* mail = bot->GetMail(deal.mail);
+                if (!mail || mail->state == MAIL_STATE_DELETED)
+                    return true;
+                std::vector<Item*> items;
+                for (MailItemInfo const& info : mail->items)
+                    if (Item* item = bot->GetMItem(info.item_guid))
+                        items.push_back(item);
+                uint32 total = 0;
+                for (Item* item : items)
+                    total += item->GetCount();
+                uint32 const extra = total > deal.count ? total - deal.count : 0;
+                CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+                MailDraft letter(proto->Name1, extra ? Wording(bot, Lines::ParcelExtra, Goods(extra, proto), "") : std::string());
+                uint32 const back = Surplus(items, deal, letter, trans, [&](Item* item)
+                {
+                    mail->RemoveItem(item->GetGUID().GetCounter());
+                    bot->RemoveMItem(item->GetGUID().GetCounter());
+                });
+                if (back)
+                    letter.SendMailTo(trans, MailReceiver(player, deal.player.GetCounter()), MailSender(bot), MAIL_CHECK_MASK_HAS_BODY, 0);
+                StoreMail(bot, mail, trans);
+                CharacterDatabase.CommitTransaction(trans);
+                bot->m_mailsUpdated = true;
+                if (back && player && player->IsInWorld())
+                    Tell(bot, player, Wording(bot, Lines::ParcelExtra, Goods(back, proto), ""));
+                NoteSurplus(deal, back);
+                return true;
+            }
+
+            uint32 fromPlayer = 0, onTheWay = 0;
             std::vector<Mail*> const mails(bot->GetMails().begin(), bot->GetMails().end());
             for (Mail* mail : mails)
             {
@@ -1745,9 +1851,10 @@ namespace
                             bot->GetName(), only ? "the agreed item" : "something else in it", count, mail->COD, deal.count, deal.item, deal.price);
                     // Back to the player at once, as with "Return" at a mailbox - not after the three days an
                     // unpaid parcel lies around. The deal stands: the right parcel is still welcome.
-                    SendBack(bot, mail);
+                    std::string const why = Wording(bot, Lines::ParcelWrong, Goods(deal.count, proto), MoneyText(deal.price));
+                    SendBack(bot, mail, why);
                     if (player && player->IsInWorld())
-                        Tell(bot, player, Fill(Pick(bot, Lines::ParcelWrong), Goods(deal.count, sObjectMgr->GetItemTemplate(deal.item)), MoneyText(deal.price)));
+                        Tell(bot, player, why);
                     return false;
                 }
 
@@ -1761,8 +1868,16 @@ namespace
                 }
 
                 CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
-                // More in it than was agreed: the rest goes back, the bot keeps what it asked for.
-                uint32 const back = SendSurplus(bot, player, mail, deal, trans);
+                // More in it than was agreed: the rest comes back with the money, the bot keeps what it asked for.
+                uint32 const extra = count > deal.count ? count - deal.count : 0;
+                std::string const paid = Wording(bot, Lines::ParcelPaid, "", MoneyText(cost));
+                std::string const tooMuch = extra ? Wording(bot, Lines::ParcelExtra, Goods(extra, proto), "") : std::string();
+                MailDraft letter(mail->subject, extra ? paid + " " + tooMuch : std::string());
+                uint32 const back = Surplus(items, deal, letter, trans, [&](Item* item)
+                {
+                    mail->RemoveItem(item->GetGUID().GetCounter());
+                    bot->RemoveMItem(item->GetGUID().GetCounter());
+                });
                 std::vector<MailItemInfo> const attached = mail->items;
                 for (MailItemInfo const& info : attached)
                 {
@@ -1778,9 +1893,7 @@ namespace
                 }
                 if (cfg.buyUseBotMoney)
                     bot->ModifyMoney(-int32(cost));
-                MailDraft(mail->subject, "")
-                    .AddMoney(cost)
-                    .SendMailTo(trans, MailReceiver(player, mail->sender), MailSender(MAIL_NORMAL, mail->receiver), MAIL_CHECK_MASK_COD_PAYMENT);
+                SendPayment(letter, cost, back, player, mail->sender, mail->receiver, trans);
                 mail->COD = 0;
 
                 bot->SaveInventoryAndGoldToDB(trans);
@@ -1791,12 +1904,14 @@ namespace
                 _bought[bot->GetGUID().GetCounter()][deal.item] = now;
                 market.RecordSale(deal.item, cost, count - back);
                 if (player && player->IsInWorld())
-                    Tell(bot, player, Fill(Pick(bot, Lines::ParcelPaid),
-                        "", MoneyText(cost)));
-                SaySurplus(bot, player, deal, back);
+                {
+                    Tell(bot, player, paid);
+                    if (back)
+                        Tell(bot, player, tooMuch);
+                }
                 if (cfg.debug)
-                    LOG_INFO("module", "PlayerbotsAuctions: {} paid {} copper for a parcel with {} x{} from a player.", bot->GetName(), cost,
-                        sObjectMgr->GetItemTemplate(deal.item)->Name1, count);
+                    LOG_INFO("module", "PlayerbotsAuctions: {} paid {} copper for a parcel with {} x{} from a player.", bot->GetName(), cost, proto->Name1, count);
+                NoteSurplus(deal, back);
                 return true;
             }
             waits(onTheWay ? "it is still on its way" : fromPlayer ? "the mail from this player is not a parcel with cash on delivery" :
