@@ -219,8 +219,15 @@ namespace
     // each thing, so that two bots - or the same bot twice - seldom sound alike.
     namespace Lines
     {
+        /// A handful of lines for when the catalog has none (it was emptied, or not loaded).
+        struct Pool
+        {
+            char const* occasion;
+            std::vector<char const*> lines;
+        };
+
         // A bot sells and the price the player named is fine.
-        std::vector<char const*> const SellOk = {
+        Pool const SellOk = { "trade.sell_ok", {
             "i have {g}, {m} is fine. want me to mail it COD?",
             "{g} for {m}? sure. say yes and i mail it to you COD",
             "got {g} here, {m} works for me. shall i send it COD?",
@@ -235,9 +242,9 @@ namespace
             "can do. {g} for {m}, sent COD if you say yes",
             "fine by me, {m} for {g}. mail COD?",
             "you can have {g} for {m}. just say yes and i send it COD"
-        };
+        } };
         // A bot sells and names its own price.
-        std::vector<char const*> const SellOffer = {
+        Pool const SellOffer = { "trade.sell_offer", {
             "i have {g}, {m} for all of it? say yes and i mail it COD",
             "got {g} for you, {m}. want it? i'd send it COD",
             "{g} here, {m} and it's yours. i can mail it COD",
@@ -256,9 +263,9 @@ namespace
             "you can have {g} from me, {m}. i'd mail it COD",
             "just farmed {g}. {m} and i mail it to you COD",
             "{g}? sure. {m}, sent COD. yes or no?"
-        };
+        } };
         // A bot buys and the price the player named is fine.
-        std::vector<char const*> const BuyOk = {
+        Pool const BuyOk = { "trade.buy_ok", {
             "i'll take {g} for {m}. mail it to me COD",
             "{g} for {m}, ok. send it COD and i'll pay",
             "{m} for {g} is fine, just mail it COD",
@@ -271,9 +278,9 @@ namespace
             "{m} is fine with me. send {g} COD and you get your money",
             "i'm in, {g} at {m}. COD mail please",
             "good price. mail {g} to me COD for {m}"
-        };
+        } };
         // A bot buys and names its own price.
-        std::vector<char const*> const BuyOffer = {
+        Pool const BuyOffer = { "trade.buy_offer", {
             "i'd give you {m} for {g}. mail it to me COD if that works",
             "i could use {g}, {m}? send it COD and i'll pay",
             "{m} for {g}? if ok just mail it COD",
@@ -291,9 +298,9 @@ namespace
             "my offer: {m} for {g}. mail it COD and i pay when it lands",
             "could take {g} off your hands for {m}. COD mail",
             "{m}. that's what {g} is worth to me. send COD if ok"
-        };
+        } };
         // A bot sells; the player wants another number of pieces.
-        std::vector<char const*> const SellRecount = {
+        Pool const SellRecount = { "trade.sell_recount", {
             "sure, {g} for {m} then. yes?",
             "ok, {g} would be {m}. want me to mail it COD?",
             "no problem. {g}, {m}. say yes and i send it COD",
@@ -304,18 +311,18 @@ namespace
             "ok {g} it is, {m}. COD by mail?",
             "sure thing. {m} for {g}, sent COD if you say yes",
             "{g} for {m}, works for me. send it?"
-        };
+        } };
         // A bot sells; the player wants more than it has.
-        std::vector<char const*> const SellAllIHave = {
+        Pool const SellAllIHave = { "trade.sell_all_i_have", {
             "{g} is all i have. {m} for that?",
             "don't have that many, only {g}. {m}?",
             "i can only do {g}, {m}. want it?",
             "that's more than i've got. {g} for {m}?",
             "sorry, {g} is everything. {m} and it's yours",
             "only {g} in my bags. {m}, COD by mail?"
-        };
+        } };
         // A bot buys; the player offers another number of pieces.
-        std::vector<char const*> const BuyRecount = {
+        Pool const BuyRecount = { "trade.buy_recount", {
             "ok, {g} for {m} then. mail it COD",
             "fine, i'd take {g} for {m}. send it COD if ok",
             "{g}? i'd pay {m} for that. COD by mail",
@@ -324,23 +331,23 @@ namespace
             "works too. {m} for {g}, COD",
             "ok {g}, that makes {m}. send it COD",
             "{g} is fine, {m}. post it COD whenever"
-        };
+        } };
         // A bot buys; the player offers more than it wants.
-        std::vector<char const*> const BuyAllINeed = {
+        Pool const BuyAllINeed = { "trade.buy_all_i_need", {
             "i only need {g}. {m} for that?",
             "that's more than i can use. {g} for {m}?",
             "can't take that many, {g} is enough. {m}?",
             "i'd only take {g}, {m}. send that COD if ok",
             "{g} is all i can afford right now. {m}?",
             "too many for me, just {g} please. {m}, COD"
-        };
+        } };
         // The player said no.
-        std::vector<char const*> const Declined = {
+        Pool const Declined = { "trade.declined", {
             "ok, no problem", "alright, maybe next time", "np", "ok, gl", "sure, no worries", "fair enough", "alright", "ok np, good luck",
             "no worries", "k, another time then", "all good", "ok then", "sure thing", "ok, see ya", "np, gl selling", "right, never mind then"
-        };
+        } };
         // A bot sells; the player went too low once.
-        std::vector<char const*> const SellCounter = {
+        Pool const SellCounter = { "trade.sell_counter", {
             "can't go that low. {m} is the best i can do",
             "hm no. {m} and we have a deal",
             "too low for me, {m}?",
@@ -353,15 +360,15 @@ namespace
             "{m}. can't do better than that",
             "hmm. {m} then, final offer",
             "you're killing me. {m} and i send it"
-        };
+        } };
         // A bot sells; the player went too low twice.
-        std::vector<char const*> const SellRefuse = {
+        Pool const SellRefuse = { "trade.sell_refuse", {
             "sorry, then i'd rather keep it", "no deal then, sorry", "nah, can't do that", "then i'll put it in the ah, sorry",
             "too low, i'll pass", "sorry, not for that price", "no, then i keep it", "can't, sorry. gl", "that's less than a vendor gives me, no",
             "nope, sorry", "then no, maybe someone else has it cheaper", "we're too far apart, sorry"
-        };
+        } };
         // A bot buys; the player went too high once.
-        std::vector<char const*> const BuyCounter = {
+        Pool const BuyCounter = { "trade.buy_counter", {
             "that's too much for me. {m} is as far as i go",
             "hm, {m} and i take it",
             "can't pay that. {m}?",
@@ -374,15 +381,15 @@ namespace
             "too rich for me. {m} would work",
             "i'm not that wealthy :) {m}?",
             "{m} and you have a buyer"
-        };
+        } };
         // A bot buys; the player went too high twice.
-        std::vector<char const*> const BuyRefuse = {
+        Pool const BuyRefuse = { "trade.buy_refuse", {
             "then no thanks", "too much for me, sorry", "i'll pass then", "can't afford that, sorry", "no, then i'll look in the ah",
             "sorry, too expensive", "then not, gl selling", "nah, i'm out", "that's more than it's worth to me, sorry", "pass, sorry",
             "we won't get there, np", "ok then no. good luck with it"
-        };
+        } };
         // A bot buys and the price is settled.
-        std::vector<char const*> const BuyAgreed = {
+        Pool const BuyAgreed = { "trade.buy_agreed", {
             "deal. mail me {g} COD for {m} and i pay when it arrives",
             "ok! send {g} COD, {m}",
             "great, {g} for {m}, COD by mail",
@@ -395,39 +402,39 @@ namespace
             "ok good. mail {g}, {m} COD",
             "sweet, {m} it is. send it COD",
             "sounds good, i'll pay the COD of {m} when it lands"
-        };
+        } };
         // A bot sells but the goods went elsewhere meanwhile.
-        std::vector<char const*> const Gone = {
+        Pool const Gone = { "trade.gone", {
             "ah sorry, i don't have it anymore", "sorry, just sold it", "damn, it's gone already. sorry", "oh, too late, someone else got it",
             "sorry, used it up myself a minute ago", "argh, sold it in the ah just now. sorry", "sorry mate, it's gone", "i was too slow, don't have it now. sorry"
-        };
-        std::vector<char const*> const BagTrouble = {
+        } };
+        Pool const BagTrouble = { "trade.bag_trouble", {
             "sorry, something's wrong with my bags. another time", "hm, can't send it right now, sorry", "the mail won't take it right now, sorry. later maybe"
-        };
+        } };
         // A bot sent its parcel; when it arrives follows.
-        std::vector<char const*> const Shipped = {
-            "sent! {m} COD, should be in your mailbox ",
-            "it's in the mail, {m} COD. arrives ",
-            "done, mailed it COD for {m}. you'll have it ",
-            "on its way, {m} COD. should be there ",
-            "posted it. {m} COD, check your mail ",
-            "ok sent, COD {m}. it'll show up ",
-            "mailed. {m} on delivery, you get it ",
-            "there you go, sent it COD ({m}). arrives ",
-            "thanks! parcel's out, {m} COD. it lands ",
-            "shipped :) {m} COD. look in your mailbox "
-        };
+        Pool const Shipped = { "trade.shipped", {
+            "sent! {m} COD, should be in your mailbox {when}",
+            "it's in the mail, {m} COD. arrives {when}",
+            "done, mailed it COD for {m}. you'll have it {when}",
+            "on its way, {m} COD. should be there {when}",
+            "posted it. {m} COD, check your mail {when}",
+            "ok sent, COD {m}. it'll show up {when}",
+            "mailed. {m} on delivery, you get it {when}",
+            "there you go, sent it COD ({m}). arrives {when}",
+            "thanks! parcel's out, {m} COD. it lands {when}",
+            "shipped :) {m} COD. look in your mailbox {when}"
+        } };
         // A parcel that is not what was agreed.
-        std::vector<char const*> const ParcelWrong = {
+        Pool const ParcelWrong = { "trade.parcel_wrong", {
             "that's not what we said ({m} for {g}). i'll leave the parcel, it comes back to you",
             "hm, we said {g} for {m}. not taking this one, sorry",
             "the parcel doesn't match our deal ({g}, {m}). i'll let it go back",
             "we agreed on {m} for {g}, this is something else. leaving it in the mail",
             "uh, that COD is not what we said ({m} for {g}). not paying that, sorry",
             "wrong parcel? we said {g} for {m}. it'll return to you"
-        };
+        } };
         // A bot paid for the player's parcel.
-        std::vector<char const*> const ParcelPaid = {
+        Pool const ParcelPaid = { "trade.parcel_paid", {
             "got it, thanks! {m} is in the mail to you",
             "parcel arrived, paid {m}. thx!",
             "thanks, money's on its way ({m})",
@@ -440,7 +447,7 @@ namespace
             "paid {m}. thanks, pleasure",
             "all good, parcel's here and {m} is on the way to you",
             "nice, thank you. {m} paid"
-        };
+        } };
     }
 
     /// What a player asked for in a channel.
@@ -895,9 +902,14 @@ namespace
         }
 
         /// One of many ways to say it.
-        static std::string Pick(std::vector<char const*> const& lines)
+        /// One of many ways to say it: from the catalog, in the voice of the bot's personality where there are
+        /// such lines, else one of the handful built in.
+        static std::string Pick(Player* bot, Lines::Pool const& pool)
         {
-            return lines[urand(0, uint32(lines.size()) - 1)];
+            std::string const line = PhraseFor(bot, pool.occasion);
+            if (!line.empty())
+                return line;
+            return pool.lines[urand(0, uint32(pool.lines.size()) - 1)];
         }
 
         /// The first whisper of a bot now and then starts with a word of greeting.
@@ -907,8 +919,10 @@ namespace
             return urand(0, 99) < 30 ? words[urand(0, std::size(words) - 1)] : "";
         }
 
-        static std::string Fill(std::string text, std::string const& goods, std::string const& money)
+        static std::string Fill(std::string text, std::string const& goods, std::string const& money, std::string const& when = "soon")
         {
+            for (size_t pos; (pos = text.find("{when}")) != std::string::npos;)
+                text.replace(pos, 6, when);
             for (size_t pos; (pos = text.find("{g}")) != std::string::npos;)
                 text.replace(pos, 3, goods);
             for (size_t pos; (pos = text.find("{m}")) != std::string::npos;)
@@ -1055,10 +1069,10 @@ namespace
                 if (named && named >= deal.limit)
                 {
                     deal.price = std::min<uint64>(named, MAX_MONEY_AMOUNT);       // the player's own price will do
-                    Tell(bot, player, Hello() + Fill(Pick(Lines::SellOk), goods, MoneyText(deal.price)));
+                    Tell(bot, player, Hello() + Fill(Pick(bot, Lines::SellOk), goods, MoneyText(deal.price)));
                 }
                 else
-                    Tell(bot, player, Hello() + Fill(Pick(Lines::SellOffer), goods, MoneyText(deal.price)));
+                    Tell(bot, player, Hello() + Fill(Pick(bot, Lines::SellOffer), goods, MoneyText(deal.price)));
             }
             else
             {
@@ -1124,10 +1138,10 @@ namespace
                 if (named && named <= deal.limit)
                 {
                     deal.price = named;
-                    Tell(bot, player, Hello() + Fill(Pick(Lines::BuyOk), goods, MoneyText(deal.price)));
+                    Tell(bot, player, Hello() + Fill(Pick(bot, Lines::BuyOk), goods, MoneyText(deal.price)));
                 }
                 else
-                    Tell(bot, player, Hello() + Fill(Pick(Lines::BuyOffer), goods, MoneyText(deal.price)));
+                    Tell(bot, player, Hello() + Fill(Pick(bot, Lines::BuyOffer), goods, MoneyText(deal.price)));
                 // The parcel of a player takes its time to arrive.
                 deal.until = now + 3 * HOUR + sWorld->getIntConfig(CONFIG_MAIL_DELIVERY_DELAY);
             }
@@ -1177,14 +1191,14 @@ namespace
                     deal.until = now + 10 * MINUTE;
                 if (!reply.money)
                 {
-                    Tell(bot, player, Fill(Pick(tooMany ? (deal.botSells ? Lines::SellAllIHave : Lines::BuyAllINeed)
+                    Tell(bot, player, Fill(Pick(bot, tooMany ? (deal.botSells ? Lines::SellAllIHave : Lines::BuyAllINeed)
                                                         : (deal.botSells ? Lines::SellRecount : Lines::BuyRecount)), Goods(deal.count, proto), MoneyText(deal.price)));
                     return;
                 }
             }
             else if (tooMany && !reply.money)
             {
-                Tell(bot, player, Fill(Pick(deal.botSells ? Lines::SellAllIHave : Lines::BuyAllINeed), Goods(deal.count, proto), MoneyText(deal.price)));
+                Tell(bot, player, Fill(Pick(bot, deal.botSells ? Lines::SellAllIHave : Lines::BuyAllINeed), Goods(deal.count, proto), MoneyText(deal.price)));
                 return;
             }
 
@@ -1193,7 +1207,7 @@ namespace
 
             if (no)
             {
-                Tell(bot, player, Pick(Lines::Declined));
+                Tell(bot, player, Pick(bot, Lines::Declined));
                 _deals.erase(found);
                 return;
             }
@@ -1209,13 +1223,13 @@ namespace
                         deal.haggled = 1;
                         deal.price = std::max<uint64>(deal.limit, std::min<uint64>(deal.price, HumanPrice(double(deal.price + named) / 2.0)));
                         deal.until = now + 10 * MINUTE;
-                        Tell(bot, player, Fill(Pick(Lines::SellCounter),
+                        Tell(bot, player, Fill(Pick(bot, Lines::SellCounter),
                             goods, MoneyText(deal.price)));
                         return;
                     }
                     else
                     {
-                        Tell(bot, player, Pick(Lines::SellRefuse));
+                        Tell(bot, player, Pick(bot, Lines::SellRefuse));
                         _deals.erase(found);
                         return;
                     }
@@ -1236,13 +1250,13 @@ namespace
                 {
                     deal.haggled = 1;
                     deal.price = std::min<uint64>(deal.limit, std::max<uint64>(deal.price, HumanPrice(double(deal.price + named) / 2.0)));
-                    Tell(bot, player, Fill(Pick(Lines::BuyCounter),
+                    Tell(bot, player, Fill(Pick(bot, Lines::BuyCounter),
                         goods, MoneyText(deal.price)));
                     return;
                 }
                 else
                 {
-                    Tell(bot, player, Pick(Lines::BuyRefuse));
+                    Tell(bot, player, Pick(bot, Lines::BuyRefuse));
                     _deals.erase(found);
                     return;
                 }
@@ -1251,7 +1265,7 @@ namespace
                 deal.price = named;                             // cheaper than it offered: gladly
             else if (!yes)
                 return;
-            Tell(bot, player, Fill(Pick(Lines::BuyAgreed),
+            Tell(bot, player, Fill(Pick(bot, Lines::BuyAgreed),
                 goods, MoneyText(deal.price)));
         }
 
@@ -1269,7 +1283,7 @@ namespace
                 have += stack->GetCount();
             if (have < deal.count)
             {
-                Tell(bot, player, Pick(Lines::Gone));
+                Tell(bot, player, Pick(bot, Lines::Gone));
                 return;
             }
 
@@ -1310,7 +1324,7 @@ namespace
 
             if (!parcels)
             {
-                Tell(bot, player, Pick(Lines::BagTrouble));
+                Tell(bot, player, Pick(bot, Lines::BagTrouble));
                 return;
             }
 
@@ -1328,8 +1342,7 @@ namespace
             // The money comes back by mail when the player takes the goods; unpaid, the parcel returns after three days.
             _awaiting[bot->GetGUID()] = now + delay + 4 * DAY;
             std::string const when = delay >= 50 * MINUTE ? "in about an hour" : delay >= 2 * MINUTE ? "in a few minutes" : "now";
-            Tell(bot, player, Fill(Pick(Lines::Shipped),
-                "", MoneyText(due)) + when);
+            Tell(bot, player, Fill(Pick(bot, Lines::Shipped), "", MoneyText(due), when));
             if (cfg.debug)
                 LOG_INFO("module", "PlayerbotsAuctions: {} mailed {} x{} to {}, {} copper on delivery.", bot->GetName(), proto->Name1, deal.count - left, player->GetName(), due);
         }
@@ -1368,7 +1381,7 @@ namespace
                 if (!only || !count || mail->COD > fair)
                 {
                     if (player && player->IsInWorld())
-                        Tell(bot, player, Fill(Pick(Lines::ParcelWrong), Goods(deal.count, sObjectMgr->GetItemTemplate(deal.item)), MoneyText(deal.price)));
+                        Tell(bot, player, Fill(Pick(bot, Lines::ParcelWrong), Goods(deal.count, sObjectMgr->GetItemTemplate(deal.item)), MoneyText(deal.price)));
                     return true;
                 }
 
@@ -1441,7 +1454,7 @@ namespace
                 _bought[bot->GetGUID().GetCounter()][deal.item] = now;
                 market.RecordSale(deal.item, cost, count);
                 if (player && player->IsInWorld())
-                    Tell(bot, player, Fill(Pick(Lines::ParcelPaid),
+                    Tell(bot, player, Fill(Pick(bot, Lines::ParcelPaid),
                         "", MoneyText(cost)));
                 if (cfg.debug)
                     LOG_INFO("module", "PlayerbotsAuctions: {} paid {} copper for a parcel with {} x{} from a player.", bot->GetName(), cost,

@@ -149,6 +149,13 @@ namespace pba
         uint32 dealAnswers = 3;                // how many bots answer one line at the most
         int32  dealMailDelay = -1;             // seconds a bot's parcel travels; -1: as long as the server's mail
         std::vector<std::string> dealChannels; // parts of channel names that are listened to; empty: every channel
+
+        // chatter
+        bool   chatter = true;                 // bots talk: in General, aloud near a player, about what happens to them
+        uint32 chatterInterval = 150;          // seconds between two things said out of the blue, give or take
+        bool   chatterReplies = true;          // bots answer a hello, a ding, a request for a joke
+        bool   chatterSay = true;              // bots near a player say something aloud or make a gesture
+        bool   chatterWorld = true;            // with no bot in the player's zone, the channel of the whole realm is used
     };
 
     extern Settings cfg;
@@ -168,7 +175,9 @@ namespace pba
         TRAIT_TRADING,      // low: hardly uses the auction house high: lives there
         TRAIT_CRAFTING,     // low: profession is a sideline      high: produces on purpose
         TRAIT_GREED,        // its own price level, a little below or above the others
-        TRAIT_HABIT         // small habits: how it sets bids, how it packs stacks
+        TRAIT_HABIT,        // small habits: how it sets bids, how it packs stacks
+        TRAIT_PERSONA,      // who it is in chat: the joker, the grumbler, the one who speaks like a knight of old
+        TRAIT_TALK          // low: keeps to itself               high: always has something to say
     };
 
     float TraitOf(Player* bot, Trait which);
@@ -251,6 +260,10 @@ namespace pba
     };
 
     extern Market market;
+
+    /// Small things the module remembers across restarts (table mod_playerbots_auctions_state); 0 if not known.
+    uint64 StateGet(std::string const& name);
+    void StateSet(std::string const& name, uint64 value);
 
     /// A server that is only on for an evening: auctions run out by the clock on the wall, so by the next evening
     /// the auction house is empty. Before the auctions are read at a start, every one of them gets back the time
@@ -348,6 +361,30 @@ namespace pba
     void DealsUpdate(uint32 diff);
     /// After the settings: the names players can type.
     void LoadDealNames();
+
+    // ------------------------------------------------------------------------------------------ chatter
+
+    /// One line the bots can say: built in from data/lines.txt.
+    struct CatalogLine
+    {
+        char const* personality;
+        char const* occasion;
+        char const* text;
+    };
+    extern CatalogLine const Catalog[];
+    extern size_t const CatalogSize;
+    extern uint32 const CatalogVersion;
+
+    /// Reads the lines; puts the built-in catalog into its table when that is new. After the settings.
+    void LoadChatter();
+    void ChatterUpdate(uint32 diff);
+    /// Something happened to a bot: "ding", "death", "loot" (detail: the item as a link).
+    void ChatterEvent(Player* bot, char const* occasion, std::string const& detail);
+    /// A player wrote something. where: 0 General, 1 Trade, 2 the realm's channel, 3 said aloud, 4 yelled.
+    void ChatterHeard(Player* player, std::string const& text, uint8 where);
+    /// A line of the catalog for this bot and occasion, in the voice of its personality where there is one; empty if none.
+    std::string PhraseFor(Player* bot, std::string const& occasion);
+    char const* PersonalityOf(Player* bot);
 }
 
 #endif

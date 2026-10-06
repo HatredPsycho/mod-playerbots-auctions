@@ -55,6 +55,15 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
   you take it. A bot that buys asks you to send the parcel to it and pays when it arrives - if it holds what
   was agreed, for no more than was agreed. *New, compiled and not yet tried on a server.*
 
+- **Chatter.** Every bot is somebody in chat, too: one of 28 personalities, from the joker and the grumbler to
+  the one who speaks like a knight of old and the one who hardly speaks at all. Now and then one of them says
+  something in the General channel of the zone you are in, or aloud next to you, or makes a gesture. They
+  announce a new level and congratulate each other, complain about dying, show what they found, and answer
+  when you say hello, write "ding", ask for a joke or wonder about bots. What they say comes from a catalog of
+  more than 5000 lines (`data/lines.txt`, on a running server the table `mod_playerbots_auctions_lines`, where
+  lines can be switched off or added). The whispers of a deal come from it as well. mod-playerbots' own
+  chatter is switched off for it. *New, compiled and not yet tried on a server.*
+
 All auction business is done standing at an auctioneer. Bots that travel with a real player neither sell nor buy.
 
 The travelling uses the city visits of the CoA Playerbots fork. With other versions of mod-playerbots the bots

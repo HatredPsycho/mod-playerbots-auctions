@@ -109,6 +109,11 @@ namespace pba
         cfg.deals               = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chat.Enable", true);
         cfg.dealAnswers         = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chat.Answers", 3), 1, 10);
         cfg.dealMailDelay       = sConfigMgr->GetOption<int32>("PlayerbotsAuctions.Chat.MailDelay", -1);
+        cfg.chatter             = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chatter.Enable", true);
+        cfg.chatterInterval     = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chatter.Interval", 150), 20, 3600);
+        cfg.chatterReplies      = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chatter.Replies", true);
+        cfg.chatterSay          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chatter.Nearby", true);
+        cfg.chatterWorld        = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chatter.WorldChannel", true);
         cfg.dealChannels.clear();
         std::string const channels = sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.Chat.Channels", "");
         for (std::string_view part : Acore::Tokenize(channels, ',', false))

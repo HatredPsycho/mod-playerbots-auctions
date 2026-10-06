@@ -229,6 +229,32 @@ namespace pba
         bool stateTable = false;
     }
 
+    uint64 StateGet(std::string const& name)
+    {
+        if (!stateTable)
+        {
+            CharacterDatabase.DirectExecute(StateTable);
+            stateTable = true;
+        }
+        std::string key = name;
+        CharacterDatabase.EscapeString(key);
+        if (QueryResult result = CharacterDatabase.Query("SELECT `value` FROM `mod_playerbots_auctions_state` WHERE `name` = '{}'", key))
+            return result->Fetch()[0].Get<uint64>();
+        return 0;
+    }
+
+    void StateSet(std::string const& name, uint64 value)
+    {
+        if (!stateTable)
+        {
+            CharacterDatabase.DirectExecute(StateTable);
+            stateTable = true;
+        }
+        std::string key = name;
+        CharacterDatabase.EscapeString(key);
+        CharacterDatabase.DirectExecute("REPLACE INTO `mod_playerbots_auctions_state` (`name`, `value`) VALUES ('{}', {})", key, value);
+    }
+
     void ResumeAuctions()
     {
         CharacterDatabase.DirectExecute(StateTable);

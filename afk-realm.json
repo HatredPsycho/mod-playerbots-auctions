@@ -56,6 +56,36 @@
       "key": "AiPlayerbot.LootNeedRollLevel",
       "value": "2",
       "why": "In a group, bots roll need on what is an upgrade for them."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.EnableBroadcasts",
+      "value": "0",
+      "why": "mod-playerbots' own chatter - a report of every quest and kill, dungeon suggestions, canned replies - is replaced by the personalities of this module."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.RandomBotTalk",
+      "value": "0",
+      "why": "mod-playerbots' own chatter - a report of every quest and kill, dungeon suggestions, canned replies - is replaced by the personalities of this module."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.RandomBotSuggestDungeons",
+      "value": "0",
+      "why": "mod-playerbots' own chatter - a report of every quest and kill, dungeon suggestions, canned replies - is replaced by the personalities of this module."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.ToxicLinksRepliesChance",
+      "value": "0",
+      "why": "mod-playerbots' own chatter - a report of every quest and kill, dungeon suggestions, canned replies - is replaced by the personalities of this module."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.ThunderfuryRepliesChance",
+      "value": "0",
+      "why": "mod-playerbots' own chatter - a report of every quest and kill, dungeon suggestions, canned replies - is replaced by the personalities of this module."
     }
   ]
 }

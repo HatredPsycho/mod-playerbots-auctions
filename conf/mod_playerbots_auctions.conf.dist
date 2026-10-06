@@ -628,3 +628,78 @@ PlayerbotsAuctions.Chat.Channels = ""
 #        Default:     -1
 
 PlayerbotsAuctions.Chat.MailDelay = -1
+
+###################################################################################################
+# CHATTER
+#
+#    Every bot is somebody in chat, too. There are 28 personalities - the joker, the braggart, the
+#    grumbler, the newcomer, the veteran, the one who speaks like a knight of old, the one who
+#    hardly speaks, the collector, the miser, the optimist, the doomsayer, the know-it-all, the
+#    dreamer, the hothead, the polite one, the sleepy one, the glutton, the angler, the one who
+#    loves the old stories, the unlucky one, the pirate, the one who sees plots everywhere, the
+#    friend of animals, the coward, the hero, the poet, the gossip and the explorer - and a bot
+#    keeps the one it has.
+#
+#    Now and then one of them says something in the General channel of a zone a player is in, or
+#    aloud next to a player, or makes a gesture. They announce a new level and congratulate each
+#    other, complain about dying and show what they found. They answer when a player says hello or
+#    goodbye, writes "ding", says thanks, asks for a joke or for help, or talks about bots.
+#
+#    What they say comes from a catalog of more than 5000 lines, by personality and occasion. It
+#    is built into the module (data/lines.txt) and copied into the table
+#    mod_playerbots_auctions_lines of the characters database, where single lines can be switched
+#    off (enabled = 0) and lines of your own added (give them ids from 1000000). The whispers of a
+#    deal by chat come from the same catalog. Changes take effect at the next start.
+#
+#    mod-playerbots has chatter of its own: bots report every quest and every kill in the
+#    channels and suggest dungeons. Installed through AFK Realm, the module switches that off in
+#    playerbots.conf (EnableBroadcasts, RandomBotTalk, RandomBotSuggestDungeons and the two reply
+#    chances); set them back there if you prefer it.
+#
+###################################################################################################
+
+#
+#    PlayerbotsAuctions.Chatter.Enable
+#        Description: The bots talk.
+#        Default:     1 - Enabled
+#                     0 - Disabled
+
+PlayerbotsAuctions.Chatter.Enable = 1
+
+#
+#    PlayerbotsAuctions.Chatter.Interval
+#        Description: About how many seconds lie between two things said out of the blue in a
+#                     channel (20 to 3600). Lower is livelier. What is said aloud next to a player
+#                     follows the same number, a little more seldom.
+#        Default:     150
+
+PlayerbotsAuctions.Chatter.Interval = 150
+
+#
+#    PlayerbotsAuctions.Chatter.Replies
+#        Description: Bots answer a hello, a goodbye, a "ding", a thanks, a request for a joke or
+#                     for help and talk about bots - one or two of them, after a few seconds, in
+#                     General, Trade, the realm's channel or aloud.
+#        Default:     1 - Enabled
+#                     0 - Disabled
+
+PlayerbotsAuctions.Chatter.Replies = 1
+
+#
+#    PlayerbotsAuctions.Chatter.Nearby
+#        Description: A bot that stands near a player now and then says something aloud, yells or
+#                     makes a gesture that suits it.
+#        Default:     1 - Enabled
+#                     0 - Disabled
+
+PlayerbotsAuctions.Chatter.Nearby = 1
+
+#
+#    PlayerbotsAuctions.Chatter.WorldChannel
+#        Description: With no bot in the player's zone that could say something, the channel of the
+#                     whole realm is used instead (AiPlayerbot.BroadcastWorldChannelName in
+#                     playerbots.conf), so a player alone in a zone still reads something.
+#        Default:     1 - Enabled
+#                     0 - Disabled (only the General channel of the zone)
+
+PlayerbotsAuctions.Chatter.WorldChannel = 1

@@ -2078,6 +2078,7 @@ public:
         pba::market.LoadMemory();
         if (pba::cfg.enabled && pba::cfg.deals)
             pba::LoadDealNames();
+        pba::LoadChatter();
         if (pba::cfg.enabled)
             LOG_INFO("server.loading", ">> PlayerbotsAuctions: the bots use the auction house.");
     }
@@ -2093,6 +2094,7 @@ public:
         }
         pba::life.Update(diff);
         pba::DealsUpdate(diff);
+        pba::ChatterUpdate(diff);
     }
 
     void OnShutdown() override
@@ -2109,7 +2111,29 @@ class PlayerbotsAuctionsPlayer : public PlayerScript
 {
 public:
     PlayerbotsAuctionsPlayer() : PlayerScript("PlayerbotsAuctionsPlayer", { PLAYERHOOK_CAN_SELL_ITEM, PLAYERHOOK_ON_LOOT_ITEM,
-        PLAYERHOOK_CAN_PLAYER_USE_CHANNEL_CHAT, PLAYERHOOK_CAN_PLAYER_USE_PRIVATE_CHAT }) { }
+        PLAYERHOOK_CAN_PLAYER_USE_CHANNEL_CHAT, PLAYERHOOK_CAN_PLAYER_USE_PRIVATE_CHAT, PLAYERHOOK_CAN_PLAYER_USE_CHAT,
+        PLAYERHOOK_ON_LEVEL_CHANGED, PLAYERHOOK_ON_PLAYER_KILLED_BY_CREATURE }) { }
+
+    // What happens to a bot is something to talk about.
+    void OnPlayerLevelChanged(Player* player, uint8 oldLevel) override
+    {
+        if (player && player->GetLevel() > oldLevel && sRandomPlayerbotMgr.IsRandomBot(player))
+            pba::ChatterEvent(player, "ding", "");
+    }
+
+    void OnPlayerKilledByCreature(Creature* /*killer*/, Player* killed) override
+    {
+        if (killed && sRandomPlayerbotMgr.IsRandomBot(killed))
+            pba::ChatterEvent(killed, "death", "");
+    }
+
+    // What a player says aloud next to a bot.
+    bool OnPlayerCanUseChat(Player* player, uint32 type, uint32 language, std::string& msg) override
+    {
+        if (language != LANG_ADDON && (type == CHAT_MSG_SAY || type == CHAT_MSG_YELL))
+            pba::ChatterHeard(player, msg, type == CHAT_MSG_SAY ? 3 : 4);
+        return true;
+    }
 
     using PlayerScript::OnPlayerCanUseChat;
 
@@ -2117,7 +2141,16 @@ public:
     bool OnPlayerCanUseChat(Player* player, uint32 /*type*/, uint32 language, std::string& msg, Channel* channel) override
     {
         if (language != LANG_ADDON && channel)
+        {
             pba::DealsHeard(player, nullptr, msg, channel->GetName());
+            // The channel of the zone, the trade channel of the cities, the channel of the whole realm.
+            if (channel->GetChannelId() == sPlayerbotAIConfig.zoneChannelId)
+                pba::ChatterHeard(player, msg, 0);
+            else if (channel->GetChannelId() == uint32(ChatChannelId::TRADE))
+                pba::ChatterHeard(player, msg, 1);
+            else if (pba::Lower(channel->GetName()) == pba::Lower(sPlayerbotAIConfig.broadcastWorldChannelName))
+                pba::ChatterHeard(player, msg, 2);
+        }
         return true;
     }
 
@@ -2131,6 +2164,9 @@ public:
     void OnPlayerLootItem(Player* player, Item* item, uint32 count, ObjectGuid source) override
     {
         pba::life.Looted(player, item, count, source);
+        // A good find is worth a word.
+        if (player && item && item->GetTemplate() && item->GetTemplate()->Quality >= ITEM_QUALITY_RARE && sRandomPlayerbotMgr.IsRandomBot(player))
+            pba::ChatterEvent(player, "loot", ChatHelper::FormatItem(item->GetTemplate()));
     }
 
     bool OnPlayerCanSellItem(Player* player, Item* item, Creature* /*vendor*/) override
