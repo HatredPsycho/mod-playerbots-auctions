@@ -49,7 +49,8 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
   the item linked with a shift-click, a number for how many and a price if you have one in mind
   (`wtb 20 copper ore 15s`, `wts [Linen Cloth] x20 for 10s`). After a few seconds one or two bots of your
   faction whisper an offer (three at the most, a setting): those that have the item to spare, or a use for it, each at its own price. Answer
-  the whisper with `yes`, `no` or another price; a bot gives way a little, depending on its character, and no
+  the whisper with `yes`, `no`, another price (`3g`, `3 gold 2 silver`, `3.92`, `50s each`) or another number of
+  pieces (`only need 3`, `x5`, `2 stacks`, `half`); a bot gives way a little, depending on its character, and no
   further. The goods go by mail, cash on delivery. A bot that sells sends the parcel and gets its money when
   you take it. A bot that buys asks you to send the parcel to it and pays when it arrives - if it holds what
   was agreed, for no more than was agreed. *New, compiled and not yet tried on a server.*

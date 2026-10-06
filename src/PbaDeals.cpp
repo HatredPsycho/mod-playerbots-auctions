@@ -97,40 +97,58 @@ namespace
 
     uint32 UnitOf(std::string const& word)
     {
-        if (word == "g" || word == "gold" || word == "gp")
+        if (word == "g" || word == "gold" || word == "golds" || word == "gp")
             return GOLD;
-        if (word == "s" || word == "silver" || word == "sp")
+        if (word == "s" || word == "silver" || word == "silvers" || word == "silber" || word == "sp")
             return SILVER;
-        if (word == "c" || word == "copper" || word == "cp")
+        if (word == "c" || word == "copper" || word == "coppers" || word == "kupfer" || word == "cp")
             return 1;
         return 0;
     }
 
-    /// Reads an amount of money that starts at words[at]: "5g", "1g20s", "20 s", "3 gold 50 silver". Returns how many
-    /// words it took, 0 if there is no money here.
-    size_t ReadMoney(std::vector<std::string> const& words, size_t at, uint64& copper)
+    /// Reads digits with an optional fraction ("3", "3.92") at text[i]; false if there are none.
+    bool ReadNumber(std::string const& text, size_t& i, double& number, bool& fraction)
     {
-        copper = 0;
+        size_t const start = i;
+        while (i < text.size() && std::isdigit(static_cast<unsigned char>(text[i])))
+            ++i;
+        if (i == start || i - start > 7)
+            return false;
+        fraction = false;
+        if (i + 1 < text.size() && text[i] == '.' && std::isdigit(static_cast<unsigned char>(text[i + 1])))
+        {
+            fraction = true;
+            ++i;
+            while (i < text.size() && std::isdigit(static_cast<unsigned char>(text[i])))
+                ++i;
+        }
+        number = std::strtod(text.substr(start, i - start).c_str(), nullptr);
+        return true;
+    }
+
+    /// Reads an amount of money that starts at words[at]: "5g", "1g20s", "3.5g", "20 s", "3 gold 50 silver". With
+    /// bare, a number with a fraction and no unit ("3.92") is gold. Returns how many words it took, 0 if there is
+    /// no money here.
+    size_t ReadMoney(std::vector<std::string> const& words, size_t at, uint64& copper, bool bare = false)
+    {
+        double total = 0.0;
         size_t taken = 0;
         while (at + taken < words.size())
         {
             std::string const& word = words[at + taken];
-            // One word: digits and units in turns.
-            uint64 sum = 0;
+            // One word: numbers and units in turns.
+            double sum = 0.0;
             size_t i = 0;
-            bool whole = !word.empty();
+            bool whole = !word.empty(), fraction = false;
+            double number = 0.0;
             while (i < word.size() && whole)
             {
-                size_t start = i;
-                while (i < word.size() && std::isdigit(static_cast<unsigned char>(word[i])))
-                    ++i;
-                if (i == start || i - start > 7)
+                if (!ReadNumber(word, i, number, fraction))
                 {
                     whole = false;
                     break;
                 }
-                uint64 const number = std::strtoull(word.substr(start, i - start).c_str(), nullptr, 10);
-                start = i;
+                size_t const start = i;
                 while (i < word.size() && std::isalpha(static_cast<unsigned char>(word[i])))
                     ++i;
                 uint32 const unit = UnitOf(word.substr(start, i - start));
@@ -143,25 +161,36 @@ namespace
             }
             if (whole && i == word.size())
             {
-                copper += sum;
+                total += sum;
                 ++taken;
                 continue;
             }
             // Two words: a number, then a unit.
-            if (IsNumber(word) && word.size() <= 7 && at + taken + 1 < words.size() && UnitOf(words[at + taken + 1]))
+            i = 0;
+            if (ReadNumber(word, i, number, fraction) && i == word.size())
             {
-                copper += std::strtoull(word.c_str(), nullptr, 10) * UnitOf(words[at + taken + 1]);
-                taken += 2;
-                continue;
+                if (at + taken + 1 < words.size() && UnitOf(words[at + taken + 1]))
+                {
+                    total += number * UnitOf(words[at + taken + 1]);
+                    taken += 2;
+                    continue;
+                }
+                if (bare && fraction && !taken)
+                {
+                    total += number * double(GOLD);
+                    ++taken;
+                }
             }
             break;
         }
-        return taken;
+        copper = uint64(std::llround(total));
+        return copper ? taken : 0;
     }
 
     bool IsEachWord(std::string const& word)
     {
-        return word == "each" || word == "ea" || word == "per" || word == "apiece" || word == "/ea" || word == "/each" || word == "p/u";
+        return word == "each" || word == "ea" || word == "per" || word == "apiece" || word == "/ea" || word == "/each" || word == "p/u" ||
+            word == "je" || word == "pro";
     }
 
     std::string MoneyText(uint64 copper)
@@ -262,6 +291,48 @@ namespace
             "my offer: {m} for {g}. mail it COD and i pay when it lands",
             "could take {g} off your hands for {m}. COD mail",
             "{m}. that's what {g} is worth to me. send COD if ok"
+        };
+        // A bot sells; the player wants another number of pieces.
+        std::vector<char const*> const SellRecount = {
+            "sure, {g} for {m} then. yes?",
+            "ok, {g} would be {m}. want me to mail it COD?",
+            "no problem. {g}, {m}. say yes and i send it COD",
+            "can do, {g} for {m}",
+            "{g}? that's {m} then. deal?",
+            "alright, {g} comes to {m}. shall i send it?",
+            "fine, {m} for {g}. yes and it's in the mail",
+            "ok {g} it is, {m}. COD by mail?",
+            "sure thing. {m} for {g}, sent COD if you say yes",
+            "{g} for {m}, works for me. send it?"
+        };
+        // A bot sells; the player wants more than it has.
+        std::vector<char const*> const SellAllIHave = {
+            "{g} is all i have. {m} for that?",
+            "don't have that many, only {g}. {m}?",
+            "i can only do {g}, {m}. want it?",
+            "that's more than i've got. {g} for {m}?",
+            "sorry, {g} is everything. {m} and it's yours",
+            "only {g} in my bags. {m}, COD by mail?"
+        };
+        // A bot buys; the player offers another number of pieces.
+        std::vector<char const*> const BuyRecount = {
+            "ok, {g} for {m} then. mail it COD",
+            "fine, i'd take {g} for {m}. send it COD if ok",
+            "{g}? i'd pay {m} for that. COD by mail",
+            "sure, {m} for {g}. just send it COD",
+            "alright, {g} then, {m}. mail it COD and i pay",
+            "works too. {m} for {g}, COD",
+            "ok {g}, that makes {m}. send it COD",
+            "{g} is fine, {m}. post it COD whenever"
+        };
+        // A bot buys; the player offers more than it wants.
+        std::vector<char const*> const BuyAllINeed = {
+            "i only need {g}. {m} for that?",
+            "that's more than i can use. {g} for {m}?",
+            "can't take that many, {g} is enough. {m}?",
+            "i'd only take {g}, {m}. send that COD if ok",
+            "{g} is all i can afford right now. {m}?",
+            "too many for me, just {g} please. {m}, COD"
         };
         // The player said no.
         std::vector<char const*> const Declined = {
@@ -461,6 +532,119 @@ namespace
         }
         return true;
     }
+    /// What a player answered a bot.
+    struct Reply
+    {
+        bool yes = false, no = false;
+        uint64 money = 0;               // a price, 0 if none
+        bool each = false;              // ... for one piece
+        uint32 count = 0;               // another number of pieces, 0 if none
+        bool stacks = false;            // ... counted in stacks
+        bool all = false, half = false;
+    };
+
+    /// A number written out, as far as people do that in chat; -1 if it is none.
+    int32 WordNumber(std::string const& word)
+    {
+        static std::pair<char const*, int32> const numbers[] = {
+            { "one", 1 }, { "two", 2 }, { "three", 3 }, { "four", 4 }, { "five", 5 }, { "six", 6 }, { "seven", 7 }, { "eight", 8 }, { "nine", 9 },
+            { "ten", 10 }, { "eleven", 11 }, { "twelve", 12 }, { "fifteen", 15 }, { "twenty", 20 }, { "thirty", 30 }, { "forty", 40 }, { "fifty", 50 },
+            { "sixty", 60 }, { "seventy", 70 }, { "eighty", 80 }, { "ninety", 90 }, { "hundred", 100 },
+            { "ein", 1 }, { "eins", 1 }, { "eine", 1 }, { "einen", 1 }, { "zwei", 2 }, { "drei", 3 }, { "vier", 4 }, { "f\xc3\xbcnf", 5 }, { "fuenf", 5 },
+            { "sechs", 6 }, { "sieben", 7 }, { "acht", 8 }, { "neun", 9 }, { "zehn", 10 }, { "elf", 11 }, { "zw\xc3\xb6lf", 12 }, { "zwoelf", 12 },
+            { "zwanzig", 20 }, { "dreissig", 30 }, { "f\xc3\xbcnfzig", 50 }, { "fuenfzig", 50 }, { "hundert", 100 }
+        };
+        for (auto const& number : numbers)
+            if (word == number.first)
+                return number.second;
+        return -1;
+    }
+
+    bool IsCountNoun(std::string const& word)
+    {
+        return word == "of" || word == "pieces" || word == "piece" || word == "pcs" || word == "pc" || word == "stack" || word == "stacks" ||
+            word == "x" || word == "st\xc3\xbc" "ck" || word == "stueck" || word == "stk" || word == "please" || word == "pls" || word == "plz";
+    }
+
+    bool IsCountLead(std::string const& word)
+    {
+        return word == "only" || word == "just" || word == "need" || word == "take" || word == "want" || word == "have" || word == "got" || word == "for" ||
+            word == "nur" || word == "brauche" || word == "nehme" || word == "habe" || word == "like" || word == "send";
+    }
+
+    /// Reads the whisper of a player: yes or no, a price in whatever way it is written ("3g", "3 gold 2 silver",
+    /// "three gold", "3.92", "3,92", "50s each"), another number of pieces ("only need 3", "3 of them", "x5", "2 stacks", "half").
+    Reply ReadReply(std::string const& msg)
+    {
+        Reply reply;
+        uint32 linked = 0;
+        std::string text = Lower(Plain(msg, linked));
+        // "3,92" is 3.92.
+        for (size_t i = 1; i + 1 < text.size(); ++i)
+            if (text[i] == ',' && std::isdigit(static_cast<unsigned char>(text[i - 1])) && std::isdigit(static_cast<unsigned char>(text[i + 1])))
+                text[i] = '.';
+
+        std::vector<std::string> words = Words(text);
+        for (std::string& word : words)
+            while (word.size() > 1 && (word.back() == '.' || word.back() == ':'))
+                word.pop_back();
+        // Numbers written out become digits where they stand for a number: before a unit or a word of counting,
+        // after a word like "only", or alone.
+        for (size_t i = 0; i < words.size(); ++i)
+        {
+            int32 const number = WordNumber(words[i]);
+            if (number < 0)
+                continue;
+            bool const before = i + 1 < words.size() && (UnitOf(words[i + 1]) || IsCountNoun(words[i + 1]));
+            bool const after = i > 0 && IsCountLead(words[i - 1]);
+            if (before || after || words.size() == 1)
+                words[i] = std::to_string(number);
+        }
+
+        std::string joined;
+        for (std::string const& word : words)
+            joined += (joined.empty() ? "" : " ") + word;
+        while (!joined.empty() && (joined.back() == '.' || joined.back() == '!'))
+            joined.pop_back();
+
+        size_t moneyAt = words.size(), moneyWords = 0;
+        for (size_t i = 0; i < words.size() && !reply.money; ++i)
+        {
+            uint64 money = 0;
+            if (size_t const taken = ReadMoney(words, i, money, true))
+            {
+                reply.money = money;
+                reply.each = i + taken < words.size() && IsEachWord(words[i + taken]);
+                moneyAt = i;
+                moneyWords = taken;
+            }
+        }
+        for (size_t i = 0; i < words.size() && !reply.count; ++i)
+        {
+            if (i >= moneyAt && i < moneyAt + moneyWords)
+                continue;
+            std::string digits = words[i];
+            if (digits.size() > 1 && digits.back() == 'x')
+                digits.pop_back();
+            else if (digits.size() > 1 && digits.front() == 'x')
+                digits.erase(0, 1);
+            if (IsNumber(digits) && digits.size() <= 4)
+            {
+                reply.count = uint32(std::strtoul(digits.c_str(), nullptr, 10));
+                reply.stacks = i + 1 < words.size() && (words[i + 1] == "stack" || words[i + 1] == "stacks");
+            }
+            else if (words[i] == "half" || words[i] == "h\xc3\xa4lfte" || words[i] == "haelfte")
+                reply.half = true;
+            else if (words[i] == "all" || words[i] == "everything" || words[i] == "alles" || words[i] == "alle")
+                reply.all = true;
+        }
+
+        bool const other = reply.money || reply.count || reply.half;
+        reply.yes = IsOneOf(joined, YesWords) || (!words.empty() && IsOneOf(words.front(), YesWords) && !other);
+        reply.no = !reply.yes && !other && !reply.all && (IsOneOf(joined, NoWords) || (!words.empty() && IsOneOf(words.front(), NoWords)));
+        return reply;
+    }
+
     struct Deal
     {
         ObjectGuid bot, player;
@@ -468,6 +652,7 @@ namespace
         uint32 item = 0;
         std::vector<uint32> items;      // before the offer is made: the items the name can mean
         uint32 count = 0;
+        uint32 most = 0;                // as many as the bot has to spare, or would take
         uint64 asked = 0;               // what the player named, 0 if nothing
         bool askedEach = false;
         uint64 price = 0;               // what the bot stands at, for all of it
@@ -854,8 +1039,8 @@ namespace
                 deal.item = proto->ItemId;
                 // As many as were asked for; without a number a few stacks at the most.
                 uint32 const stack = std::max<uint32>(1, proto->GetMaxStackSize());
-                deal.count = std::min(have, deal.count ? deal.count : (stack > 1 ? stack * 2 : 1));
-                deal.count = std::min<uint32>(deal.count, stack * MAX_MAIL_ITEMS);
+                deal.most = std::min<uint32>(have, stack * MAX_MAIL_ITEMS);
+                deal.count = std::min(deal.most, deal.count ? deal.count : (stack > 1 ? stack * 2 : 1));
 
                 // Its price as at the auctioneers, with nobody to undercut - and without the cut of the house.
                 double const value = std::max(market.Value(proto), Market::Regular(proto) * 0.6);
@@ -897,8 +1082,9 @@ namespace
                 deal.item = proto->ItemId;
                 uint32 const stack = std::max<uint32>(1, proto->GetMaxStackSize());
                 uint32 const offered = player->GetItemCount(proto->ItemId);
-                deal.count = std::min(offered, deal.count ? deal.count : offered);
+                uint32 const wanted = deal.count;
                 // One piece of gear is enough; of a material as much as fills its stock.
+                deal.count = offered;
                 if (stack == 1 && !resale)
                     deal.count = 1;
                 else if (!resale)
@@ -926,6 +1112,10 @@ namespace
                     deal.count = uint32(purse / std::max(1.0, most));
                 if (!deal.count || each < 1.0)
                     return false;
+                // That is as many as it would take; the player may have fewer in mind.
+                deal.most = deal.count;
+                if (wanted)
+                    deal.count = std::min(deal.count, wanted);
 
                 deal.limit = uint64(most * deal.count);
                 deal.price = std::min<uint64>(std::max<uint64>(HumanPrice(each * deal.count), 1), deal.limit);
@@ -964,24 +1154,41 @@ namespace
             if (!bot || !proto)
                 return;
 
-            uint32 linked = 0;
-            std::string const text = Lower(Plain(msg, linked));
-            std::vector<std::string> const words = Words(text);
-            std::string joined;
-            for (std::string const& word : words)
-                joined += (joined.empty() ? "" : " ") + word;
-            while (!joined.empty() && (joined.back() == '.' || joined.back() == '!'))
-                joined.pop_back();
+            Reply const reply = ReadReply(msg);
+            bool const yes = reply.yes, no = reply.no;
 
-            uint64 named = 0;
-            for (size_t i = 0; i < words.size() && !named; ++i)
+            // Another number of pieces: the price follows, and the bot says what that comes to.
+            uint32 wanted = reply.count * (reply.stacks ? std::max<uint32>(1, proto->GetMaxStackSize()) : 1);
+            if (reply.all)
+                wanted = deal.most;
+            else if (reply.half)
+                wanted = std::max<uint32>(1, deal.count / 2);
+            bool const tooMany = wanted > deal.most;
+            wanted = std::min(wanted, deal.most);
+            if (wanted && wanted != deal.count)
             {
-                uint64 money = 0;
-                if (size_t const taken = ReadMoney(words, i, money))
-                    named = money * ((i + taken < words.size() && IsEachWord(words[i + taken])) ? deal.count : 1);
+                double const each = double(deal.price) / deal.count, eachLimit = double(deal.limit) / deal.count;
+                deal.count = wanted;
+                deal.price = std::max<uint64>(1, HumanPrice(each * wanted));
+                deal.limit = deal.botSells ? std::min<uint64>(deal.price, uint64(std::ceil(eachLimit * wanted)))
+                                           : std::max<uint64>(deal.price, uint64(eachLimit * wanted));
+                deal.haggled = 0;
+                if (deal.botSells)
+                    deal.until = now + 10 * MINUTE;
+                if (!reply.money)
+                {
+                    Tell(bot, player, Fill(Pick(tooMany ? (deal.botSells ? Lines::SellAllIHave : Lines::BuyAllINeed)
+                                                        : (deal.botSells ? Lines::SellRecount : Lines::BuyRecount)), Goods(deal.count, proto), MoneyText(deal.price)));
+                    return;
+                }
             }
-            bool const yes = IsOneOf(joined, YesWords) || (!words.empty() && IsOneOf(words.front(), YesWords) && !named);
-            bool const no = !yes && (IsOneOf(joined, NoWords) || (!words.empty() && IsOneOf(words.front(), NoWords) && !named));
+            else if (tooMany && !reply.money)
+            {
+                Tell(bot, player, Fill(Pick(deal.botSells ? Lines::SellAllIHave : Lines::BuyAllINeed), Goods(deal.count, proto), MoneyText(deal.price)));
+                return;
+            }
+
+            uint64 const named = reply.money * (reply.each ? deal.count : 1);
             std::string const goods = Goods(deal.count, proto);
 
             if (no)

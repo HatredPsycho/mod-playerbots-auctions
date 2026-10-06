@@ -579,8 +579,14 @@ PlayerbotsAuctions.Crafting.Glyphs = 0
 #    selling, want to sell, looking to sell.
 #
 #    A bot that has the item to spare, or a use for it, names its price. The player answers the
-#    whisper with "yes", "no" or another price; a bot gives way a little, depending on its
-#    character. The goods go by mail, cash on delivery: a bot that sells sends the parcel, a bot
+#    whisper with "yes", "no", another price or another number of pieces; a bot gives way a little
+#    on the price, depending on its character.
+#
+#        Prices:  3g   3 gold   1g20s   3 gold 2 silver 1 copper   three gold   3.92   3,92   50s each
+#                 (a price needs a unit, or a point or comma: "3.92" is 3 gold 92 silver)
+#        Pieces:  only need 3   3 of them   x5   2 stacks   half   all   ("3 for 20s" does both)
+#                 (a bare number is a number of pieces)
+# The goods go by mail, cash on delivery: a bot that sells sends the parcel, a bot
 #    that buys pays for the parcel the player sends it - if it holds what was agreed, for no more
 #    than was agreed. Only bots of the player's own faction answer, because mail does not cross.
 #
