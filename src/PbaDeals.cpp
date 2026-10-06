@@ -749,7 +749,78 @@ namespace
                             CollectBotMail(bot);
                     ++waiting;
                 }
+                Save(false);
             }
+        }
+
+        /// What bots wait for: the parcels of players they agreed to buy from. Kept in a table, so that a bot
+        /// still knows after a restart which parcel it has to pay - mail can take an hour to arrive, and the
+        /// server may be switched off in between.
+        void Load()
+        {
+            _stored.clear();
+            _table = false;
+            if (!cfg.saveMemory)
+                return;
+            CharacterDatabase.DirectExecute(
+                "CREATE TABLE IF NOT EXISTS `mod_playerbots_auctions_deals` ("
+                "`bot` INT UNSIGNED NOT NULL, `player` INT UNSIGNED NOT NULL, `item` INT UNSIGNED NOT NULL, `count` INT UNSIGNED NOT NULL, "
+                "`price` BIGINT UNSIGNED NOT NULL, `until` BIGINT UNSIGNED NOT NULL, PRIMARY KEY (`bot`, `player`, `item`)) "
+                "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mod-playerbots-auctions: parcels of players that bots agreed to pay for'");
+            _table = true;
+            CharacterDatabase.DirectExecute(
+                "DELETE d FROM `mod_playerbots_auctions_deals` d LEFT JOIN `characters` b ON b.`guid` = d.`bot` LEFT JOIN `characters` p ON p.`guid` = d.`player` "
+                "WHERE b.`guid` IS NULL OR p.`guid` IS NULL");
+
+            // The time the server was off does not count: nobody could send anything.
+            time_t const now = GameTime::GetGameTime().count();
+            uint64 const away = AwayFor();
+            uint32 kept = 0;
+            if (QueryResult result = CharacterDatabase.Query("SELECT `bot`, `player`, `item`, `count`, `price`, `until` FROM `mod_playerbots_auctions_deals`"))
+                do
+                {
+                    Field* fields = result->Fetch();
+                    Deal deal;
+                    deal.bot = ObjectGuid::Create<HighGuid::Player>(fields[0].Get<uint32>());
+                    deal.player = ObjectGuid::Create<HighGuid::Player>(fields[1].Get<uint32>());
+                    deal.item = fields[2].Get<uint32>();
+                    deal.count = deal.most = fields[3].Get<uint32>();
+                    deal.price = deal.limit = fields[4].Get<uint64>();
+                    deal.until = time_t(fields[5].Get<uint64>() + away);
+                    deal.stage = 1;
+                    deal.haggled = 1;
+                    deal.at = now;
+                    if (!deal.count || deal.until <= now || !sObjectMgr->GetItemTemplate(deal.item))
+                        continue;
+                    _deals.push_back(deal);
+                    ++kept;
+                } while (result->NextRow());
+            if (kept)
+                LOG_INFO("server.loading", ">> PlayerbotsAuctions: {} parcel(s) of players are still expected by bots that agreed to buy.", kept);
+            Save(true);
+        }
+
+        /// Writes the table anew when something about the open purchases has changed.
+        void Save(bool wait)
+        {
+            if (!_table)
+                return;
+            std::string rows;
+            for (Deal const& deal : _deals)
+                if (deal.stage == 1 && !deal.botSells && deal.item && deal.count)
+                    rows += Acore::StringFormat("{}({}, {}, {}, {}, {}, {})", rows.empty() ? "" : ", ", deal.bot.GetCounter(), deal.player.GetCounter(),
+                        deal.item, deal.count, deal.price, uint64(deal.until));
+            if (rows == _stored)
+                return;
+            _stored = rows;
+            CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+            trans->Append("DELETE FROM `mod_playerbots_auctions_deals`");
+            if (!rows.empty())
+                trans->Append("REPLACE INTO `mod_playerbots_auctions_deals` (`bot`, `player`, `item`, `count`, `price`, `until`) VALUES " + rows);
+            if (wait)
+                CharacterDatabase.DirectCommitTransaction(trans);
+            else
+                CharacterDatabase.CommitTransaction(trans);
         }
 
         /// The names of everything that can be traded, read once: the first line of chat does not have to wait for it.
@@ -1476,6 +1547,8 @@ namespace
         std::map<ObjectGuid, time_t> _awaiting;       // bots that wait for the money of a parcel
         uint32 _timer = 0;
         uint32 _mailTicks = 0;
+        bool _table = false;
+        std::string _stored;                          // what the table holds
     };
 
     Deals deals;
@@ -1484,6 +1557,12 @@ namespace
     void LoadDealNames()
     {
         deals.Names();
+        deals.Load();
+    }
+
+    void SaveDeals(bool wait)
+    {
+        deals.Save(wait);
     }
 
     void DealsUpdate(uint32 diff)

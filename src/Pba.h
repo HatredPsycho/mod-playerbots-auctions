@@ -275,6 +275,8 @@ namespace pba
     void ResumeAuctions();
     /// Notes that the server is running now. Called every minute and at shutdown.
     void NoteRunning(bool wait);
+    /// How long the server was off before this start, in seconds; 0 if that is not known.
+    uint64 AwayFor();
 
     // ------------------------------------------------------------------------------------------ places
 
@@ -365,6 +367,8 @@ namespace pba
     void DealsUpdate(uint32 diff);
     /// After the settings: the names players can type.
     void LoadDealNames();
+    /// What bots agreed to buy from players is written down, so that a parcel is still paid after a restart.
+    void SaveDeals(bool wait);
 
     // ------------------------------------------------------------------------------------------ chatter
 

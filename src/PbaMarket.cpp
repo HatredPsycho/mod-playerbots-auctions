@@ -255,6 +255,13 @@ namespace pba
         CharacterDatabase.DirectExecute("REPLACE INTO `mod_playerbots_auctions_state` (`name`, `value`) VALUES ('{}', {})", key, value);
     }
 
+    uint64 awayFor = 0;
+
+    uint64 AwayFor()
+    {
+        return awayFor;
+    }
+
     void ResumeAuctions()
     {
         CharacterDatabase.DirectExecute(StateTable);
@@ -265,6 +272,8 @@ namespace pba
         if (QueryResult result = CharacterDatabase.Query("SELECT `value` FROM `mod_playerbots_auctions_state` WHERE `name` = 'last_seen'"))
             last = time_t(result->Fetch()[0].Get<uint64>());
         NoteRunning(true);
+        if (last && now > last && uint64(now - last) <= 60 * DAY)
+            awayFor = uint64(now - last);
 
         // A restart of a minute or two is not worth it; a gap of months means the note was not kept (the module
         // was not installed), and nothing sensible can be said about it.

@@ -53,7 +53,9 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
   pieces (`only need 3`, `x5`, `2 stacks`, `half`); a bot gives way a little, depending on its character, and no
   further. The goods go by mail, cash on delivery. A bot that sells sends the parcel and gets its money when
   you take it. A bot that buys asks you to send the parcel to it and pays when it arrives - if it holds what
-  was agreed, for no more than was agreed. *New, compiled and not yet tried on a server.*
+  was agreed, for no more than was agreed. What a bot agreed to buy is written down
+  (`mod_playerbots_auctions_deals`), so it still pays a parcel that arrives after a restart; the time the server
+  was off does not count against the time it waits. *New, compiled and not yet tried on a server.*
 
 - **Chatter.** Every bot is somebody in chat, too: one of 65 personalities, from the joker, the grumbler and
   the pirate to the one who speaks like a knight of old and the one who hardly speaks at all - and it stays

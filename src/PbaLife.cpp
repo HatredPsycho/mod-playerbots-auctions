@@ -2100,6 +2100,7 @@ public:
     void OnShutdown() override
     {
         pba::market.SaveMemory();
+        pba::SaveDeals(true);
         pba::NoteRunning(true);
     }
 
