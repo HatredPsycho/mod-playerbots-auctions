@@ -164,13 +164,21 @@ namespace
             return;
         CharacterDatabase.DirectExecute(
             "CREATE TABLE IF NOT EXISTS `mod_playerbots_auctions_personas` ("
-            "`guid` INT UNSIGNED NOT NULL, `personality` VARCHAR(24) NOT NULL, `streak` VARCHAR(24) NOT NULL DEFAULT '', PRIMARY KEY (`guid`)) "
+            "`guid` INT UNSIGNED NOT NULL, `name` VARCHAR(12) NOT NULL DEFAULT '', `personality` VARCHAR(24) NOT NULL, "
+            "`streak` VARCHAR(24) NOT NULL DEFAULT '', PRIMARY KEY (`guid`)) "
             "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mod-playerbots-auctions: who each bot is in chat'");
         // Tables of the versions in which everybody was one thing only.
         if (!CharacterDatabase.Query("SHOW COLUMNS FROM `mod_playerbots_auctions_personas` LIKE 'streak'"))
             CharacterDatabase.DirectExecute("ALTER TABLE `mod_playerbots_auctions_personas` ADD COLUMN `streak` VARCHAR(24) NOT NULL DEFAULT '' AFTER `personality`");
+        if (!CharacterDatabase.Query("SHOW COLUMNS FROM `mod_playerbots_auctions_personas` LIKE 'name'"))
+        {
+            CharacterDatabase.DirectExecute("ALTER TABLE `mod_playerbots_auctions_personas` ADD COLUMN `name` VARCHAR(12) NOT NULL DEFAULT '' AFTER `guid`");
+            CharacterDatabase.DirectExecute("UPDATE `mod_playerbots_auctions_personas` p JOIN `characters` c ON c.`guid` = p.`guid` SET p.`name` = c.`name`");
+        }
+        // Gone is who is gone - and who only has the number of somebody who was here before: when the random
+        // bots are reset, the new ones get the numbers of the old ones, and must not inherit who those were.
         CharacterDatabase.DirectExecute(
-            "DELETE p FROM `mod_playerbots_auctions_personas` p LEFT JOIN `characters` c ON c.`guid` = p.`guid` WHERE c.`guid` IS NULL");
+            "DELETE p FROM `mod_playerbots_auctions_personas` p LEFT JOIN `characters` c ON c.`guid` = p.`guid` AND c.`name` = p.`name` WHERE c.`guid` IS NULL");
         personaTable = true;
         if (QueryResult result = CharacterDatabase.Query("SELECT `guid`, `personality`, `streak` FROM `mod_playerbots_auctions_personas`"))
             do
@@ -215,8 +223,12 @@ namespace
             }
         }
         if (write && personaTable)
-            CharacterDatabase.Execute("REPLACE INTO `mod_playerbots_auctions_personas` (`guid`, `personality`, `streak`) VALUES ({}, '{}', '{}')",
-                low, Personas[self.main].name, self.side >= 0 ? Personas[self.side].name : "");
+        {
+            std::string name = bot->GetName();
+            CharacterDatabase.EscapeString(name);
+            CharacterDatabase.Execute("REPLACE INTO `mod_playerbots_auctions_personas` (`guid`, `name`, `personality`, `streak`) VALUES ({}, '{}', '{}', '{}')",
+                low, name, Personas[self.main].name, self.side >= 0 ? Personas[self.side].name : "");
+        }
         return self;
     }
 
