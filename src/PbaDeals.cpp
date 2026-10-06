@@ -1161,7 +1161,10 @@ namespace
         {
             auto found = std::find_if(_deals.begin(), _deals.end(), [&](Deal const& deal) { return deal.bot == botGuid && deal.player == player->GetGUID() && deal.stage == 1; });
             if (found == _deals.end())
+            {
+                ChatterHeard(player, msg, 5, botGuid);       // no deal between them: small talk
                 return;
+            }
             Deal& deal = *found;
             Player* bot = ObjectAccessor::FindConnectedPlayer(botGuid);
             ItemTemplate const* proto = sObjectMgr->GetItemTemplate(deal.item);
@@ -1490,6 +1493,8 @@ namespace
 
     void DealsHeard(Player* player, Player* bot, std::string const& text, std::string const& channel)
     {
+        if (cfg.enabled && !cfg.deals && player && bot && !GET_PLAYERBOT_AI(player))
+            ChatterHeard(player, text, 5, bot->GetGUID());      // with deals switched off a whisper is small talk
         if (!cfg.enabled || !cfg.deals || !player || text.empty() || text.size() > 255)
             return;
         // A bot does not haggle with a bot.

@@ -632,20 +632,22 @@ PlayerbotsAuctions.Chat.MailDelay = -1
 ###################################################################################################
 # CHATTER
 #
-#    Every bot is somebody in chat, too. There are 28 personalities - the joker, the braggart, the
+#    Every bot is somebody in chat, too. There are 65 personalities - the joker, the braggart, the
 #    grumbler, the newcomer, the veteran, the one who speaks like a knight of old, the one who
-#    hardly speaks, the collector, the miser, the optimist, the doomsayer, the know-it-all, the
-#    dreamer, the hothead, the polite one, the sleepy one, the glutton, the angler, the one who
-#    loves the old stories, the unlucky one, the pirate, the one who sees plots everywhere, the
-#    friend of animals, the coward, the hero, the poet, the gossip and the explorer - and a bot
-#    keeps the one it has.
+#    hardly speaks, the miser, the pirate, the poet, the trader, the drill sergeant, the snob, the
+#    bard, the detective, the mother hen, the hermit, the tourist and many more - and a bot keeps
+#    the one it has, so players get to know them (table mod_playerbots_auctions_personas).
 #
 #    Now and then one of them says something in the General channel of a zone a player is in, or
-#    aloud next to a player, or makes a gesture. They announce a new level and congratulate each
-#    other, complain about dying and show what they found. They answer when a player says hello or
-#    goodbye, writes "ding", says thanks, asks for a joke or for help, or talks about bots.
+#    aloud next to a player: about the innkeeper or flight master it stands next to, a creature
+#    that comes too close, the hour of the night, or nothing in particular. Or it makes a gesture.
+#    They announce a new level and congratulate each other, name what killed them and what they
+#    killed, and show what they found. They feel for a player who dies next to them, cheer when
+#    one gains a level, and answer a wave, a bow or a rude gesture in kind. They answer when a
+#    player says hello or goodbye, writes "ding", says thanks, asks for a joke or for help, or
+#    talks about bots - in a channel, aloud or by whisper.
 #
-#    What they say comes from a catalog of more than 5000 lines, by personality and occasion. It
+#    What they say comes from a catalog of more than 16000 lines, by personality and occasion. It
 #    is built into the module (data/lines.txt) and copied into the table
 #    mod_playerbots_auctions_lines of the characters database, where single lines can be switched
 #    off (enabled = 0) and lines of your own added (give them ids from 1000000). The whispers of a

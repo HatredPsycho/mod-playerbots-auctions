@@ -378,10 +378,13 @@ namespace pba
     /// Reads the lines; puts the built-in catalog into its table when that is new. After the settings.
     void LoadChatter();
     void ChatterUpdate(uint32 diff);
-    /// Something happened to a bot: "ding", "death", "loot" (detail: the item as a link).
-    void ChatterEvent(Player* bot, char const* occasion, std::string const& detail);
-    /// A player wrote something. where: 0 General, 1 Trade, 2 the realm's channel, 3 said aloud, 4 yelled.
-    void ChatterHeard(Player* player, std::string const& text, uint8 where);
+    /// Something happened. To a bot: "ding", "death" (detail: what killed it), "kill" (detail: what it killed),
+    /// "loot" (detail: the item as a link). To a player: "playerdeath", "playerding", and "emote" (detail: the
+    /// number of the gesture, target: the bot it was made at).
+    void ChatterEvent(Player* who, char const* occasion, std::string const& detail, ObjectGuid target = ObjectGuid::Empty);
+    /// A player wrote something. where: 0 General, 1 Trade, 2 the realm's channel, 3 said aloud, 4 yelled,
+    /// 5 whispered to the bot target.
+    void ChatterHeard(Player* player, std::string const& text, uint8 where, ObjectGuid target = ObjectGuid::Empty);
     /// A line of the catalog for this bot and occasion, in the voice of its personality where there is one; empty if none.
     std::string PhraseFor(Player* bot, std::string const& occasion);
     char const* PersonalityOf(Player* bot);

@@ -2112,19 +2112,43 @@ class PlayerbotsAuctionsPlayer : public PlayerScript
 public:
     PlayerbotsAuctionsPlayer() : PlayerScript("PlayerbotsAuctionsPlayer", { PLAYERHOOK_CAN_SELL_ITEM, PLAYERHOOK_ON_LOOT_ITEM,
         PLAYERHOOK_CAN_PLAYER_USE_CHANNEL_CHAT, PLAYERHOOK_CAN_PLAYER_USE_PRIVATE_CHAT, PLAYERHOOK_CAN_PLAYER_USE_CHAT,
-        PLAYERHOOK_ON_LEVEL_CHANGED, PLAYERHOOK_ON_PLAYER_KILLED_BY_CREATURE }) { }
+        PLAYERHOOK_ON_LEVEL_CHANGED, PLAYERHOOK_ON_PLAYER_KILLED_BY_CREATURE, PLAYERHOOK_ON_CREATURE_KILL, PLAYERHOOK_ON_TEXT_EMOTE }) { }
 
-    // What happens to a bot is something to talk about.
+    // What happens to a bot is something to talk about - and what happens to a player next to one.
     void OnPlayerLevelChanged(Player* player, uint8 oldLevel) override
     {
-        if (player && player->GetLevel() > oldLevel && sRandomPlayerbotMgr.IsRandomBot(player))
+        if (!player || player->GetLevel() <= oldLevel || !player->IsInWorld())
+            return;
+        if (sRandomPlayerbotMgr.IsRandomBot(player))
             pba::ChatterEvent(player, "ding", "");
+        else if (!GET_PLAYERBOT_AI(player))
+            pba::ChatterEvent(player, "playerding", "");
     }
 
-    void OnPlayerKilledByCreature(Creature* /*killer*/, Player* killed) override
+    void OnPlayerKilledByCreature(Creature* killer, Player* killed) override
     {
-        if (killed && sRandomPlayerbotMgr.IsRandomBot(killed))
-            pba::ChatterEvent(killed, "death", "");
+        if (!killed)
+            return;
+        if (sRandomPlayerbotMgr.IsRandomBot(killed))
+            pba::ChatterEvent(killed, "death", killer && !killer->IsPet() ? killer->GetName() : "");
+        else if (!GET_PLAYERBOT_AI(killed))
+            pba::ChatterEvent(killed, "playerdeath", "");
+    }
+
+    void OnPlayerCreatureKill(Player* killer, Creature* killed) override
+    {
+        // The elite, the rare, the boss - and once in a long while any old boar.
+        if (!killer || !killed || killed->IsCritter() || killed->IsPet() || !sRandomPlayerbotMgr.IsRandomBot(killer))
+            return;
+        if (killed->isElite() || killed->isWorldBoss() || urand(0, 99) < 2)
+            pba::ChatterEvent(killer, "kill", killed->GetName());
+    }
+
+    // A wave, a bow, a rude gesture at a bot.
+    void OnPlayerTextEmote(Player* player, uint32 textEmote, uint32 /*emoteNum*/, ObjectGuid guid) override
+    {
+        if (player && guid.IsPlayer() && guid != player->GetGUID() && !GET_PLAYERBOT_AI(player))
+            pba::ChatterEvent(player, "emote", std::to_string(textEmote), guid);
     }
 
     // What a player says aloud next to a bot.
