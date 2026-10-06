@@ -369,6 +369,8 @@ namespace pba
     void LoadDealNames();
     /// What bots agreed to buy from players is written down, so that a parcel is still paid after a restart.
     void SaveDeals(bool wait);
+    /// A mail a bot paid for while it was away and still has to sort out: mail collection leaves it alone.
+    bool DealHoldsMail(uint32 mailId);
 
     // ------------------------------------------------------------------------------------------ chatter
 

@@ -433,6 +433,17 @@ namespace
             "uh, that COD is not what we said ({m} for {g}). not paying that, sorry",
             "wrong parcel? we said {g} for {m}. it'll return to you"
         } };
+        // A parcel held more than was agreed: the rest goes back.
+        Pool const ParcelExtra = { "trade.parcel_extra", {
+            "you sent more than we said, so {g} is in the mail back to you",
+            "that was more than i asked for. sent {g} back to you",
+            "thanks! there was too much in the parcel though, {g} is on its way back",
+            "i only needed what we agreed on. the other {g} is in your mailbox",
+            "got more than we said, mailed {g} back. only paying for what i asked for wouldn't be fair either way",
+            "you put in too many, {g} coming back to you by mail",
+            "careful, you sent extra. {g} returned to you",
+            "kept what we agreed, the rest ({g}) is in the mail to you"
+        } };
         // A bot paid for the player's parcel.
         Pool const ParcelPaid = { "trade.parcel_paid", {
             "got it, thanks! {m} is in the mail to you",
@@ -664,11 +675,12 @@ namespace
         bool askedEach = false;
         uint64 price = 0;               // what the bot stands at, for all of it
         uint64 limit = 0;               // as far as it would go: the least it sells for, the most it pays
-        uint8 stage = 0;                // 0 has not answered yet, 1 made its offer
+        uint8 stage = 0;                // 0 has not answered yet, 1 made its offer, 2 paid a parcel while away and has to send back what was too much
         uint8 haggled = 0;
         time_t at = 0;                  // when it answers
         time_t until = 0;               // when it stops waiting
         time_t noted = 0;               // when the log last said why a parcel is not paid yet
+        uint32 mail = 0;                // stage 2: the paid parcel that holds more than was agreed
     };
 
     struct Heard
@@ -733,7 +745,7 @@ namespace
                 _mailTicks = 0;
                 for (size_t i = 0; i < _deals.size();)
                 {
-                    if (_deals[i].stage == 1 && !_deals[i].botSells && Parcel(_deals[i], now))
+                    if (_deals[i].stage >= 1 && !_deals[i].botSells && Parcel(_deals[i], now))
                         _deals.erase(_deals.begin() + i);
                     else
                         ++i;
@@ -766,9 +778,12 @@ namespace
             CharacterDatabase.DirectExecute(
                 "CREATE TABLE IF NOT EXISTS `mod_playerbots_auctions_deals` ("
                 "`bot` INT UNSIGNED NOT NULL, `player` INT UNSIGNED NOT NULL, `item` INT UNSIGNED NOT NULL, `count` INT UNSIGNED NOT NULL, "
-                "`price` BIGINT UNSIGNED NOT NULL, `until` BIGINT UNSIGNED NOT NULL, PRIMARY KEY (`bot`, `player`, `item`)) "
+                "`price` BIGINT UNSIGNED NOT NULL, `until` BIGINT UNSIGNED NOT NULL, `paid` INT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY (`bot`, `player`, `item`)) "
                 "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mod-playerbots-auctions: parcels of players that bots agreed to pay for'");
             _table = true;
+            // `paid`: the mail a bot paid while it was away, when that mail holds more than was agreed.
+            if (!CharacterDatabase.Query("SHOW COLUMNS FROM `mod_playerbots_auctions_deals` LIKE 'paid'"))
+                CharacterDatabase.DirectExecute("ALTER TABLE `mod_playerbots_auctions_deals` ADD COLUMN `paid` INT UNSIGNED NOT NULL DEFAULT 0");
             CharacterDatabase.DirectExecute(
                 "DELETE d FROM `mod_playerbots_auctions_deals` d LEFT JOIN `characters` b ON b.`guid` = d.`bot` LEFT JOIN `characters` p ON p.`guid` = d.`player` "
                 "WHERE b.`guid` IS NULL OR p.`guid` IS NULL");
@@ -777,7 +792,7 @@ namespace
             time_t const now = GameTime::GetGameTime().count();
             uint64 const away = AwayFor();
             uint32 kept = 0;
-            if (QueryResult result = CharacterDatabase.Query("SELECT `bot`, `player`, `item`, `count`, `price`, `until` FROM `mod_playerbots_auctions_deals`"))
+            if (QueryResult result = CharacterDatabase.Query("SELECT `bot`, `player`, `item`, `count`, `price`, `until`, `paid` FROM `mod_playerbots_auctions_deals`"))
                 do
                 {
                     Field* fields = result->Fetch();
@@ -788,7 +803,8 @@ namespace
                     deal.count = deal.most = fields[3].Get<uint32>();
                     deal.price = deal.limit = fields[4].Get<uint64>();
                     deal.until = time_t(fields[5].Get<uint64>() + away);
-                    deal.stage = 1;
+                    deal.mail = fields[6].Get<uint32>();
+                    deal.stage = deal.mail ? 2 : 1;
                     deal.haggled = 1;
                     deal.at = now;
                     if (!deal.count || deal.until <= now || !sObjectMgr->GetItemTemplate(deal.item))
@@ -801,6 +817,15 @@ namespace
             Save(true);
         }
 
+        /// A paid parcel out of which the surplus still has to go back: nobody else empties it.
+        bool Holds(uint32 mailId) const
+        {
+            for (Deal const& deal : _deals)
+                if (deal.stage == 2 && deal.mail == mailId)
+                    return true;
+            return false;
+        }
+
         /// Writes the table anew when something about the open purchases has changed.
         void Save(bool wait)
         {
@@ -808,16 +833,16 @@ namespace
                 return;
             std::string rows;
             for (Deal const& deal : _deals)
-                if (deal.stage == 1 && !deal.botSells && deal.item && deal.count)
-                    rows += Acore::StringFormat("{}({}, {}, {}, {}, {}, {})", rows.empty() ? "" : ", ", deal.bot.GetCounter(), deal.player.GetCounter(),
-                        deal.item, deal.count, deal.price, uint64(deal.until));
+                if (deal.stage >= 1 && !deal.botSells && deal.item && deal.count)
+                    rows += Acore::StringFormat("{}({}, {}, {}, {}, {}, {}, {})", rows.empty() ? "" : ", ", deal.bot.GetCounter(), deal.player.GetCounter(),
+                        deal.item, deal.count, deal.price, uint64(deal.until), deal.mail);
             if (rows == _stored)
                 return;
             _stored = rows;
             CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
             trans->Append("DELETE FROM `mod_playerbots_auctions_deals`");
             if (!rows.empty())
-                trans->Append("REPLACE INTO `mod_playerbots_auctions_deals` (`bot`, `player`, `item`, `count`, `price`, `until`) VALUES " + rows);
+                trans->Append("REPLACE INTO `mod_playerbots_auctions_deals` (`bot`, `player`, `item`, `count`, `price`, `until`, `paid`) VALUES " + rows);
             if (wait)
                 CharacterDatabase.DirectCommitTransaction(trans);
             else
@@ -1449,6 +1474,117 @@ namespace
             PBA_MAIL_DELETED(bot->GetGUID());
         }
 
+        /// A parcel that holds more than was agreed: what is too much goes back to the player by mail, the
+        /// bot keeps what it asked for. Works on the mail before anything is taken out of it. Returns how many
+        /// pieces went back.
+        uint32 SendSurplus(Player* bot, Player* player, Mail* mail, Deal const& deal, CharacterDatabaseTransaction trans)
+        {
+            uint32 total = 0;
+            for (MailItemInfo const& info : mail->items)
+                if (Item* item = bot->GetMItem(info.item_guid))
+                    total += item->GetCount();
+            if (total <= deal.count)
+                return 0;
+            uint32 left = total - deal.count;
+            uint32 const surplus = left;
+
+            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(deal.item);
+            MailDraft draft(proto ? proto->Name1 : "Too many", "You sent more than we agreed on. Here is the rest back.");
+            std::vector<MailItemInfo> const attached = mail->items;
+            uint32 parcels = 0;
+            for (MailItemInfo const& info : attached)
+            {
+                if (!left || parcels >= MAX_MAIL_ITEMS)
+                    break;
+                Item* item = bot->GetMItem(info.item_guid);
+                if (!item)
+                    continue;
+                Item* back;
+                if (item->GetCount() <= left)
+                {
+                    // The whole stack leaves the bot's mail.
+                    left -= item->GetCount();
+                    back = item;
+                    mail->RemoveItem(info.item_guid);
+                    bot->RemoveMItem(info.item_guid);
+                    // Its place in the old mail is given up here and now: the same statement run after the
+                    // new mail is written would take it out of that one as well.
+                    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_MAIL_ITEM);
+                    stmt->SetData(0, info.item_guid);
+                    trans->Append(stmt);
+                    if (back->GetState() == ITEM_UNCHANGED)
+                        back->FSetState(ITEM_CHANGED);
+                }
+                else
+                {
+                    // Part of a stack: a new item for the player, the stack in the mail gets smaller.
+                    back = item->CloneItem(left, bot);
+                    if (!back)
+                        break;
+                    item->SetCount(item->GetCount() - left);
+                    if (item->GetState() == ITEM_UNCHANGED)
+                        item->FSetState(ITEM_CHANGED);
+                    item->SaveToDB(trans);
+                    left = 0;
+                }
+                back->SetOwnerGUID(deal.player);
+                back->SaveToDB(trans);
+                draft.AddItem(back);
+                ++parcels;
+            }
+            if (!parcels)
+                return 0;
+            draft.SendMailTo(trans, MailReceiver(player, deal.player.GetCounter()), MailSender(bot), MAIL_CHECK_MASK_HAS_BODY, 0);
+            mail->state = MAIL_STATE_CHANGED;
+            return surplus - left;
+        }
+
+        /// Writes down what was taken out of a mail; a mail with nothing left in it is gone.
+        void StoreMail(Player* bot, Mail* mail, CharacterDatabaseTransaction trans)
+        {
+            if (mail->items.empty() && !mail->money)
+            {
+                mail->state = MAIL_STATE_DELETED;
+                PBA_MAIL_DELETED(bot->GetGUID());
+                CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_MAIL_BY_ID);
+                stmt->SetData(0, mail->messageID);
+                trans->Append(stmt);
+                stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_MAIL_ITEM_BY_ID);
+                stmt->SetData(0, mail->messageID);
+                trans->Append(stmt);
+                mail->removedItems.clear();
+                return;
+            }
+            CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_MAIL);
+            stmt->SetData(0, uint8(1));
+            stmt->SetData(1, uint32(mail->expire_time));
+            stmt->SetData(2, uint32(mail->deliver_time));
+            stmt->SetData(3, mail->money);
+            stmt->SetData(4, mail->COD);
+            stmt->SetData(5, uint8(mail->checked));
+            stmt->SetData(6, mail->messageID);
+            trans->Append(stmt);
+            for (uint32 const itemGuid : mail->removedItems)
+            {
+                stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_MAIL_ITEM);
+                stmt->SetData(0, itemGuid);
+                trans->Append(stmt);
+            }
+            mail->removedItems.clear();
+            mail->state = MAIL_STATE_UNCHANGED;
+        }
+
+        void SaySurplus(Player* bot, Player* player, Deal const& deal, uint32 back)
+        {
+            if (!back)
+                return;
+            if (player && player->IsInWorld())
+                Tell(bot, player, Fill(Pick(bot, Lines::ParcelExtra), Goods(back, sObjectMgr->GetItemTemplate(deal.item)), ""));
+            if (cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: {} mailed {} piece(s) of item {} back to a player: the parcel held more than the {} agreed on.",
+                    bot->GetName(), back, deal.item, deal.count);
+        }
+
         /// The parcel for a bot that is not online, straight in the database. True: paid, the deal is over.
         template <typename Waits>
         bool PaidWhileAway(Deal& deal, time_t now, Waits& waits)
@@ -1496,7 +1632,9 @@ namespace
             CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
             if (cfg.buyUseBotMoney)
                 trans->Append("UPDATE `characters` SET `money` = `money` - {} WHERE `guid` = {} AND `money` >= {}", cost, botLow, cost);
-            trans->Append("UPDATE `mail` SET `cod` = 0 WHERE `id` = {}", mailId);
+            // Paid goods wait like any mail without cash on delivery: thirty days, not the three of an unpaid parcel
+            // (after which the server would send them back to the player, who has the money already).
+            trans->Append("UPDATE `mail` SET `cod` = 0, `expire_time` = {} WHERE `id` = {}", uint64(now + 30 * DAY), mailId);
             Player* player = ObjectAccessor::FindConnectedPlayer(deal.player);
             MailDraft(subject, "")
                 .AddMoney(cost)
@@ -1510,6 +1648,15 @@ namespace
                 ItemTemplate const* proto = sObjectMgr->GetItemTemplate(deal.item);
                 LOG_INFO("module", "PlayerbotsAuctions: a bot that is not online paid {} copper for a parcel with {} x{} from a player.",
                     cost, proto ? proto->Name1 : "?", count);
+            }
+            if (count > deal.count)
+            {
+                // More than was agreed: what is too much goes back as soon as the bot is here to send it.
+                deal.stage = 2;
+                deal.mail = mailId;
+                deal.until = now + 30 * DAY;
+                deal.noted = 0;
+                return false;
             }
             return true;
         }
@@ -1531,6 +1678,23 @@ namespace
             };
 
             Player* bot = ObjectAccessor::FindConnectedPlayer(deal.bot);
+            if (deal.stage == 2)
+            {
+                if (!bot || !bot->IsInWorld() || bot->IsBeingTeleported())
+                    return false;
+                Mail* mail = bot->GetMail(deal.mail);
+                if (mail && mail->state != MAIL_STATE_DELETED)
+                {
+                    Player* player = ObjectAccessor::FindConnectedPlayer(deal.player);
+                    CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+                    uint32 const back = SendSurplus(bot, player, mail, deal, trans);
+                    StoreMail(bot, mail, trans);
+                    CharacterDatabase.CommitTransaction(trans);
+                    bot->m_mailsUpdated = true;
+                    SaySurplus(bot, player, deal, back);
+                }
+                return true;
+            }
             // Random bots take turns being online, and one that is off can stay off for hours. The player is
             // not kept waiting for that: the parcel is paid from what the bot has, and the goods lie in its
             // mailbox until it is back.
@@ -1597,6 +1761,8 @@ namespace
                 }
 
                 CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+                // More in it than was agreed: the rest goes back, the bot keeps what it asked for.
+                uint32 const back = SendSurplus(bot, player, mail, deal, trans);
                 std::vector<MailItemInfo> const attached = mail->items;
                 for (MailItemInfo const& info : attached)
                 {
@@ -1618,46 +1784,16 @@ namespace
                 mail->COD = 0;
 
                 bot->SaveInventoryAndGoldToDB(trans);
-                if (mail->items.empty())
-                {
-                    mail->state = MAIL_STATE_DELETED;
-                    PBA_MAIL_DELETED(bot->GetGUID());
-                    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_MAIL_BY_ID);
-                    stmt->SetData(0, mail->messageID);
-                    trans->Append(stmt);
-                    stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_MAIL_ITEM_BY_ID);
-                    stmt->SetData(0, mail->messageID);
-                    trans->Append(stmt);
-                    mail->removedItems.clear();
-                }
-                else
-                {
-                    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_MAIL);
-                    stmt->SetData(0, uint8(1));
-                    stmt->SetData(1, uint32(mail->expire_time));
-                    stmt->SetData(2, uint32(mail->deliver_time));
-                    stmt->SetData(3, mail->money);
-                    stmt->SetData(4, mail->COD);
-                    stmt->SetData(5, uint8(mail->checked));
-                    stmt->SetData(6, mail->messageID);
-                    trans->Append(stmt);
-                    for (uint32 const itemGuid : mail->removedItems)
-                    {
-                        stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_MAIL_ITEM);
-                        stmt->SetData(0, itemGuid);
-                        trans->Append(stmt);
-                    }
-                    mail->removedItems.clear();
-                    mail->state = MAIL_STATE_UNCHANGED;
-                }
+                StoreMail(bot, mail, trans);
                 CharacterDatabase.CommitTransaction(trans);
                 bot->m_mailsUpdated = true;
 
                 _bought[bot->GetGUID().GetCounter()][deal.item] = now;
-                market.RecordSale(deal.item, cost, count);
+                market.RecordSale(deal.item, cost, count - back);
                 if (player && player->IsInWorld())
                     Tell(bot, player, Fill(Pick(bot, Lines::ParcelPaid),
                         "", MoneyText(cost)));
+                SaySurplus(bot, player, deal, back);
                 if (cfg.debug)
                     LOG_INFO("module", "PlayerbotsAuctions: {} paid {} copper for a parcel with {} x{} from a player.", bot->GetName(), cost,
                         sObjectMgr->GetItemTemplate(deal.item)->Name1, count);
@@ -1693,6 +1829,11 @@ namespace
     void SaveDeals(bool wait)
     {
         deals.Save(wait);
+    }
+
+    bool DealHoldsMail(uint32 mailId)
+    {
+        return deals.Holds(mailId);
     }
 
     void DealsUpdate(uint32 diff)

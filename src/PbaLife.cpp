@@ -1909,6 +1909,8 @@ namespace
                 if (!mail || mail->state == MAIL_STATE_DELETED || (mail->messageType != MAIL_AUCTION && mail->messageType != MAIL_NORMAL) ||
                     mail->COD || mail->deliver_time > now)
                     continue;
+                if (mail->messageType == MAIL_NORMAL && DealHoldsMail(mail->messageID))
+                    continue;
 
                 if (mail->money && bot->ModifyMoney(int32(mail->money), false))
                 {
