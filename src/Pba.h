@@ -156,6 +156,7 @@ namespace pba
         bool   chatterReplies = true;          // bots answer a hello, a ding, a request for a joke
         bool   chatterSay = true;              // bots near a player say something aloud or make a gesture
         bool   chatterWorld = true;            // with no bot in the player's zone, the channel of the whole realm is used
+        uint32 chatterEggs = 300;              // one in so many things said out of the blue winks at the tools behind it; 0: never
     };
 
     extern Settings cfg;

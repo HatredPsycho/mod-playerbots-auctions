@@ -560,7 +560,10 @@ namespace
             std::tm const* local = std::localtime(&wall);
             int const hour = local ? local->tm_hour : 12;
             char const* occasion = "ambient.general";
-            if ((hour >= 22 || hour < 5) && urand(0, 99) < 30)
+            // Once in a very long while: a wink at the tools that made all this.
+            if (cfg.chatterEggs && urand(1, cfg.chatterEggs) == 1)
+                occasion = "easteregg";
+            else if ((hour >= 22 || hour < 5) && urand(0, 99) < 30)
                 occasion = "ambient.night";
             else if (hour >= 5 && hour < 9 && urand(0, 99) < 30)
                 occasion = "ambient.morning";

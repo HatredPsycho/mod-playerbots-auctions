@@ -705,3 +705,14 @@ PlayerbotsAuctions.Chatter.Nearby = 1
 #                     0 - Disabled (only the General channel of the zone)
 
 PlayerbotsAuctions.Chatter.WorldChannel = 1
+
+#
+#    PlayerbotsAuctions.Chatter.EasterEggs
+#        Description: Once in a very long while a bot says something that winks at where all this
+#                     comes from: the realm that sleeps at night, the day the bots started talking,
+#                     a tool called AFK Realm. One in this many of the things said out of the blue
+#                     is such a line; with the default that is one every few evenings.
+#        Default:     300
+#                     0 - Never
+
+PlayerbotsAuctions.Chatter.EasterEggs = 300

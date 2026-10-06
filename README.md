@@ -64,7 +64,9 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
   hello, write "ding", ask for a joke or wonder about bots - in a channel, aloud or by whisper. What they say
   comes from a catalog of more than 16000 lines (`data/lines.txt`; on a running server the table
   `mod_playerbots_auctions_lines`, where lines can be switched off or added). The whispers of a deal come from
-  it as well. mod-playerbots' own chatter is switched off for it. *New, compiled and not yet tried on a server.*
+  it as well. Once in a very long while one of them says something that makes you wonder whether it knows
+  more than it should (`PlayerbotsAuctions.Chatter.EasterEggs`, 0 switches that off). mod-playerbots' own
+  chatter is switched off for it. *New, compiled and not yet tried on a server.*
 
 All auction business is done standing at an auctioneer. Bots that travel with a real player neither sell nor buy.
 

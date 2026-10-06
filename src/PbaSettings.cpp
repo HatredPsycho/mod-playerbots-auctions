@@ -114,6 +114,7 @@ namespace pba
         cfg.chatterReplies      = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chatter.Replies", true);
         cfg.chatterSay          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chatter.Nearby", true);
         cfg.chatterWorld        = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chatter.WorldChannel", true);
+        cfg.chatterEggs         = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chatter.EasterEggs", 300);
         cfg.dealChannels.clear();
         std::string const channels = sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.Chat.Channels", "");
         for (std::string_view part : Acore::Tokenize(channels, ',', false))
