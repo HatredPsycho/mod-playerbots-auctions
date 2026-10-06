@@ -46,6 +46,7 @@ namespace pba
         cfg.avoidersPercent     = std::min<uint32>(100, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Character.AvoidersPercent", 15));
         cfg.rhythm              = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.DailyRhythm", true);
         cfg.saveMemory          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.SaveMemory", true);
+        cfg.pauseOffline        = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.PauseAuctionsWhileOffline", true);
 
         cfg.maxAuctionsPerHouse = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MaxAuctionsPerHouse", 20000);
         cfg.minQualityEquipment = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MinQuality.Equipment", ITEM_QUALITY_UNCOMMON);

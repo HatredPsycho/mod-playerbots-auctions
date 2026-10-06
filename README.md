@@ -37,8 +37,12 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
   Enchanters put their enchantments on vellum - made by scribes - and sell the scrolls.
 - **Keeping.** What is meant for the auction house and the materials a bot has plans for are not sold to a
   vendor on the way. Things a vendor gives nothing for - dusts, essences - get a price from their item level.
+- **A server that is not always on.** Auctions run out by the clock on the wall, also while the server is
+  off - start it for an evening, and by the next evening the auction house is empty again. The module gives
+  every auction back the time the server was off, so an auction put up for 24 hours runs for 24 hours of
+  server time and the auction house fills up over the days. A setting, on by default.
 - **Memory.** The bots learn what things really sell for and remember what did not sell. That survives a
-  restart in two small tables of the characters database, which the module creates itself.
+  restart in small tables of the characters database, which the module creates itself.
 
 - **Deals by chat.** Write `WTB copper ore` or `WTS 20 linen cloth` into a channel (General, Trade or any
   other - not `/say` or `/yell`) - the name typed out or

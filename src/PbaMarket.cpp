@@ -5,6 +5,8 @@
 
 #include "Pba.h"
 
+#include <ctime>
+
 namespace pba
 {
     Market market;
@@ -216,6 +218,54 @@ namespace pba
 
         LOG_INFO("server.loading", ">> PlayerbotsAuctions: the bots remember the prices of {} item(s) and {} thing(s) that did not sell.",
             _sold.size(), _tries.size());
+    }
+
+    namespace
+    {
+        char const* const StateTable =
+            "CREATE TABLE IF NOT EXISTS `mod_playerbots_auctions_state` ("
+            "`name` VARCHAR(32) NOT NULL, `value` BIGINT UNSIGNED NOT NULL, PRIMARY KEY (`name`)) "
+            "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mod-playerbots-auctions: when the server last ran'";
+        bool stateTable = false;
+    }
+
+    void ResumeAuctions()
+    {
+        CharacterDatabase.DirectExecute(StateTable);
+        stateTable = true;
+
+        time_t const now = std::time(nullptr);
+        time_t last = 0;
+        if (QueryResult result = CharacterDatabase.Query("SELECT `value` FROM `mod_playerbots_auctions_state` WHERE `name` = 'last_seen'"))
+            last = time_t(result->Fetch()[0].Get<uint64>());
+        NoteRunning(true);
+
+        // A restart of a minute or two is not worth it; a gap of months means the note was not kept (the module
+        // was not installed), and nothing sensible can be said about it.
+        if (!cfg.enabled || !cfg.pauseOffline || !last || now <= last)
+            return;
+        uint64 const away = uint64(now - last);
+        if (away < 2 * MINUTE || away > 60 * DAY)
+            return;
+
+        uint64 auctions = 0;
+        if (QueryResult result = CharacterDatabase.Query("SELECT COUNT(*) FROM `auctionhouse`"))
+            auctions = result->Fetch()[0].Get<uint64>();
+        CharacterDatabase.DirectExecute("UPDATE `auctionhouse` SET `time` = `time` + {}", away);
+        LOG_INFO("server.loading", ">> PlayerbotsAuctions: the server was off for {} h {} min. {} auction(s) were given that time back.",
+            away / HOUR, (away % HOUR) / MINUTE, auctions);
+    }
+
+    void NoteRunning(bool wait)
+    {
+        if (!stateTable)
+            return;
+        std::string const sql = Acore::StringFormat("REPLACE INTO `mod_playerbots_auctions_state` (`name`, `value`) VALUES ('last_seen', {})",
+            uint64(std::time(nullptr)));
+        if (wait)
+            CharacterDatabase.DirectExecute(sql);
+        else
+            CharacterDatabase.Execute(sql);
     }
 
     void Market::SaveMemory()

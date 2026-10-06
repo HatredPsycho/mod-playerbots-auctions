@@ -92,6 +92,7 @@ namespace pba
         uint32 avoidersPercent = 15;           // bots that never use the auction house
         bool   rhythm = true;                  // more going on in the evening and at the weekend
         bool   saveMemory = true;
+        bool   pauseOffline = true;            // auctions do not run down while the server is off
 
         // selling
         uint32 maxAuctionsPerHouse = 20000;
@@ -250,6 +251,13 @@ namespace pba
     };
 
     extern Market market;
+
+    /// A server that is only on for an evening: auctions run out by the clock on the wall, so by the next evening
+    /// the auction house is empty. Before the auctions are read at a start, every one of them gets back the time
+    /// the server was off. After the settings, before the core loads its auctions.
+    void ResumeAuctions();
+    /// Notes that the server is running now. Called every minute and at shutdown.
+    void NoteRunning(bool wait);
 
     // ------------------------------------------------------------------------------------------ places
 

@@ -2063,6 +2063,8 @@ public:
         pba::LoadSettings();
         if (reload)
             pba::LoadMadeValues();     // priced with the settings
+        else
+            pba::ResumeAuctions();     // before the core reads the auctions
     }
 
     void OnStartup() override
@@ -2082,6 +2084,13 @@ public:
 
     void OnUpdate(uint32 diff) override
     {
+        // Even with the module switched off, so that switching it on later does not look like a long absence.
+        _noteTimer += diff;
+        if (_noteTimer >= 1 * MINUTE * IN_MILLISECONDS)
+        {
+            _noteTimer = 0;
+            pba::NoteRunning(false);
+        }
         pba::life.Update(diff);
         pba::DealsUpdate(diff);
     }
@@ -2089,7 +2098,11 @@ public:
     void OnShutdown() override
     {
         pba::market.SaveMemory();
+        pba::NoteRunning(true);
     }
+
+private:
+    uint32 _noteTimer = 0;
 };
 
 class PlayerbotsAuctionsPlayer : public PlayerScript

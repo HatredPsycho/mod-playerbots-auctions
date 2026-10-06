@@ -76,6 +76,21 @@ PlayerbotsAuctions.DailyRhythm = 1
 
 PlayerbotsAuctions.SaveMemory = 1
 
+#
+#    PlayerbotsAuctions.PauseAuctionsWhileOffline
+#        Description: Auctions run out by the clock on the wall, also while the server is off. On a
+#                     server that is only started for an evening, most auctions are gone by the next
+#                     evening and the auction house starts empty every day. With this option every
+#                     auction - of bots and of players - gets back the time the server was off when
+#                     it starts: an auction put up for 24 hours runs for 24 hours of server time.
+#                     The module notes once a minute that the server is running, in a small table
+#                     of the characters database (mod_playerbots_auctions_state). On a server that
+#                     runs around the clock this changes nothing worth mentioning.
+#        Default:     1 - Enabled
+#                     0 - Disabled
+
+PlayerbotsAuctions.PauseAuctionsWhileOffline = 1
+
 ###################################################################################################
 # CHARACTER
 #
