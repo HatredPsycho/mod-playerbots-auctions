@@ -464,17 +464,20 @@ namespace
                 // Not the moment the world comes up.
                 _nextGeneral = now + urand(60, 180);
                 _nextAloud = now + urand(90, 240);
+                _nextYell = now + urand(300, 900);
             }
             if (_nextGeneral <= now)
             {
                 _nextGeneral = now + time_t(float(cfg.chatterInterval) * frand(0.5f, 1.5f));
                 Unprompted(now);
             }
+            // Aloud only works when a bot happens to be within earshot of a player. Out in the world that is a
+            // matter of seconds, so once it is time the module keeps looking until one comes by.
             if (cfg.chatterSay && _nextAloud <= now)
-            {
-                _nextAloud = now + time_t(float(cfg.chatterInterval) * frand(0.8f, 2.2f));
-                Nearby(now);
-            }
+                _nextAloud = Nearby(now) ? now + time_t(float(cfg.chatterInterval) * frand(0.8f, 2.2f)) : now + 3;
+            // A yell carries much further, and is rarer.
+            if (cfg.chatterSay && _nextYell <= now)
+                _nextYell = Shout(now) ? now + time_t(float(cfg.chatterInterval) * frand(4.0f, 9.0f)) : now + 15;
         }
 
         // ---- what happens to a bot (called from the map threads: only noted here)
@@ -524,7 +527,10 @@ namespace
                     continue;
                 if (where == ALOUD || where == SHOUTED)
                 {
-                    if (bot->GetMapId() != player->GetMapId() || !bot->IsWithinDistInMap(player, 30.0f))
+                    // As far as the realm lets a voice carry, with a little to spare.
+                    float const reach = where == SHOUTED ? 0.8f * sWorld->getFloatConfig(CONFIG_LISTEN_RANGE_YELL)
+                                                         : 0.85f * sWorld->getFloatConfig(CONFIG_LISTEN_RANGE_SAY);
+                    if (bot->GetMapId() != player->GetMapId() || !bot->IsWithinDistInMap(player, reach))
                         continue;
                 }
                 else if (where != IN_WORLD && bot->GetZoneId() != player->GetZoneId())
@@ -642,6 +648,8 @@ namespace
                 data << uint32(0);
                 data << line.to;
                 bot->GetSession()->HandleTextEmoteOpcode(data);
+                if (cfg.debug)
+                    LOG_INFO("module", "PlayerbotsAuctions: {} ({}) makes a gesture ({}).", bot->GetName(), NameOf(bot), line.emote);
                 return;
             }
             bool said = true;
@@ -741,15 +749,16 @@ namespace
             return name;
         }
 
-        void Nearby(time_t now)
+        /// Somebody near a player says something or makes a gesture. False: nobody was near.
+        bool Nearby(time_t now)
         {
             std::vector<Player*> players = RealPlayers();
             if (players.empty())
-                return;
+                return false;
             Player* player = players[urand(0, uint32(players.size()) - 1)];
             Player* bot = Choose(Around(player, ALOUD), now, 6 * MINUTE);
             if (!bot)
-                return;
+                return false;
             Persona const& persona = PersonaOf(bot);
             // Often about what is right there: the innkeeper, the flight master, a wolf that comes too close.
             if (PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot))
@@ -759,13 +768,13 @@ namespace
                     std::string name;
                     if (char const* kind = Townsperson(bot, botAI, name))
                         if (Say(bot, kind, ALOUD, now, "", name))
-                            return;
+                            return true;
                 }
                 if (urand(0, 99) < 25)
                 {
                     std::string const name = Menace(bot, botAI);
                     if (!name.empty() && Say(bot, "creature", ALOUD, now, "", name))
-                        return;
+                        return true;
                 }
             }
             uint32 const roll = urand(0, 99);
@@ -778,10 +787,23 @@ namespace
                 _queue.push_back(out);
                 _spoke[bot->GetGUID().GetCounter()] = now;
             }
-            else if (roll < 36)
-                Say(bot, "ambient.yell", SHOUTED, now);
             else
                 Say(bot, "ambient.say", ALOUD, now);
+            return true;
+        }
+
+        /// Somebody within shouting distance of a player yells. False: nobody was.
+        bool Shout(time_t now)
+        {
+            std::vector<Player*> players = RealPlayers();
+            if (players.empty())
+                return false;
+            Player* player = players[urand(0, uint32(players.size()) - 1)];
+            Player* bot = Choose(Around(player, SHOUTED), now, 6 * MINUTE);
+            if (!bot)
+                return false;
+            Say(bot, "ambient.yell", SHOUTED, now);
+            return true;
         }
 
         // ------------------------------------------------------------------------------------- reacting
@@ -1118,7 +1140,7 @@ namespace
         std::unordered_map<ObjectGuid::LowType, time_t> _spoke;
         std::unordered_map<ObjectGuid::LowType, time_t> _lastReply;
         std::unordered_map<ObjectGuid::LowType, time_t> _lastGesture;
-        time_t _nextGeneral = 0, _nextAloud = 0;
+        time_t _nextGeneral = 0, _nextAloud = 0, _nextYell = 0;
         uint32 _timer = 0;
     };
 

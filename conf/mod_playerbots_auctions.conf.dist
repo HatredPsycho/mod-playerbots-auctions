@@ -689,8 +689,9 @@ PlayerbotsAuctions.Chatter.Replies = 1
 
 #
 #    PlayerbotsAuctions.Chatter.Nearby
-#        Description: A bot that stands near a player now and then says something aloud, yells or
-#                     makes a gesture that suits it.
+#        Description: A bot that comes within earshot of a player now and then says something aloud
+#                     or makes a gesture that suits it; more rarely one within shouting distance
+#                     yells. When it is time and nobody is near, the next bot that passes speaks.
 #        Default:     1 - Enabled
 #                     0 - Disabled
 
