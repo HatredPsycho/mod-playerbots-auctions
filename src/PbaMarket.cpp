@@ -275,6 +275,22 @@ namespace pba
         if (last && now > last && uint64(now - last) <= 60 * DAY)
             awayFor = uint64(now - last);
 
+        // Auctions whose item is gone: the core never loads them and never removes them either. A reset of
+        // the random bots leaves hundreds behind, because it deletes the bots' items but not their auctions.
+        if (cfg.enabled)
+        {
+            uint64 lost = 0;
+            if (QueryResult result = CharacterDatabase.Query(
+                    "SELECT COUNT(*) FROM `auctionhouse` ah LEFT JOIN `item_instance` ii ON ii.`guid` = ah.`itemguid` WHERE ii.`guid` IS NULL"))
+                lost = result->Fetch()[0].Get<uint64>();
+            if (lost)
+            {
+                CharacterDatabase.DirectExecute(
+                    "DELETE ah FROM `auctionhouse` ah LEFT JOIN `item_instance` ii ON ii.`guid` = ah.`itemguid` WHERE ii.`guid` IS NULL");
+                LOG_INFO("server.loading", ">> PlayerbotsAuctions: removed {} auction(s) whose item no longer exists (left over from deleted characters).", lost);
+            }
+        }
+
         // A restart of a minute or two is not worth it; a gap of months means the note was not kept (the module
         // was not installed), and nothing sensible can be said about it.
         if (!cfg.enabled || !cfg.pauseOffline || !last || now <= last)
