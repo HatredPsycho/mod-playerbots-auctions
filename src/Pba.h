@@ -156,6 +156,7 @@ namespace pba
         bool   chatterReplies = true;          // bots answer a hello, a ding, a request for a joke
         bool   chatterSay = true;              // bots near a player say something aloud or make a gesture
         bool   chatterWorld = true;            // with no bot in the player's zone, the channel of the whole realm is used
+        uint32 chatterMixed = 65;              // percent of the bots that are a mix of two personalities
         uint32 chatterEggs = 300;              // one in so many things said out of the blue winks at the tools behind it; 0: never
     };
 
@@ -178,7 +179,9 @@ namespace pba
         TRAIT_GREED,        // its own price level, a little below or above the others
         TRAIT_HABIT,        // small habits: how it sets bids, how it packs stacks
         TRAIT_PERSONA,      // who it is in chat: the joker, the grumbler, the one who speaks like a knight of old
-        TRAIT_TALK          // low: keeps to itself               high: always has something to say
+        TRAIT_TALK,         // low: keeps to itself               high: always has something to say
+        TRAIT_MIXED,        // low: has a streak of a second personality   high: is one thing only
+        TRAIT_STREAK        // which second personality that is
     };
 
     float TraitOf(Player* bot, Trait which);

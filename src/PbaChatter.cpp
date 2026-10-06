@@ -103,8 +103,58 @@ namespace
 
     // Who a bot is, it stays: players get to know them. Written down once, so that a longer list of
     // personalities in a later version changes nobody.
-    std::unordered_map<ObjectGuid::LowType, uint16> assigned;
+    //
+    // Most are a mix of two: mainly one, with a streak of another - the lazy one who keeps talking about
+    // food. How much it talks and what it does with its hands comes from the first.
+    struct Self
+    {
+        uint16 main = 0;
+        int16 side = -1;                    // -1: nothing chosen (yet)
+    };
+    std::unordered_map<ObjectGuid::LowType, Self> assigned;
     bool personaTable = false;
+
+    // Those who have a way of speaking of their own. Such a one is never the streak in somebody else: a
+    // glutton who says "arr" every fourth sentence sounds broken, a pirate who thinks of food does not.
+    char const* const Voices[] = { "roleplayer", "pirate", "poet", "quiet", "snob", "grandparent", "sergeant", "soldier", "dramaqueen", "zen" };
+
+    // Pairs that would not be one person.
+    char const* const Opposites[][2] =
+    {
+        { "optimist", "doomsayer" }, { "optimist", "grumbler" }, { "optimist", "cynic" }, { "dreamer", "cynic" },
+        { "coward", "hero" }, { "coward", "daredevil" }, { "coward", "soldier" }, { "coward", "sergeant" },
+        { "quiet", "gossip" }, { "quiet", "socialite" }, { "quiet", "braggart" }, { "quiet", "dramaqueen" }, { "quiet", "hawker" },
+        { "hermit", "socialite" }, { "hermit", "gossip" }, { "hermit", "hawker" },
+        { "lazy", "perfectionist" }, { "lazy", "competitive" }, { "lazy", "sergeant" }, { "lazy", "daredevil" }, { "sleepy", "hothead" },
+        { "newbie", "veteran" }, { "newbie", "knowitall" }, { "newbie", "grandparent" }, { "newbie", "lorenerd" },
+        { "student", "veteran" }, { "student", "grandparent" }, { "student", "knowitall" },
+        { "hothead", "zen" }, { "hothead", "polite" }, { "dramaqueen", "zen" }, { "competitive", "zen" },
+        { "miser", "gambler" }, { "snob", "farmer" }, { "snob", "tavernregular" },
+        { "homesick", "explorer" }, { "homesick", "tourist" }, { "perfectionist", "scatterbrain" }, { "polite", "critic" }
+    };
+
+    int16 PersonaNamed(std::string const& name)
+    {
+        for (size_t i = 0; i < Personas.size(); ++i)
+            if (name == Personas[i].name)
+                return int16(i);
+        return -1;
+    }
+
+    bool GoTogether(uint16 main, uint16 side)
+    {
+        if (main == side)
+            return false;
+        char const* a = Personas[main].name;
+        char const* b = Personas[side].name;
+        for (char const* voice : Voices)
+            if (std::strcmp(voice, b) == 0)
+                return false;
+        for (auto const& pair : Opposites)
+            if ((std::strcmp(pair[0], a) == 0 && std::strcmp(pair[1], b) == 0) || (std::strcmp(pair[0], b) == 0 && std::strcmp(pair[1], a) == 0))
+                return false;
+        return true;
+    }
 
     void LoadPersonas()
     {
@@ -114,36 +164,92 @@ namespace
             return;
         CharacterDatabase.DirectExecute(
             "CREATE TABLE IF NOT EXISTS `mod_playerbots_auctions_personas` ("
-            "`guid` INT UNSIGNED NOT NULL, `personality` VARCHAR(24) NOT NULL, PRIMARY KEY (`guid`)) "
+            "`guid` INT UNSIGNED NOT NULL, `personality` VARCHAR(24) NOT NULL, `streak` VARCHAR(24) NOT NULL DEFAULT '', PRIMARY KEY (`guid`)) "
             "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mod-playerbots-auctions: who each bot is in chat'");
+        // Tables of the versions in which everybody was one thing only.
+        if (!CharacterDatabase.Query("SHOW COLUMNS FROM `mod_playerbots_auctions_personas` LIKE 'streak'"))
+            CharacterDatabase.DirectExecute("ALTER TABLE `mod_playerbots_auctions_personas` ADD COLUMN `streak` VARCHAR(24) NOT NULL DEFAULT '' AFTER `personality`");
         CharacterDatabase.DirectExecute(
             "DELETE p FROM `mod_playerbots_auctions_personas` p LEFT JOIN `characters` c ON c.`guid` = p.`guid` WHERE c.`guid` IS NULL");
         personaTable = true;
-        if (QueryResult result = CharacterDatabase.Query("SELECT `guid`, `personality` FROM `mod_playerbots_auctions_personas`"))
+        if (QueryResult result = CharacterDatabase.Query("SELECT `guid`, `personality`, `streak` FROM `mod_playerbots_auctions_personas`"))
             do
             {
                 Field* fields = result->Fetch();
-                std::string const name = fields[1].Get<std::string>();
-                for (size_t i = 0; i < Personas.size(); ++i)
-                    if (name == Personas[i].name)
-                    {
-                        assigned[fields[0].Get<uint32>()] = uint16(i);
-                        break;
-                    }
+                int16 const main = PersonaNamed(fields[1].Get<std::string>());
+                if (main < 0)
+                    continue;
+                Self self;
+                self.main = uint16(main);
+                self.side = PersonaNamed(fields[2].Get<std::string>());
+                if (self.side == main)
+                    self.side = -1;
+                assigned[fields[0].Get<uint32>()] = self;
             } while (result->NextRow());
+    }
+
+    Self& SelfOf(Player* bot)
+    {
+        ObjectGuid::LowType const low = bot->GetGUID().GetCounter();
+        auto found = assigned.find(low);
+        bool write = false;
+        if (found == assigned.end() || found->second.main >= Personas.size())
+        {
+            Self self;
+            self.main = uint16(std::min<size_t>(Personas.size() - 1, size_t(TraitOf(bot, TRAIT_PERSONA) * float(Personas.size()))));
+            found = assigned.insert_or_assign(low, self).first;
+            write = true;
+        }
+        Self& self = found->second;
+        // The streak is chosen the first time it is wanted, and stays as well.
+        if (self.side < 0 && TraitOf(bot, TRAIT_MIXED) * 100.0f < float(cfg.chatterMixed))
+        {
+            std::vector<uint16> fitting;
+            for (uint16 side = 0; side < uint16(Personas.size()); ++side)
+                if (GoTogether(self.main, side))
+                    fitting.push_back(side);
+            if (!fitting.empty())
+            {
+                self.side = int16(fitting[std::min<size_t>(fitting.size() - 1, size_t(TraitOf(bot, TRAIT_STREAK) * float(fitting.size())))]);
+                write = true;
+            }
+        }
+        if (write && personaTable)
+            CharacterDatabase.Execute("REPLACE INTO `mod_playerbots_auctions_personas` (`guid`, `personality`, `streak`) VALUES ({}, '{}', '{}')",
+                low, Personas[self.main].name, self.side >= 0 ? Personas[self.side].name : "");
+        return self;
     }
 
     Persona const& PersonaOf(Player* bot)
     {
-        ObjectGuid::LowType const low = bot->GetGUID().GetCounter();
-        auto found = assigned.find(low);
-        if (found != assigned.end() && found->second < Personas.size())
-            return Personas[found->second];
-        size_t const index = std::min<size_t>(Personas.size() - 1, size_t(TraitOf(bot, TRAIT_PERSONA) * float(Personas.size())));
-        assigned[low] = uint16(index);
-        if (personaTable)
-            CharacterDatabase.Execute("REPLACE INTO `mod_playerbots_auctions_personas` (`guid`, `personality`) VALUES ({}, '{}')", low, Personas[index].name);
-        return Personas[index];
+        return Personas[SelfOf(bot).main];
+    }
+
+    /// The streak of another personality in this one, or nothing. Who has one is a matter of the setting, so
+    /// that it can be turned down again; which one it is, is not.
+    Persona const* StreakOf(Player* bot)
+    {
+        Self const& self = SelfOf(bot);
+        if (self.side < 0 || size_t(self.side) >= Personas.size() || TraitOf(bot, TRAIT_MIXED) * 100.0f >= float(cfg.chatterMixed))
+            return nullptr;
+        return &Personas[self.side];
+    }
+
+    bool IsA(Player* bot, char const* name)
+    {
+        if (std::strcmp(PersonaOf(bot).name, name) == 0)
+            return true;
+        Persona const* streak = StreakOf(bot);
+        return streak && std::strcmp(streak->name, name) == 0;
+    }
+
+    /// "lazy" or "lazy, a bit of a glutton".
+    std::string NameOf(Player* bot)
+    {
+        std::string name = PersonaOf(bot).name;
+        if (Persona const* streak = StreakOf(bot))
+            name += std::string(" + ") + streak->name;
+        return name;
     }
 
     /// How much this one talks: its kind, and a little of its own.
@@ -183,17 +289,24 @@ namespace
             LOG_INFO("server.loading", ">> PlayerbotsAuctions: the bots have {} line(s) to say, in {} personalities.", loaded, Personas.size());
         }
 
-        /// A line for this bot and occasion, or nothing. Lines of its own personality come first; "any" lines are
-        /// for everybody. What was said a moment ago is not said again.
+        /// A line for this bot and occasion, or nothing. Lines of its own personality come first, then those of
+        /// the streak it has of another; "any" lines are for everybody. What was said a moment ago is not said again.
         std::string Pick(Player* bot, std::string const& occasion)
         {
             std::vector<std::string> const* own = Find(std::string(PersonaOf(bot).name) + "|" + occasion);
             std::vector<std::string> const* any = Find("any|" + occasion);
-            if (!own && !any)
+            std::vector<std::string> const* streak = nullptr;
+            if (Persona const* other = StreakOf(bot))
+                streak = Find(std::string(other->name) + "|" + occasion);
+            if (!own && !any && !streak)
                 return "";
             for (uint32 tries = 0; tries < 8; ++tries)
             {
-                std::vector<std::string> const* pool = own && (!any || urand(0, 99) < 70) ? own : any;
+                // Mostly itself, now and then the other one in it, and sometimes what anybody would say.
+                uint32 const roll = urand(0, 99);
+                std::vector<std::string> const* pool = streak ? (roll < 55 ? own : roll < 80 ? streak : any) : (roll < 70 ? own : any);
+                if (!pool)
+                    pool = own ? own : streak ? streak : any;
                 std::string const& line = (*pool)[urand(0, uint32(pool->size()) - 1)];
                 size_t const mark = std::hash<std::string>()(line);
                 if (std::find(_recent.begin(), _recent.end(), mark) != _recent.end() && tries < 7)
@@ -533,7 +646,7 @@ namespace
                     break;
             }
             if (cfg.debug)
-                LOG_INFO("module", "PlayerbotsAuctions: {} ({}) {}: {}", bot->GetName(), PersonaOf(bot).name,
+                LOG_INFO("module", "PlayerbotsAuctions: {} ({}) {}: {}", bot->GetName(), NameOf(bot),
                     !said ? "found no channel to say" : line.where == ALOUD ? "says" : line.where == SHOUTED ? "yells" : line.where == WHISPERED ? "whispers" : "writes", line.text);
         }
 
@@ -773,7 +886,7 @@ namespace
             {
                 std::vector<Player*> jokers;
                 for (Player* bot : bots)
-                    if (std::strcmp(PersonaOf(bot).name, "joker") == 0)
+                    if (IsA(bot, "joker"))
                         jokers.push_back(bot);
                 if (!jokers.empty())
                     bots = jokers;

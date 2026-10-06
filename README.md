@@ -57,7 +57,8 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
 
 - **Chatter.** Every bot is somebody in chat, too: one of 65 personalities, from the joker, the grumbler and
   the pirate to the one who speaks like a knight of old and the one who hardly speaks at all - and it stays
-  that, so you get to know them. Now and then one of them says something in the General channel of the zone
+  that, so you get to know them. Two in three are a mix of two, mainly one with a streak of another (the lazy
+  one who keeps talking about food), which makes a few thousand different characters out of the 65. Now and then one of them says something in the General channel of the zone
   you are in, or aloud next to you: about the innkeeper it stands next to, a wolf that comes too close, or
   nothing in particular. They announce a new level and congratulate each other, name what killed them, show
   what they found, feel for you when you die next to them, wave back when you wave, and answer when you say

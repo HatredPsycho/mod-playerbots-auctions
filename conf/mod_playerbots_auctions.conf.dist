@@ -707,6 +707,19 @@ PlayerbotsAuctions.Chatter.Nearby = 1
 PlayerbotsAuctions.Chatter.WorldChannel = 1
 
 #
+#    PlayerbotsAuctions.Chatter.Mixed
+#        Description: Percent of the bots that are a mix of two personalities: mainly one, with a streak of
+#                     another - the lazy one who keeps talking about food, the pirate who collects things.
+#                     Such a bot takes about half of what it says from the first, a quarter from the second
+#                     and the rest from what anybody would say. The others are one thing only, and all the
+#                     more so. Who is what stays; bots that have a personality already keep it as their first.
+#                     Pairs that would not be one person (the coward and the hero) do not come up.
+#        Default:     65
+#                     0 - Everybody is one personality only
+
+PlayerbotsAuctions.Chatter.Mixed = 65
+
+#
 #    PlayerbotsAuctions.Chatter.EasterEggs
 #        Description: Once in a very long while a bot says something that winks at where all this
 #                     comes from: the realm that sleeps at night, the day the bots started talking,
