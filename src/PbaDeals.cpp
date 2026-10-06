@@ -1449,6 +1449,71 @@ namespace
             PBA_MAIL_DELETED(bot->GetGUID());
         }
 
+        /// The parcel for a bot that is not online, straight in the database. True: paid, the deal is over.
+        template <typename Waits>
+        bool PaidWhileAway(Deal& deal, time_t now, Waits& waits)
+        {
+            ObjectGuid::LowType const botLow = deal.bot.GetCounter(), playerLow = deal.player.GetCounter();
+            QueryResult result = CharacterDatabase.Query(
+                "SELECT m.`id`, m.`cod`, m.`subject`, COUNT(mi.`item_guid`), COALESCE(SUM(ii.`count`), 0), COALESCE(SUM(ii.`itemEntry` <> {}), 0) "
+                "FROM `mail` m LEFT JOIN `mail_items` mi ON mi.`mail_id` = m.`id` LEFT JOIN `item_instance` ii ON ii.`guid` = mi.`item_guid` "
+                "WHERE m.`receiver` = {} AND m.`sender` = {} AND m.`messageType` = 0 AND m.`cod` > 0 AND m.`deliver_time` <= {} "
+                "GROUP BY m.`id`, m.`cod`, m.`subject` ORDER BY m.`id` LIMIT 1", deal.item, botLow, playerLow, uint64(now));
+            if (!result)
+            {
+                waits("the bot is not online, and no parcel has arrived for it");
+                return false;
+            }
+            Field* fields = result->Fetch();
+            uint32 const mailId = fields[0].Get<uint32>();
+            uint32 const cost = fields[1].Get<uint32>();
+            std::string const subject = fields[2].Get<std::string>();
+            uint32 const count = fields[4].Get<uint32>();
+            bool const only = fields[3].Get<uint64>() > 0 && fields[5].Get<uint64>() == 0;
+            uint64 const fair = deal.price * std::min(count, deal.count) / deal.count;
+            if (!only || !count || cost > fair)
+            {
+                waits("the bot is not online, and the parcel is not what was agreed - it goes back when the bot returns");
+                return false;
+            }
+            if (cfg.buyUseBotMoney)
+            {
+                uint32 money = 0;
+                if (QueryResult purse = CharacterDatabase.Query("SELECT `money` FROM `characters` WHERE `guid` = {} AND `online` = 0", botLow))
+                    money = purse->Fetch()[0].Get<uint32>();
+                else
+                {
+                    waits("the bot is logging in");
+                    return false;
+                }
+                if (money < cost)
+                {
+                    waits(Acore::StringFormat("the bot is not online, has {} copper and needs {}", money, cost));
+                    return false;
+                }
+            }
+
+            CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+            if (cfg.buyUseBotMoney)
+                trans->Append("UPDATE `characters` SET `money` = `money` - {} WHERE `guid` = {} AND `money` >= {}", cost, botLow, cost);
+            trans->Append("UPDATE `mail` SET `cod` = 0 WHERE `id` = {}", mailId);
+            Player* player = ObjectAccessor::FindConnectedPlayer(deal.player);
+            MailDraft(subject, "")
+                .AddMoney(cost)
+                .SendMailTo(trans, MailReceiver(player, playerLow), MailSender(MAIL_NORMAL, botLow), MAIL_CHECK_MASK_COD_PAYMENT);
+            CharacterDatabase.CommitTransaction(trans);
+
+            _bought[botLow][deal.item] = now;
+            market.RecordSale(deal.item, cost, count);
+            if (cfg.debug)
+            {
+                ItemTemplate const* proto = sObjectMgr->GetItemTemplate(deal.item);
+                LOG_INFO("module", "PlayerbotsAuctions: a bot that is not online paid {} copper for a parcel with {} x{} from a player.",
+                    cost, proto ? proto->Name1 : "?", count);
+            }
+            return true;
+        }
+
         /// Has the player's parcel arrived at the bot that buys? It pays if it holds what was agreed. True: the deal is over.
         bool Parcel(Deal& deal, time_t now)
         {
@@ -1466,9 +1531,14 @@ namespace
             };
 
             Player* bot = ObjectAccessor::FindConnectedPlayer(deal.bot);
-            if (!bot || !bot->IsInWorld() || bot->IsBeingTeleported())
+            // Random bots take turns being online, and one that is off can stay off for hours. The player is
+            // not kept waiting for that: the parcel is paid from what the bot has, and the goods lie in its
+            // mailbox until it is back.
+            if (!bot)
+                return PaidWhileAway(deal, now, waits);
+            if (!bot->IsInWorld() || bot->IsBeingTeleported())
             {
-                waits("the bot is not in the world at the moment");
+                waits("the bot is on its way into the world");
                 return false;
             }
             Player* player = ObjectAccessor::FindConnectedPlayer(deal.player);
