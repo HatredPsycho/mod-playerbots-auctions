@@ -668,6 +668,7 @@ namespace
         uint8 haggled = 0;
         time_t at = 0;                  // when it answers
         time_t until = 0;               // when it stops waiting
+        time_t noted = 0;               // when the log last said why a parcel is not paid yet
     };
 
     struct Heard
@@ -1421,19 +1422,70 @@ namespace
                 LOG_INFO("module", "PlayerbotsAuctions: {} mailed {} x{} to {}, {} copper on delivery.", bot->GetName(), proto->Name1, deal.count - left, player->GetName(), due);
         }
 
+        /// What the server does when a player presses "Return" on a mail.
+        void SendBack(Player* bot, Mail* mail)
+        {
+            uint32 const id = mail->messageID;
+            CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+            CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_MAIL_BY_ID);
+            stmt->SetData(0, id);
+            trans->Append(stmt);
+            stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_MAIL_ITEM_BY_ID);
+            stmt->SetData(0, id);
+            trans->Append(stmt);
+            bot->RemoveMail(id);
+
+            MailDraft draft(mail->subject, mail->body);
+            for (MailItemInfo const& info : mail->items)
+            {
+                if (Item* item = bot->GetMItem(info.item_guid))
+                    draft.AddItem(item);
+                bot->RemoveMItem(info.item_guid);
+            }
+            draft.AddMoney(mail->money).SendReturnToSender(bot->GetSession()->GetAccountId(), mail->receiver, mail->sender, trans);
+            CharacterDatabase.CommitTransaction(trans);
+            delete mail;
+            bot->m_mailsUpdated = true;
+            PBA_MAIL_DELETED(bot->GetGUID());
+        }
+
         /// Has the player's parcel arrived at the bot that buys? It pays if it holds what was agreed. True: the deal is over.
         bool Parcel(Deal& deal, time_t now)
         {
+            // With Debug on, the log says once a minute why a parcel is still unpaid.
+            auto waits = [&](std::string const& why)
+            {
+                if (!cfg.debug || deal.noted + MINUTE > now)
+                    return;
+                deal.noted = now;
+                ItemTemplate const* wanted = sObjectMgr->GetItemTemplate(deal.item);
+                std::string name;
+                sCharacterCache->GetCharacterNameByGuid(deal.bot, name);
+                LOG_INFO("module", "PlayerbotsAuctions: the parcel for {} ({} x{} for {} copper) is not paid yet: {}.",
+                    name.empty() ? "a bot" : name, wanted ? wanted->Name1 : "?", deal.count, deal.price, why);
+            };
+
             Player* bot = ObjectAccessor::FindConnectedPlayer(deal.bot);
             if (!bot || !bot->IsInWorld() || bot->IsBeingTeleported())
+            {
+                waits("the bot is not in the world at the moment");
                 return false;
+            }
             Player* player = ObjectAccessor::FindConnectedPlayer(deal.player);
+            uint32 fromPlayer = 0, onTheWay = 0;
 
             std::vector<Mail*> const mails(bot->GetMails().begin(), bot->GetMails().end());
             for (Mail* mail : mails)
             {
-                if (!mail || mail->state == MAIL_STATE_DELETED || mail->messageType != MAIL_NORMAL || !mail->COD || mail->deliver_time > now ||
-                    mail->sender != deal.player.GetCounter() || mail->items.empty())
+                if (!mail || mail->state == MAIL_STATE_DELETED || mail->messageType != MAIL_NORMAL || mail->sender != deal.player.GetCounter())
+                    continue;
+                ++fromPlayer;
+                if (mail->deliver_time > now)
+                {
+                    ++onTheWay;
+                    continue;
+                }
+                if (!mail->COD || mail->items.empty())
                     continue;
 
                 // Only what was agreed, and not for more than was agreed.
@@ -1454,19 +1506,25 @@ namespace
                 uint64 const fair = deal.price * std::min(count, deal.count) / deal.count;
                 if (!only || !count || mail->COD > fair)
                 {
+                    if (cfg.debug)
+                        LOG_INFO("module", "PlayerbotsAuctions: {} sends a parcel back: {}, {} piece(s), {} copper on delivery; agreed were {} piece(s) of item {} for {} copper.",
+                            bot->GetName(), only ? "the agreed item" : "something else in it", count, mail->COD, deal.count, deal.item, deal.price);
+                    // Back to the player at once, as with "Return" at a mailbox - not after the three days an
+                    // unpaid parcel lies around. The deal stands: the right parcel is still welcome.
+                    SendBack(bot, mail);
                     if (player && player->IsInWorld())
                         Tell(bot, player, Fill(Pick(bot, Lines::ParcelWrong), Goods(deal.count, sObjectMgr->GetItemTemplate(deal.item)), MoneyText(deal.price)));
-                    return true;
+                    return false;
                 }
 
-                // Room for all of it and the money to pay, or it waits.
-                ItemPosCountVec all;
-                if (items.size() == 1 ? bot->CanStoreItem(NULL_BAG, NULL_SLOT, all, items.front(), false) != EQUIP_ERR_OK
-                                      : bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, all, deal.item, count) != EQUIP_ERR_OK)
-                    return false;
+                // It pays when it has the money. What does not fit into its bags stays in its mailbox, paid for,
+                // and is taken out when there is room - full bags must not keep a player waiting for money.
                 uint32 const cost = mail->COD;
                 if (cfg.buyUseBotMoney && !bot->HasEnoughMoney(cost))
+                {
+                    waits(Acore::StringFormat("the bot has {} copper and needs {}", bot->GetMoney(), cost));
                     return false;
+                }
 
                 CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
                 std::vector<MailItemInfo> const attached = mail->items;
@@ -1535,6 +1593,8 @@ namespace
                         sObjectMgr->GetItemTemplate(deal.item)->Name1, count);
                 return true;
             }
+            waits(onTheWay ? "it is still on its way" : fromPlayer ? "the mail from this player is not a parcel with cash on delivery" :
+                "nothing from this player has arrived");
             return false;
         }
 
