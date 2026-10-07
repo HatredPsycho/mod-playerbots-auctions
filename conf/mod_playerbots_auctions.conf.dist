@@ -683,10 +683,12 @@ PlayerbotsAuctions.Chat.MailDelay = -1
 #      - In small amounts: so many pieces of one thing for a character a day.
 #    Only players can use it. The money is gone from the world.
 #
-#    Once a day a player can haggle. The trader is in another mood every day - proud, greedy, in a
-#    hurry, kindly or wary; how it greets tells - and three times the player picks one of three
-#    things to say. What goes down well with one kind of trader annoys another, and the same line
-#    twice works less. That moves the player's prices for the day by up to a third, either way.
+#    Once a day a player can do something about the prices. Every day the trader is short of
+#    something itself - a few pieces of a material a character of that level comes by, another one
+#    for every player and day. Who carries it hands it over and pays 30 percent less until
+#    midnight. Who does not can roll the dice against the trader, 1 to 100, once: the prices move
+#    by as much as the rolls are apart, up to a third either way. Or the player just looks at the
+#    goods at the asking price and decides later that day.
 #
 ###################################################################################################
 
@@ -713,7 +715,7 @@ PlayerbotsAuctions.TradingPost.ScarceBelow = 10
 #    PlayerbotsAuctions.TradingPost.Price.Materials
 #    PlayerbotsAuctions.TradingPost.Price.Crafted
 #        Description: What the post asks, as a multiple of what the thing usually goes for among
-#                     the bots (the same value their own prices start from). Haggling moves it by
+#                     the bots (the same value their own prices start from). The gift or the dice move it by
 #                     up to a third. 1 to 100.
 #        Default:     3.0 for materials, 4.0 for what crafters make
 
@@ -732,7 +734,8 @@ PlayerbotsAuctions.TradingPost.Daily.Crafted = 5
 
 #
 #    PlayerbotsAuctions.TradingPost.Haggle
-#        Description: Players haggle with the trader once a day before they see the goods.
+#        Description: Once a day a player can bring the trader what it is short of, or roll the dice
+#                     against it, for better prices that day.
 #        Default:     1 - Enabled
 #                     0 - Disabled (everybody pays the asking price)
 

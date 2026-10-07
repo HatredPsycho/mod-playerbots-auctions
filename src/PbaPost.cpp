@@ -31,9 +31,13 @@ namespace pba
     namespace
     {
         constexpr uint32 PostSender = 0x50424100;       // marks a gossip option as one of the post's
-        constexpr uint32 TextBase   = 9113000;          // the texts of the gossip window; a game remembers a text by its number
-        constexpr uint32 IdFlag     = 0x80000000;       // "auctions" of the post: this bit, 7 bits of count, 24 bits of item
-        constexpr uint32 MaxLot     = 100;
+        constexpr uint32 TextBase   = 9113100;          // the texts of the gossip window; a game remembers a text by its number
+        // "Auctions" of the post: this bit, 6 bits of count, 24 bits of item. Real auctions count up from 1 and
+        // never get there. The top bit stays clear: the game takes such a number for no auction at all and
+        // will not let the row be selected.
+        constexpr uint32 IdFlag     = 0x40000000;
+        constexpr uint32 IdMask     = 0xC0000000;
+        constexpr uint32 MaxLot     = 60;
         constexpr uint32 SellerLow  = 0xFFFFFF00;       // the "player" the goods are listed under: no character has this number
 
         ObjectGuid Seller()
@@ -48,43 +52,25 @@ namespace pba
             ACT_INFO,
             ACT_BACK,
             ACT_OPEN,
-            ACT_PICK = 100      // + which approach
+            ACT_GIVE,
+            ACT_ROLL,
+            ACT_LATER
         };
 
         // ---------------------------------------------------------------------------------- what is said
-
-        enum Temper : uint8 { PROUD, GREEDY, HURRIED, KINDLY, WARY, TEMPERS };
-        enum Approach : uint8 { FLATTER, PLEAD, WALK, COIN, NUMBERS, APPROACHES };
-
-        char const* const Approaches[APPROACHES] =
-        {
-            "These are the finest goods I have seen in a long time.",
-            "I am only a poor adventurer. Have a heart.",
-            "Then I will try my luck at the auction house instead.",
-            "I have the coin right here. Name a fair price and we are done.",
-            "I know what these go for. Let us talk real numbers."
-        };
-
-        // How each kind of trader takes each approach: from -2 (the price goes up) to +2 (it comes down).
-        int8 const Taste[TEMPERS][APPROACHES] =
-        {
-            //  flatter plead walk coin numbers
-            {    2,     1,   -2,   0,   -1 },   // proud
-            {    0,    -2,    2,   1,    0 },   // greedy
-            {   -1,     0,    1,   2,   -2 },   // in a hurry
-            {    1,     2,   -2,  -1,    0 },   // kindly
-            {   -2,    -1,    0,   1,    2 }    // wary
-        };
 
         enum : uint32
         {
             TEXT_MENU,
             TEXT_INFO,
             TEXT_INFO_PLAIN,
-            TEXT_OPENING,                               // two for each temper
-            TEXT_REACTION = TEXT_OPENING + TEMPERS * 2, // good, neither, bad for each temper
-            TEXT_END = TEXT_REACTION + TEMPERS * 3,     // good, neither, bad
-            TEXT_COUNT = TEXT_END + 3
+            TEXT_WISH,
+            TEXT_DICE,
+            TEXT_GAVE,
+            TEXT_WON,
+            TEXT_LOST,
+            TEXT_EVEN,
+            TEXT_COUNT
         };
 
         char const* const Texts[TEXT_COUNT] =
@@ -97,61 +83,32 @@ namespace pba
             "The Trading Post sells materials and crafted supplies - ore, herbs, cloth, leather, gems, potions, food, scrolls "
             "and the like - but only what the auction house is short of right now. What the hall has plenty of, we do not carry."
             "$B$BOur prices are well above what things usually go for, and nobody gets more than a little of one thing a day. "
-            "What you buy is sent to your mailbox.$B$BYou may haggle with me once a day. How that goes decides your prices until "
-            "tomorrow - so mind who you are talking to before you open your mouth.",
+            "What you buy is sent to your mailbox.$B$BOnce a day you can do something about my prices. Every day I am short "
+            "of something myself: bring it and you pay far less until tomorrow. Or roll the dice against me - win and you pay "
+            "less, lose and you pay more.",
 
             "The Trading Post sells materials and crafted supplies - ore, herbs, cloth, leather, gems, potions, food, scrolls "
             "and the like - but only what the auction house is short of right now. What the hall has plenty of, we do not carry."
             "$B$BOur prices are well above what things usually go for, and nobody gets more than a little of one thing a day. "
             "What you buy is sent to your mailbox.",
 
-            // how the trader is today: proud
-            "You will not find finer goods between here and Booty Bay. Every crate in this post was chosen by my own hand, "
-            "and I do not care to hear otherwise.$B$BNow. You wished to discuss my prices?",
-            "Careful where you put your fingers. These goods have a reputation, and so do I.$B$BYou have something to say "
-            "about what they cost, I take it.",
-            // greedy
-            "Ah, a customer! Come in, come in. Do not walk off now - I have exactly what you need, and nobody else does today."
-            "$B$BLet us talk about what it will cost you.",
-            "Gold is gold, friend, and I would hate to see yours end up in somebody else's purse.$B$BSo. What will it take?",
-            // in a hurry
-            "Make it quick. The caravan leaves within the hour and I have forty crates left to count.$B$BPrices? Fine. Talk.",
-            "Yes, yes, what is it? I have three ledgers open and no time for a chat.$B$BYou want to haggle. Of course you do. Go on.",
-            // kindly
-            "Oh, hello there, $N! You look like you have had a long road. Come, stand out of the draught.$B$BIt has been a slow "
-            "day and I do enjoy a bit of company. Now, what can I do for you, dear?",
-            "A friendly face at last! Do you know, you remind me of someone I used to travel with.$B$BPrices, yes, yes. "
-            "We will get to that. Tell me how you have been keeping.",
-            // wary
-            "Hm. Another one. The last adventurer who came in here smiling walked out with my scales.$B$BState your business, "
-            "and keep it plain.",
-            "I have heard every story there is, stranger. Twice.$B$BIf you have something to say about my prices, say it straight.",
+            // the trader is short of something
+            "My prices? They are what they are, $N.$B$BBut I will tell you what: I am short of something myself today. Bring "
+            "me what I am asking for and you get prices nobody else gets, until tomorrow.$B$BNot on you? Then we can let the "
+            "dice decide. A hundred sides, the higher roll wins. Beat me and you pay less. Lose and you pay more - by as much "
+            "as you lost. One roll, no second tries.",
 
-            // how the trader takes what was said: proud
-            "Ha! At last, somebody with eyes in their head. For a customer of taste I can do a little better.$B$BWas there more?",
-            "Hm. That is as may be. The price stands for now.$B$BWas there more?",
-            "You come into MY post and say that to my face? The price just went up.$B$BChoose your next words with care.",
-            // greedy
-            "No, no, no - wait! Let us not be hasty. I am sure we can shave a little something off.$B$BWhat else?",
-            "Is that so. Well. It changes very little.$B$BWhat else?",
-            "Then you are in the wrong shop, friend. Wasting my time costs extra.$B$BTry again.",
-            // in a hurry
-            "Finally, somebody who gets to the point. Fine. Less for you, less counting for me.$B$BNext.",
-            "Yes, yes. Anything else? I am losing daylight.$B$BNext.",
-            "I do not have time for this! Every minute you talk costs you.$B$BNext, and make it short.",
-            // kindly
-            "Oh, you poor thing. I really should not, but... let me see what I can do for you.$B$BGo on, dear.",
-            "That is nice, dear. Now, where were we?$B$BGo on.",
-            "Well! There is no call for that tone. And here I thought we were getting along.$B$BGo on, then.",
-            // wary
-            "Hm. That I can respect. A little off, then.$B$BAnything else?",
-            "Words. I have heard them before. We will see.$B$BAnything else?",
-            "There it is. Every thief starts just like that. My price goes up when my hackles do.$B$BAnything else?",
+            // ... or of nothing
+            "My prices? They are what they are, $N.$B$BBut I am a sporting sort. We can let the dice decide: a hundred sides, "
+            "the higher roll wins. Beat me and you pay less today. Lose and you pay more - by as much as you lost. One roll, "
+            "no second tries.",
 
             // how it ended
-            "Done. You drive a hard bargain, $N. Those are my prices for you today - do not tell the others.",
-            "Well, that is that. My prices for you today stand about where they stood. Have a look.",
-            "I have had about enough. These are my prices for you today, and you can thank your own tongue for them."
+            "Now that is what I call a customer! Exactly what I needed.$B$BYour prices are as low as they go today, $N - and "
+            "not a word to the others.",
+            "Bah. The dice like you, $N.$B$BA deal is a deal: you pay less today.",
+            "Ha! The house wins.$B$BA deal is a deal, $N: you pay more today. Come back tomorrow and try again.",
+            "Even? Well, I never.$B$BThen my prices stay right where they are today."
         };
 
         // ---------------------------------------------------------------------------------- what it sells
@@ -166,7 +123,7 @@ namespace pba
         struct Offer
         {
             uint32 ware = 0;
-            uint32 each = 0;            // the asking price of one piece, before the haggling
+            uint32 each = 0;            // the asking price of one piece, before the gift or the dice
         };
 
         /// What the post next to one auction house has on its shelves: what that house is short of.
@@ -189,11 +146,8 @@ namespace pba
         struct Today
         {
             uint32 day = 0;
-            uint8 round = 0;
-            int8 score = 0;
-            uint8 used = 0;             // approaches tried, as bits
-            bool done = false;
-            float factor = 1.0f;        // what the haggling made of the asking price
+            bool done = false;          // the gift or the dice: once a day
+            float factor = 1.0f;        // what that made of the asking price
             std::unordered_map<uint32, uint32> bought;
         };
 
@@ -471,29 +425,74 @@ namespace pba
             SendGossipMenuFor(player, TextBase + TEXT_MENU, creature->GetGUID());
         }
 
-        /// Three of the five things one can say, different ones each round: the best one is not always on offer.
-        void Offered(ObjectGuid::LowType player, Today const& today, uint8 out[3])
+        /// What the trader is short of today, for this player: a material somebody of that level comes by.
+        bool WishOf(Player* player, uint32 day, uint32& itemId, uint32& count)
         {
-            uint8 order[APPROACHES] = { FLATTER, PLEAD, WALK, COIN, NUMBERS };
-            for (uint32 i = APPROACHES - 1; i > 0; --i)
-                std::swap(order[i], order[Mix(player, today.day, 300 + today.round * 10 + i) % (i + 1)]);
-            for (uint32 i = 0; i < 3; ++i)
-                out[i] = order[i];
+            uint32 const level = player->GetLevel();
+            std::vector<ItemTemplate const*> fitting, known;
+            for (Ware const& ware : wares)
+            {
+                ItemTemplate const* proto = ware.proto;
+                if (ware.made || proto->Class != ITEM_CLASS_TRADE_GOODS || proto->Quality > ITEM_QUALITY_UNCOMMON || proto->GetMaxStackSize() < 5)
+                    continue;
+                switch (proto->SubClass)
+                {
+                    case ITEM_SUBCLASS_CLOTH:
+                    case ITEM_SUBCLASS_LEATHER:
+                    case ITEM_SUBCLASS_METAL_STONE:
+                    case ITEM_SUBCLASS_MEAT:
+                    case ITEM_SUBCLASS_HERB:
+                    case ITEM_SUBCLASS_ELEMENTAL:
+                    case ITEM_SUBCLASS_ENCHANTING:
+                        break;
+                    default:
+                        continue;
+                }
+                if (proto->ItemLevel > level + 10)
+                    continue;
+                known.push_back(proto);
+                if (proto->ItemLevel + 25 >= level)
+                    fitting.push_back(proto);
+            }
+            std::vector<ItemTemplate const*> const& from = fitting.size() >= 5 ? fitting : known;
+            if (from.empty())
+                return false;
+            ObjectGuid::LowType const low = player->GetGUID().GetCounter();
+            ItemTemplate const* proto = from[Mix(low, day, 77) % from.size()];
+            static uint32 const Amounts[] = { 4, 5, 6, 8, 10 };
+            itemId = proto->ItemId;
+            count = std::min<uint32>(Amounts[Mix(low, day, 78) % 5], proto->GetMaxStackSize());
+            return true;
         }
 
-        Temper TemperOf(ObjectGuid::LowType player, Today const& today)
+        std::string LinkOf(ItemTemplate const* proto)
         {
-            return Temper(Mix(player, today.day, 77) % TEMPERS);
+            return Acore::StringFormat("|c{:08x}|Hitem:{}:0:0:0:0:0:0:0:0|h[{}]|h|r", ItemQualityColors[proto->Quality], proto->ItemId, proto->Name1);
         }
 
-        void ShowRound(Player* player, Creature* creature, Today const& today, uint32 text)
+        /// The trader names what it is short of; the player hands it over, rolls for it, or just looks.
+        void ShowWish(Player* player, Creature* creature)
         {
-            uint8 offered[3];
-            Offered(player->GetGUID().GetCounter(), today, offered);
+            uint32 itemId = 0, count = 0;
+            bool wish;
+            {
+                std::lock_guard<std::mutex> guard(lock);
+                wish = WishOf(player, DayNow(), itemId, count);
+            }
+            ItemTemplate const* proto = wish ? sObjectMgr->GetItemTemplate(itemId) : nullptr;
             ClearGossipMenuFor(player);
-            for (uint8 const approach : offered)
-                AddGossipItemFor(player, GOSSIP_ICON_CHAT, Approaches[approach], PostSender, uint32(ACT_PICK) + approach);
-            SendGossipMenuFor(player, TextBase + text, creature->GetGUID());
+            if (proto)
+            {
+                uint32 const have = player->GetItemCount(itemId, false);
+                if (have >= count)
+                    AddGossipItemFor(player, GOSSIP_ICON_VENDOR, Acore::StringFormat("Here: {} x {}. (I carry {}.)", count, proto->Name1, have), PostSender, ACT_GIVE);
+                else
+                    AddGossipItemFor(player, GOSSIP_ICON_CHAT, Acore::StringFormat("You want {} x {} - I carry {}. I will be back.", count, proto->Name1, have), PostSender, ACT_LATER);
+                creature->Whisper(Acore::StringFormat("Today I am short of {} x {}.", count, LinkOf(proto)), LANG_UNIVERSAL, player);
+            }
+            AddGossipItemFor(player, GOSSIP_ICON_BATTLE, "Let us roll for it.", PostSender, ACT_ROLL);
+            AddGossipItemFor(player, GOSSIP_ICON_MONEY_BAG, "Just show me your goods for now.", PostSender, ACT_OPEN);
+            SendGossipMenuFor(player, TextBase + (proto ? TEXT_WISH : TEXT_DICE), creature->GetGUID());
         }
 
         void OpenPost(Player* player, Creature* creature)
@@ -536,65 +535,17 @@ namespace pba
             session->SendPacket(&data);
         }
 
-        void Haggle(Player* player, Creature* creature, uint8 approach)
+        /// The prices of the day are made. Once.
+        void Settle(Player* player, Creature* creature, float factor, uint32 text, char const* how)
         {
             ObjectGuid::LowType const low = player->GetGUID().GetCounter();
-            uint32 text;
-            bool over = false;
-            float factor = 1.0f;
             {
                 std::lock_guard<std::mutex> guard(lock);
                 Today& today = TodayOf(low);
-                if (today.done)
-                {
-                    over = true;
-                    text = 0;
-                }
-                else
-                {
-                    uint8 offered[3];
-                    Offered(low, today, offered);
-                    if (std::find(offered, offered + 3, approach) == offered + 3)
-                        return;     // not one of the three on the screen
-
-                    Temper const temper = TemperOf(low, today);
-                    int32 effect = Taste[temper][approach];
-                    if (today.used & (1 << approach))
-                        --effect;   // the same line twice: it has heard that one
-                    uint32 const luck = Mix(low, today.day, 500 + today.round) % 100;
-                    if (luck < 12)
-                        ++effect;   // a good moment
-                    else if (luck >= 88)
-                        --effect;   // a bad one
-                    effect = std::clamp(effect, -2, 2);
-                    today.used |= uint8(1 << approach);
-                    today.score = int8(today.score + effect);
-                    ++today.round;
-
-                    if (today.round >= 3)
-                    {
-                        today.done = true;
-                        today.factor = std::clamp(1.0f - 0.055f * float(today.score), 0.67f, 1.33f);
-                        factor = today.factor;
-                        Remember(low, 0, today.day, uint32(std::lround(today.factor * 1000.0f)));
-                        text = TEXT_END + (today.score >= 2 ? 0 : today.score <= -2 ? 2 : 1);
-                        over = true;
-                    }
-                    else
-                    {
-                        text = TEXT_REACTION + temper * 3 + (effect > 0 ? 0 : effect < 0 ? 2 : 1);
-                        ShowRound(player, creature, today, text);
-                    }
-                }
+                today.done = true;
+                today.factor = factor;
+                Remember(low, 0, today.day, uint32(std::lround(factor * 1000.0f)));
             }
-            if (!over)
-                return;
-            if (!text)
-            {
-                OpenPost(player, creature);     // settled earlier today
-                return;
-            }
-
             int32 const percent = int32(std::lround((factor - 1.0f) * 100.0f));
             std::string result = percent < 0 ? Acore::StringFormat("{}% below", -percent) : percent > 0 ? Acore::StringFormat("{}% above", percent) : std::string("exactly at");
             ChatHandler(player->GetSession()).PSendSysMessage("{}: your prices until tomorrow are {} the asking price.", PostName(creature), result);
@@ -602,8 +553,50 @@ namespace pba
             AddGossipItemFor(player, GOSSIP_ICON_VENDOR, "Show me what you have.", PostSender, ACT_OPEN);
             SendGossipMenuFor(player, TextBase + text, creature->GetGUID());
             if (cfg.debug)
-                LOG_INFO("module", "PlayerbotsAuctions: {} haggled at the trading post - prices at {}% of what is asked, until tomorrow.",
-                    player->GetName(), int32(std::lround(factor * 100.0f)));
+                LOG_INFO("module", "PlayerbotsAuctions: trading post - {} {}: prices at {}% of what is asked, until tomorrow.",
+                    player->GetName(), how, int32(std::lround(factor * 100.0f)));
+        }
+
+        bool SettledToday(Player* player)
+        {
+            std::lock_guard<std::mutex> guard(lock);
+            return TodayOf(player->GetGUID().GetCounter()).done;
+        }
+
+        void Give(Player* player, Creature* creature)
+        {
+            uint32 itemId = 0, count = 0;
+            bool wish;
+            {
+                std::lock_guard<std::mutex> guard(lock);
+                wish = WishOf(player, DayNow(), itemId, count);
+            }
+            if (!wish || !player->HasItemCount(itemId, count, false))
+            {
+                ShowWish(player, creature);     // gone from the bags since the menu came up
+                return;
+            }
+            player->DestroyItemCount(itemId, count, true);
+            Settle(player, creature, 0.70f, TEXT_GAVE, "brought what the trader was short of");
+        }
+
+        void Roll(Player* player, Creature* creature)
+        {
+            uint32 const mine = urand(1, 100);
+            uint32 const theirs = urand(1, 100);
+            // The player's roll the way the game shows any roll; the trader's as a whisper, for this player only.
+            WorldPacket data(MSG_RANDOM_ROLL, 4 + 4 + 4 + 8);
+            data << uint32(1);
+            data << uint32(100);
+            data << uint32(mine);
+            data << player->GetGUID();
+            player->GetSession()->SendPacket(&data);
+            creature->Whisper(Acore::StringFormat("I roll {} (1-100).", theirs), LANG_UNIVERSAL, player);
+
+            // By as much as the rolls are apart: a third off for a hundred against a one, a third on top the other way round.
+            float const factor = std::clamp(1.0f - (float(mine) - float(theirs)) / 100.0f * 0.33f, 0.67f, 1.33f);
+            Settle(player, creature, mine == theirs ? 1.0f : factor, mine > theirs ? TEXT_WON : mine < theirs ? TEXT_LOST : TEXT_EVEN,
+                Acore::StringFormat("rolled {} against {}", mine, theirs).c_str());
         }
 
         // ---------------------------------------------------------------------------------- the auction window
@@ -787,7 +780,7 @@ namespace pba
         {
             Player* player = session->GetPlayer();
             uint32 const itemId = id & 0x00FFFFFF;
-            uint32 const count = (id >> 24) & 0x7F;
+            uint32 const count = (id >> 24) & 0x3F;
             ObjectGuid::LowType const low = player->GetGUID().GetCounter();
             Creature* creature = player->GetNPCIfCanInteractWith(npcGuid, UNIT_NPC_FLAG_AUCTIONEER);
             ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId);
@@ -889,7 +882,7 @@ namespace pba
             "CREATE TABLE IF NOT EXISTS `mod_playerbots_auctions_post` ("
             "`player` INT UNSIGNED NOT NULL, `item` INT UNSIGNED NOT NULL, `day` INT UNSIGNED NOT NULL, `bought` INT UNSIGNED NOT NULL, "
             "PRIMARY KEY (`player`, `item`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 "
-            "COMMENT='mod-playerbots-auctions: what players bought at the trading post today (item 0: how the haggling went)'");
+            "COMMENT='mod-playerbots-auctions: what players bought at the trading post today (item 0: the prices of the day, in thousandths)'");
         table = true;
         uint32 const day = DayNow();
         CharacterDatabase.DirectExecute("DELETE FROM `mod_playerbots_auctions_post` WHERE `day` <> {}", day);
@@ -906,7 +899,6 @@ namespace pba
                 else
                 {
                     today.done = true;
-                    today.round = 3;
                     today.factor = std::clamp(float(fields[2].Get<uint32>()) / 1000.0f, 0.67f, 1.33f);
                 }
             } while (result->NextRow());
@@ -1016,32 +1008,25 @@ namespace pba
                 ShowMenu(player, creature);
                 break;
             case ACT_POST:
-            {
-                bool open = !cfg.postHaggle;
-                if (!open)
-                {
-                    std::lock_guard<std::mutex> guard(lock);
-                    Today const& today = TodayOf(low);
-                    if (today.done)
-                        open = true;
-                    else if (today.round)
-                        // Walked off in the middle of it: the trader has not forgotten.
-                        ShowRound(player, creature, today, TEXT_REACTION + TemperOf(low, today) * 3 + 1);
-                    else
-                        ShowRound(player, creature, today, TEXT_OPENING + TemperOf(low, today) * 2 + Mix(low, today.day, 78) % 2);
-                }
-                if (open)
+                if (!cfg.postHaggle || SettledToday(player))
                     OpenPost(player, creature);
+                else
+                    ShowWish(player, creature);
                 break;
-            }
             case ACT_OPEN:
                 OpenPost(player, creature);
                 break;
-            default:
-                if (action >= ACT_PICK && action < uint32(ACT_PICK) + uint32(APPROACHES) && cfg.postHaggle)
-                    Haggle(player, creature, uint8(action - ACT_PICK));
+            case ACT_GIVE:
+            case ACT_ROLL:
+                if (!cfg.postHaggle || SettledToday(player))
+                    OpenPost(player, creature);
+                else if (action == ACT_GIVE)
+                    Give(player, creature);
                 else
-                    CloseGossipMenuFor(player);
+                    Roll(player, creature);
+                break;
+            default:
+                CloseGossipMenuFor(player);
                 break;
         }
         return true;
@@ -1104,11 +1089,11 @@ namespace pba
                 if (!player || packet.size() < 16)
                     return true;
                 uint32 const id = packet.read<uint32>(8);
-                if (!(id & IdFlag))
+                if ((id & IdMask) != IdFlag)
                     return true;        // a real auction
                 if (cfg.debug)
                     LOG_INFO("module", "PlayerbotsAuctions: trading post - {} clicks a price: {} x item {} for {} copper.",
-                        player->GetName(), (id >> 24) & 0x7F, id & 0x00FFFFFF, packet.read<uint32>(12));
+                        player->GetName(), (id >> 24) & 0x3F, id & 0x00FFFFFF, packet.read<uint32>(12));
                 Buy(session, ObjectGuid(packet.read<uint64>(0)), id, packet.read<uint32>(12));
                 return false;
             }

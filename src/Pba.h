@@ -168,7 +168,7 @@ namespace pba
         float  postPriceMade = 4.0f;           // ... and what a crafter makes
         uint32 postDailyRaw = 20;              // pieces of one material a character gets a day
         uint32 postDailyMade = 5;              // ... and of one crafted thing
-        bool   postHaggle = true;              // a few words with the trader once a day move the prices
+        bool   postHaggle = true;              // once a day: bring the trader what it is short of, or roll the dice, for other prices
         uint32 postMaxQuality = ITEM_QUALITY_RARE;
         std::unordered_set<uint32> postExcluded;
     };
