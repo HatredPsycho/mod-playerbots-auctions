@@ -147,6 +147,8 @@ namespace pba
         // deals by chat
         bool   deals = true;                   // bots answer "WTB ..." and "WTS ..." in a channel
         uint32 dealAnswers = 3;                // how many bots answer one line at the most
+        bool   dealMeet = true;                // a bot that is close offers to come over and trade hand to hand
+        uint32 dealMeetDistance = 150;         // how close, in yards
         int32  dealMailDelay = -1;             // seconds a bot's parcel travels; -1: as long as the server's mail
         std::vector<std::string> dealChannels; // parts of channel names that are listened to; empty: every channel
 
@@ -371,6 +373,8 @@ namespace pba
     void SaveDeals(bool wait);
     /// A mail a bot paid for while it was away and still has to sort out: mail collection leaves it alone.
     bool DealHoldsMail(uint32 mailId);
+    /// The module looks after this bot's trade window right now (a deal traded hand to hand): mod-playerbots stands back.
+    bool HandlesTradeOf(Player* bot);
 
     // ------------------------------------------------------------------------------------------ chatter
 

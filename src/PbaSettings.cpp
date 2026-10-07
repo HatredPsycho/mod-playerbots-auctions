@@ -108,6 +108,8 @@ namespace pba
 
         cfg.deals               = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chat.Enable", true);
         cfg.dealAnswers         = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chat.Answers", 3), 1, 10);
+        cfg.dealMeet            = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chat.Meet", true);
+        cfg.dealMeetDistance    = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chat.MeetDistance", 150), 10, 5000);
         cfg.dealMailDelay       = sConfigMgr->GetOption<int32>("PlayerbotsAuctions.Chat.MailDelay", -1);
         cfg.chatter             = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chatter.Enable", true);
         cfg.chatterInterval     = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chatter.Interval", 150), 20, 3600);
