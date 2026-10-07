@@ -2064,7 +2064,10 @@ public:
     {
         pba::LoadSettings();
         if (reload)
+        {
             pba::LoadMadeValues();     // priced with the settings
+            pba::LoadPost();
+        }
         else
             pba::ResumeAuctions();     // before the core reads the auctions
     }
@@ -2081,6 +2084,7 @@ public:
         if (pba::cfg.enabled && pba::cfg.deals)
             pba::LoadDealNames();
         pba::LoadChatter();
+        pba::LoadPost();
         if (pba::cfg.enabled)
             LOG_INFO("server.loading", ">> PlayerbotsAuctions: the bots use the auction house.");
     }
@@ -2097,6 +2101,7 @@ public:
         pba::life.Update(diff);
         pba::DealsUpdate(diff);
         pba::ChatterUpdate(diff);
+        pba::PostUpdate(diff);
     }
 
     void OnShutdown() override
@@ -2115,7 +2120,13 @@ class PlayerbotsAuctionsPlayer : public PlayerScript
 public:
     PlayerbotsAuctionsPlayer() : PlayerScript("PlayerbotsAuctionsPlayer", { PLAYERHOOK_CAN_SELL_ITEM, PLAYERHOOK_ON_LOOT_ITEM,
         PLAYERHOOK_CAN_PLAYER_USE_CHANNEL_CHAT, PLAYERHOOK_CAN_PLAYER_USE_PRIVATE_CHAT, PLAYERHOOK_CAN_PLAYER_USE_CHAT,
-        PLAYERHOOK_ON_LEVEL_CHANGED, PLAYERHOOK_ON_PLAYER_KILLED_BY_CREATURE, PLAYERHOOK_ON_CREATURE_KILL, PLAYERHOOK_ON_TEXT_EMOTE }) { }
+        PLAYERHOOK_ON_LEVEL_CHANGED, PLAYERHOOK_ON_PLAYER_KILLED_BY_CREATURE, PLAYERHOOK_ON_CREATURE_KILL, PLAYERHOOK_ON_TEXT_EMOTE,
+        PLAYERHOOK_ON_LOGOUT }) { }
+
+    void OnPlayerLogout(Player* player) override
+    {
+        pba::PostLeft(player);
+    }
 
     // What happens to a bot is something to talk about - and what happens to a player next to one.
     void OnPlayerLevelChanged(Player* player, uint8 oldLevel) override
@@ -2210,9 +2221,34 @@ public:
 
     bool CanPacketReceive(WorldSession* session, WorldPacket const& packet) override
     {
-        if (packet.GetOpcode() == CMSG_BEGIN_TRADE && session && session->GetPlayer())
+        if (!session)
+            return true;
+        if (packet.GetOpcode() == CMSG_BEGIN_TRADE && session->GetPlayer())
             pba::TradeAnswered(session->GetPlayer());
-        return true;
+        return pba::PostPacket(session, packet);
+    }
+};
+
+/// An auctioneer that is clicked offers a choice first: the auction house or the trading post.
+class PlayerbotsAuctionsHello : public MiscScript
+{
+public:
+    PlayerbotsAuctionsHello() : MiscScript("PlayerbotsAuctionsHello", { MISCHOOK_CAN_SEND_AUCTIONHELLO }) { }
+
+    bool CanSendAuctionHello(WorldSession const* session, ObjectGuid guid, Creature* creature) override
+    {
+        return pba::PostHello(session, guid, creature);
+    }
+};
+
+class PlayerbotsAuctionsGossip : public AllCreatureScript
+{
+public:
+    PlayerbotsAuctionsGossip() : AllCreatureScript("PlayerbotsAuctionsGossip") { }
+
+    bool CanCreatureGossipSelect(Player* player, Creature* creature, uint32 sender, uint32 action) override
+    {
+        return pba::PostGossip(player, creature, sender, action);
     }
 };
 
@@ -2256,5 +2292,7 @@ void AddSC_playerbots_auctions()
     new PlayerbotsAuctionsWorld();
     new PlayerbotsAuctionsHouse();
     new PlayerbotsAuctionsPackets();
+    new PlayerbotsAuctionsHello();
+    new PlayerbotsAuctionsGossip();
     new PlayerbotsAuctionsPlayer();
 }
