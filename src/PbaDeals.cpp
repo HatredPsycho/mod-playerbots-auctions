@@ -770,6 +770,7 @@ namespace
         uint32 mail = 0;                // stage 2: the paid parcel that holds more than was agreed
         time_t meetAt = 0;              // stages 3 to 5: when that stage began
         bool grouped = false;           // the bot joined the player's group to find its way there
+        time_t arrived = 0;             // since when the bot has been standing next to the player
         bool opened = false;            // the trade window was opened on both screens
         bool placed = false;            // the bot has put its side into the trade window
         bool complained = false;        // it said once that the window does not hold what was agreed
@@ -1729,6 +1730,7 @@ namespace
             deal.grouped = false;
             deal.placed = false;
             deal.opened = false;
+            deal.arrived = 0;
             deal.give.clear();
         }
 
@@ -1846,7 +1848,19 @@ namespace
                 bool const theirs = bot->GetTradeData() && bot->GetTradeData()->GetTrader() == player;
                 if (!theirs && (!bot->IsWithinDistInMap(player, 9.5f) || bot->IsInCombat() || player->IsInCombat() || player->GetTradeData() || bot->GetTradeData() ||
                     player->IsInFlight() || bot->IsBeingTeleported()))
+                {
+                    deal.arrived = 0;
                     return true;
+                }
+                // A bot that arrives greets its new group with a buff. The trade waits until it has stood there for
+                // three seconds and is not casting: in a test the window did not open when both came together.
+                if (!theirs)
+                {
+                    if (!deal.arrived)
+                        deal.arrived = now;
+                    if (deal.arrived + 3 > now || bot->IsNonMeleeSpellCast(false) || player->IsNonMeleeSpellCast(false))
+                        return true;
+                }
                 if (deal.botSells && !Collect(deal, bot))
                 {
                     // Not as whole stacks, and no free slot to split one in: the mail can do that.
