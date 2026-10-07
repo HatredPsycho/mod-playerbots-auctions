@@ -19,6 +19,7 @@
 #include "Language.h"
 #include "NPCHandler.h"
 #include "Opcodes.h"
+#include "QueryPackets.h"
 #include "ScriptedGossip.h"
 #include "WorldPacket.h"
 #include "WorldSession.h"
@@ -33,6 +34,12 @@ namespace pba
         constexpr uint32 TextBase   = 9113000;          // the texts of the gossip window; a game remembers a text by its number
         constexpr uint32 IdFlag     = 0x80000000;       // "auctions" of the post: this bit, 7 bits of count, 24 bits of item
         constexpr uint32 MaxLot     = 100;
+        constexpr uint32 SellerLow  = 0xFFFFFF00;       // the "player" the goods are listed under: no character has this number
+
+        ObjectGuid Seller()
+        {
+            return ObjectGuid::Create<HighGuid::Player>(SellerLow);
+        }
 
         enum Action : uint32
         {
@@ -651,8 +658,10 @@ namespace pba
             data << uint32(row.count);
             data << uint32(proto->Spells[0].SpellCharges);
             data << uint32(0);
-            data << uint64(0);                                      // nobody owns it
-            data << uint32(row.total);                              // the lowest bid is the price
+            // As close to an ordinary auction as it gets - a seller with a name, a lowest bid just under the
+            // buyout - so that the window offers the buyout the way it always does.
+            data << Seller();
+            data << uint32(row.total > 1 ? row.total - 1 : row.total);
             data << uint32(0);
             data << uint32(row.total);
             data << uint32(24 * HOUR * IN_MILLISECONDS);
@@ -753,6 +762,9 @@ namespace pba
                     return false;
                 });
 
+            if (cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: trading post - {} asks for a list (\"{}\", class {}, kind {}, from {}): {} offer(s), {} copper in the purse.",
+                    player->GetName(), searched, int32(itemClass), int32(itemSubClass), listFrom, rows.size(), player->GetMoney());
             WorldPacket data(SMSG_AUCTION_LIST_RESULT, 12 + 140 * MAX_AUCTIONS_PER_PAGE);
             data << uint32(0);
             uint32 count = 0;
@@ -813,11 +825,16 @@ namespace pba
                 }
                 cost = Total(PriceOf(offer, ware, FactorOf(today)), count);
                 // The price on the screen is the price: if things moved since the list was sent, nothing is sold.
-                if (paid != cost)
+                // A bid of the lowest amount buys as well; that is one copper less.
+                if (paid != cost && paid + 1 != cost)
                 {
+                    if (cfg.debug)
+                        LOG_INFO("module", "PlayerbotsAuctions: trading post - {} offered {} copper for {} x {} (item {}), the price is {}: not sold.",
+                            player->GetName(), paid, count, proto->Name1, itemId, cost);
                     Refuse(session, id, ERR_AUCTION_ITEM_NOT_FOUND);
                     return;
                 }
+                cost = paid;
                 if (!player->HasEnoughMoney(cost))
                 {
                     Refuse(session, id, ERR_AUCTION_NOT_ENOUGHT_MONEY);
@@ -1044,6 +1061,21 @@ namespace pba
                 SendText(session, id - TextBase);
                 return false;
             }
+            case CMSG_NAME_QUERY:
+            {
+                if (packet.size() < 8 || ObjectGuid(packet.read<uint64>(0)) != Seller())
+                    return true;
+                WorldPackets::Query::NameQueryResponse response;
+                response.Guid = Seller().WriteAsPacked();
+                response.NameUnknown = false;
+                response.Name = "Trading Post";
+                response.Race = RACE_HUMAN;
+                response.Sex = GENDER_MALE;
+                response.Class = CLASS_ROGUE;
+                response.Declined = false;
+                session->SendPacket(response.Write());
+                return false;
+            }
             case CMSG_AUCTION_LIST_ITEMS:
             {
                 Player* player = session->GetPlayer();
@@ -1062,6 +1094,7 @@ namespace pba
                 }
                 catch (ByteBufferException const&)
                 {
+                    LOG_ERROR("module", "PlayerbotsAuctions: trading post - the list request of {} could not be read.", player->GetName());
                 }
                 return false;
             }
@@ -1073,6 +1106,9 @@ namespace pba
                 uint32 const id = packet.read<uint32>(8);
                 if (!(id & IdFlag))
                     return true;        // a real auction
+                if (cfg.debug)
+                    LOG_INFO("module", "PlayerbotsAuctions: trading post - {} clicks a price: {} x item {} for {} copper.",
+                        player->GetName(), (id >> 24) & 0x7F, id & 0x00FFFFFF, packet.read<uint32>(12));
                 Buy(session, ObjectGuid(packet.read<uint64>(0)), id, packet.read<uint32>(12));
                 return false;
             }
