@@ -5,6 +5,10 @@
 
 #include "Pba.h"
 
+#if __has_include("LocalLevelScaling.h")
+#include "LocalLevelScaling.h"
+#endif
+
 #include <ctime>
 
 namespace pba
@@ -14,6 +18,18 @@ namespace pba
     namespace
     {
         std::unordered_map<uint32, uint32> made;        // item -> value, see SetMade
+
+        // A vendor price as a measure of worth. A core whose content scaling moves items to other levels
+        // moves their worth along with them; without one it is the price itself. What a vendor really pays
+        // or asks stays the template's price everywhere else.
+        uint32 Worth(ItemTemplate const* proto, uint32 price)
+        {
+#if __has_include("LocalLevelScaling.h")
+            return LocalLevelScaling::GetEffectiveItemMarketValue(proto->ItemId, price);
+#else
+            return price;
+#endif
+        }
     }
 
     void Market::ClearMade() { made.clear(); }
@@ -32,10 +48,10 @@ namespace pba
         {
             auto found = made.find(proto->ItemId);
             if (found != made.end())
-                return std::max(found->second, proto->SellPrice);
+                return std::max(found->second, Worth(proto, proto->SellPrice));
         }
         if (proto->SellPrice)
-            return proto->SellPrice;
+            return Worth(proto, proto->SellPrice);
         if (proto->Bonding == BIND_WHEN_PICKED_UP || proto->Bonding == BIND_QUEST_ITEM || proto->HasFlag(ITEM_FLAG_CONJURED))
             return 0;
         // A companion or a mount a vendor gives nothing for is still worth having: by its rarity.
@@ -52,7 +68,7 @@ namespace pba
         // absurdly more: some of these prices are placeholders.
         if (proto->BuyPrice)
         {
-            uint32 const byPrice = proto->BuyPrice / std::max<uint32>(1, proto->BuyCount) / 5;
+            uint32 const byPrice = Worth(proto, proto->BuyPrice / std::max<uint32>(1, proto->BuyCount)) / 5;
             return std::max(byLevel, std::min(byPrice, byLevel * 10));
         }
         return byLevel;
