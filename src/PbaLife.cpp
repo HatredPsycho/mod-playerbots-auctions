@@ -4,6 +4,7 @@
  */
 
 #include "Pba.h"
+#include "TradeStatusAction.h"
 
 namespace pba
 {
@@ -2074,6 +2075,8 @@ public:
 
     void OnStartup() override
     {
+        // mod-playerbots leaves the trade window of a bot to us while we trade for it hand to hand.
+        TradeHandoffOwner.store(&pba::HandlesTradeOf, std::memory_order_relaxed);
         // Loaded even if the module is switched off, so it can be switched on while the server runs.
         pba::market.LoadVendorItems();
         pba::LoadFocusObjects();
@@ -2106,6 +2109,7 @@ public:
 
     void OnShutdown() override
     {
+        TradeHandoffOwner.store(nullptr, std::memory_order_relaxed);
         pba::market.SaveMemory();
         pba::SaveDeals(true);
         pba::NoteRunning(true);
