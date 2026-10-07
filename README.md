@@ -62,6 +62,18 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
   (`mod_playerbots_auctions_deals`), so a restart changes nothing, and the time the server was off does not
   count against the time it waits. *New, compiled and not yet tried on a server.*
 
+- **Trading post.** Bots use up most of what they gather, and ore they hardly come by: sometimes the auction
+  house simply has no copper. Every auctioneer therefore runs a trading post too. A click on an auctioneer
+  first asks: *Browse the auction house* or *Buy at the Horde Trading Post* (Alliance, Goblin). The post opens
+  in the game's own auction window - search, categories and sorting work as usual - and sells materials and
+  what crafters make for everybody (potions, meals, scrolls, cut gems and the like): only what the world
+  really gives, only what that auction house is short of right now, for three to four times the usual price,
+  a stack of a material or five of a crafted thing per character a day, sent by mail. No equipment, nothing
+  that needs a profession to be used. Once a day you haggle with the trader, who is in another mood every
+  day: three times you pick one of three things to say, and how that goes moves your prices for the day by up
+  to a third - either way. Only players can use it. A last resort, not a second market
+  (`PlayerbotsAuctions.TradingPost.*`). *New, compiled and not yet tried on a server.*
+
 - **Chatter.** Every bot is somebody in chat, too: one of 65 personalities, from the joker, the grumbler and
   the pirate to the one who speaks like a knight of old and the one who hardly speaks at all - and it stays
   that, so you get to know them. Two in three are a mix of two, mainly one with a streak of another (the lazy

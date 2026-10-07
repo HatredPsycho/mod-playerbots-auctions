@@ -118,6 +118,16 @@ namespace pba
         cfg.chatterWorld        = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chatter.WorldChannel", true);
         cfg.chatterMixed        = std::min<uint32>(100, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chatter.Mixed", 65));
         cfg.chatterEggs         = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chatter.EasterEggs", 300);
+        cfg.post                = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.TradingPost.Enable", true);
+        cfg.postScarce          = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.ScarceBelow", 10);
+        cfg.postPriceRaw        = std::clamp(sConfigMgr->GetOption<float>("PlayerbotsAuctions.TradingPost.Price.Materials", 3.0f), 1.0f, 100.0f);
+        cfg.postPriceMade       = std::clamp(sConfigMgr->GetOption<float>("PlayerbotsAuctions.TradingPost.Price.Crafted", 4.0f), 1.0f, 100.0f);
+        cfg.postDailyRaw        = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.Daily.Materials", 20), 1, 100);
+        cfg.postDailyMade       = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.Daily.Crafted", 5), 1, 100);
+        cfg.postHaggle          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.TradingPost.Haggle", true);
+        cfg.postMaxQuality      = std::min<uint32>(ITEM_QUALITY_EPIC, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.MaxQuality", ITEM_QUALITY_RARE));
+        LoadNumbers(sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.TradingPost.ExcludedItemIDs",
+            "12360,14342,15407,21845,23571,24271,24272,37663,41593,41594,41595,43102,45087,47556,49908"), cfg.postExcluded);
         cfg.dealChannels.clear();
         std::string const channels = sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.Chat.Channels", "");
         for (std::string_view part : Acore::Tokenize(channels, ',', false))

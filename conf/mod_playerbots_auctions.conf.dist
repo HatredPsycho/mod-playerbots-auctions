@@ -654,6 +654,112 @@ PlayerbotsAuctions.Chat.MeetDistance = 150
 PlayerbotsAuctions.Chat.MailDelay = -1
 
 ###################################################################################################
+# TRADING POST
+#
+#    Bots use up most of what they gather, and some things - ore above all - they hardly come by.
+#    A player who needs twenty copper ore and finds none in the auction house has nowhere to go.
+#    Every auctioneer therefore runs a trading post as well. A click on an auctioneer first asks:
+#
+#        Browse the auction house.
+#        Buy at the Horde Trading Post.        (Alliance, Goblin: by the auctioneer)
+#        What is the Trading Post?
+#
+#    The post opens in the game's own auction window - search, categories, filters and sorting
+#    work as usual - and shows its own goods there, each with a buyout price. What is bought comes
+#    by mail at once, from the auctioneer. The tabs for bids and for one's own auctions keep
+#    showing the real auction house.
+#
+#    It is a last resort and built to stay one:
+#      - It sells materials (ore, stone, bars, herbs, cloth, leather, enchanting materials,
+#        elementals, uncut gems, meat and fish, parts) and what crafters make for everybody
+#        (potions, elixirs, flasks, meals, scrolls, armor kits, cut gems and the like). No
+#        equipment, no recipes, nothing that needs a profession to be used, nothing a vendor
+#        sells anyway, nothing that binds.
+#      - Only what the world really gives: what is in a loot table, and what a recipe makes of
+#        that. The many unfinished items of an item table never show up.
+#      - Only what the auction house next to it is short of right now. What the auction house
+#        has, the post does not carry.
+#      - For a multiple of what the thing usually goes for among the bots.
+#      - In small amounts: so many pieces of one thing for a character a day.
+#    Only players can use it. The money is gone from the world.
+#
+#    Once a day a player can haggle. The trader is in another mood every day - proud, greedy, in a
+#    hurry, kindly or wary; how it greets tells - and three times the player picks one of three
+#    things to say. What goes down well with one kind of trader annoys another, and the same line
+#    twice works less. That moves the player's prices for the day by up to a third, either way.
+#
+###################################################################################################
+
+#
+#    PlayerbotsAuctions.TradingPost.Enable
+#        Description: Auctioneers offer the trading post. Disabled, a click on an auctioneer
+#                     opens the auction house as always.
+#        Default:     1 - Enabled
+#                     0 - Disabled
+
+PlayerbotsAuctions.TradingPost.Enable = 1
+
+#
+#    PlayerbotsAuctions.TradingPost.ScarceBelow
+#        Description: The post sells a material while the auction house holds fewer pieces of it
+#                     than this, all auctions together (a single ore in the auction house helps
+#                     nobody). What crafters make is sold while the auction house has none of it.
+#        Default:     10
+#                     0 - The post sells everything it knows, whatever the auction house holds
+
+PlayerbotsAuctions.TradingPost.ScarceBelow = 10
+
+#
+#    PlayerbotsAuctions.TradingPost.Price.Materials
+#    PlayerbotsAuctions.TradingPost.Price.Crafted
+#        Description: What the post asks, as a multiple of what the thing usually goes for among
+#                     the bots (the same value their own prices start from). Haggling moves it by
+#                     up to a third. 1 to 100.
+#        Default:     3.0 for materials, 4.0 for what crafters make
+
+PlayerbotsAuctions.TradingPost.Price.Materials = 3.0
+PlayerbotsAuctions.TradingPost.Price.Crafted = 4.0
+
+#
+#    PlayerbotsAuctions.TradingPost.Daily.Materials
+#    PlayerbotsAuctions.TradingPost.Daily.Crafted
+#        Description: How many pieces of one thing a character can buy a day (1 to 100). The day
+#                     ends at midnight, server time.
+#        Default:     20 of a material, 5 of a crafted thing
+
+PlayerbotsAuctions.TradingPost.Daily.Materials = 20
+PlayerbotsAuctions.TradingPost.Daily.Crafted = 5
+
+#
+#    PlayerbotsAuctions.TradingPost.Haggle
+#        Description: Players haggle with the trader once a day before they see the goods.
+#        Default:     1 - Enabled
+#                     0 - Disabled (everybody pays the asking price)
+
+PlayerbotsAuctions.TradingPost.Haggle = 1
+
+#
+#    PlayerbotsAuctions.TradingPost.MaxQuality
+#        Description: The best quality the post sells: 1 common (white), 2 uncommon (green),
+#                     3 rare (blue), 4 epic (purple).
+#        Default:     3
+
+PlayerbotsAuctions.TradingPost.MaxQuality = 3
+
+#
+#    PlayerbotsAuctions.TradingPost.ExcludedItemIDs
+#        Description: Items the post never sells, separated by commas. The default keeps out what
+#                     is meant to be scarce: materials made on a cooldown (Arcanite Bar, Mooncloth,
+#                     Cured Rugged Hide, Primal Mooncloth, Primal Might, Spellcloth, Shadowcloth,
+#                     Titansteel Bar, Ebonweave, Moonshroud, Spellweave) and the orbs of the
+#                     Northrend dungeons and raids (Frozen Orb, Runed Orb, Crusader Orb, Primordial
+#                     Saronite). The items of PlayerbotsAuctions.Sell.ExcludedItemIDs and the
+#                     names of PlayerbotsAuctions.Sell.ExcludedNameParts are kept out as well.
+#        Default:     "12360,14342,15407,21845,23571,24271,24272,37663,41593,41594,41595,43102,45087,47556,49908"
+
+PlayerbotsAuctions.TradingPost.ExcludedItemIDs = "12360,14342,15407,21845,23571,24271,24272,37663,41593,41594,41595,43102,45087,47556,49908"
+
+###################################################################################################
 # CHATTER
 #
 #    Every bot is somebody in chat, too. There are 65 personalities - the joker, the braggart, the

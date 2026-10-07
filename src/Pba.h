@@ -160,6 +160,17 @@ namespace pba
         bool   chatterWorld = true;            // with no bot in the player's zone, the channel of the whole realm is used
         uint32 chatterMixed = 65;              // percent of the bots that are a mix of two personalities
         uint32 chatterEggs = 300;              // one in so many things said out of the blue winks at the tools behind it; 0: never
+
+        // trading post
+        bool   post = true;                    // every auctioneer also sells what the auction house is short of
+        uint32 postScarce = 10;                // a material is sold while the auction house holds fewer pieces than this; 0: always
+        float  postPriceRaw = 3.0f;            // times what a material usually goes for
+        float  postPriceMade = 4.0f;           // ... and what a crafter makes
+        uint32 postDailyRaw = 20;              // pieces of one material a character gets a day
+        uint32 postDailyMade = 5;              // ... and of one crafted thing
+        bool   postHaggle = true;              // a few words with the trader once a day move the prices
+        uint32 postMaxQuality = ITEM_QUALITY_RARE;
+        std::unordered_set<uint32> postExcluded;
     };
 
     extern Settings cfg;
@@ -375,6 +386,21 @@ namespace pba
     bool DealHoldsMail(uint32 mailId);
     /// The module looks after this bot's trade window right now (a deal traded hand to hand): mod-playerbots stands back.
     bool HandlesTradeOf(Player* bot);
+    /// A player's game answered a trade request (the window opens on its screen).
+    void TradeAnswered(Player* player);
+
+    // ------------------------------------------------------------------------------------------ trading post
+
+    /// Finds out what the posts can sell. After the settings, the vendor items and the values of crafted things.
+    void LoadPost();
+    void PostUpdate(uint32 diff);
+    /// A player clicked an auctioneer. False: the menu of the post was shown instead of the auction window.
+    bool PostHello(WorldSession const* session, ObjectGuid guid, Creature* creature);
+    /// A player chose something in a gossip window. True: it was the post's.
+    bool PostGossip(Player* player, Creature* creature, uint32 sender, uint32 action);
+    /// Something a player's game sent. False: the post answered it and the server need not.
+    bool PostPacket(WorldSession* session, WorldPacket const& packet);
+    void PostLeft(Player* player);
 
     // ------------------------------------------------------------------------------------------ chatter
 

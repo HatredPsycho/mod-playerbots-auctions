@@ -770,6 +770,7 @@ namespace
         uint32 mail = 0;                // stage 2: the paid parcel that holds more than was agreed
         time_t meetAt = 0;              // stages 3 to 5: when that stage began
         bool grouped = false;           // the bot joined the player's group to find its way there
+        time_t arrived = 0;             // since when the bot has been standing next to the player
         bool opened = false;            // the trade window was opened on both screens
         bool placed = false;            // the bot has put its side into the trade window
         bool complained = false;        // it said once that the window does not hold what was agreed
@@ -877,15 +878,22 @@ namespace
             CharacterDatabase.DirectExecute(
                 "CREATE TABLE IF NOT EXISTS `mod_playerbots_auctions_deals` ("
                 "`bot` INT UNSIGNED NOT NULL, `player` INT UNSIGNED NOT NULL, `item` INT UNSIGNED NOT NULL, `count` INT UNSIGNED NOT NULL, "
-                "`price` BIGINT UNSIGNED NOT NULL, `until` BIGINT UNSIGNED NOT NULL, `paid` INT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY (`bot`, `player`, `item`)) "
+                "`price` BIGINT UNSIGNED NOT NULL, `until` BIGINT UNSIGNED NOT NULL, `paid` INT UNSIGNED NOT NULL DEFAULT 0, `botname` VARCHAR(64) NOT NULL DEFAULT '', PRIMARY KEY (`bot`, `player`, `item`)) "
                 "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mod-playerbots-auctions: parcels of players that bots agreed to pay for'");
             _table = true;
+            // `botname`: after a reset of the random bots the new ones get the numbers of the old ones, and must
+            // not inherit what those promised.
+            if (!CharacterDatabase.Query("SHOW COLUMNS FROM `mod_playerbots_auctions_deals` LIKE 'botname'"))
+            {
+                CharacterDatabase.DirectExecute("ALTER TABLE `mod_playerbots_auctions_deals` ADD COLUMN `botname` VARCHAR(64) NOT NULL DEFAULT ''");
+                CharacterDatabase.DirectExecute("UPDATE `mod_playerbots_auctions_deals` d JOIN `characters` c ON c.`guid` = d.`bot` SET d.`botname` = c.`name`");
+            }
             // `paid`: the mail a bot paid while it was away, when that mail holds more than was agreed.
             if (!CharacterDatabase.Query("SHOW COLUMNS FROM `mod_playerbots_auctions_deals` LIKE 'paid'"))
                 CharacterDatabase.DirectExecute("ALTER TABLE `mod_playerbots_auctions_deals` ADD COLUMN `paid` INT UNSIGNED NOT NULL DEFAULT 0");
             CharacterDatabase.DirectExecute(
-                "DELETE d FROM `mod_playerbots_auctions_deals` d LEFT JOIN `characters` b ON b.`guid` = d.`bot` LEFT JOIN `characters` p ON p.`guid` = d.`player` "
-                "WHERE b.`guid` IS NULL OR p.`guid` IS NULL");
+                "DELETE d FROM `mod_playerbots_auctions_deals` d LEFT JOIN `characters` b ON b.`guid` = d.`bot` AND b.`name` = d.`botname` "
+                "LEFT JOIN `characters` p ON p.`guid` = d.`player` WHERE b.`guid` IS NULL OR p.`guid` IS NULL");
 
             // The time the server was off does not count: nobody could send anything.
             time_t const now = GameTime::GetGameTime().count();
@@ -933,15 +941,20 @@ namespace
             std::string rows;
             for (Deal const& deal : _deals)
                 if (deal.stage >= 1 && !deal.botSells && deal.item && deal.count)
-                    rows += Acore::StringFormat("{}({}, {}, {}, {}, {}, {}, {})", rows.empty() ? "" : ", ", deal.bot.GetCounter(), deal.player.GetCounter(),
-                        deal.item, deal.count, deal.price, uint64(deal.until), deal.mail);
+                {
+                    std::string name;
+                    sCharacterCache->GetCharacterNameByGuid(deal.bot, name);
+                    CharacterDatabase.EscapeString(name);
+                    rows += Acore::StringFormat("{}({}, {}, {}, {}, {}, {}, {}, '{}')", rows.empty() ? "" : ", ", deal.bot.GetCounter(), deal.player.GetCounter(),
+                        deal.item, deal.count, deal.price, uint64(deal.until), deal.mail, name);
+                }
             if (rows == _stored)
                 return;
             _stored = rows;
             CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
             trans->Append("DELETE FROM `mod_playerbots_auctions_deals`");
             if (!rows.empty())
-                trans->Append("REPLACE INTO `mod_playerbots_auctions_deals` (`bot`, `player`, `item`, `count`, `price`, `until`, `paid`) VALUES " + rows);
+                trans->Append("REPLACE INTO `mod_playerbots_auctions_deals` (`bot`, `player`, `item`, `count`, `price`, `until`, `paid`, `botname`) VALUES " + rows);
             if (wait)
                 CharacterDatabase.DirectCommitTransaction(trans);
             else
@@ -1713,6 +1726,7 @@ namespace
             {
                 std::lock_guard<std::mutex> guard(TradingLock());
                 Trading().erase(deal.bot.GetCounter());
+                Answerers().erase(deal.player.GetCounter());
             }
             Player* bot = ObjectAccessor::FindConnectedPlayer(deal.bot);
             if (bot)
@@ -1728,6 +1742,7 @@ namespace
             deal.grouped = false;
             deal.placed = false;
             deal.opened = false;
+            deal.arrived = 0;
             deal.give.clear();
         }
 
@@ -1845,7 +1860,19 @@ namespace
                 bool const theirs = bot->GetTradeData() && bot->GetTradeData()->GetTrader() == player;
                 if (!theirs && (!bot->IsWithinDistInMap(player, 9.5f) || bot->IsInCombat() || player->IsInCombat() || player->GetTradeData() || bot->GetTradeData() ||
                     player->IsInFlight() || bot->IsBeingTeleported()))
+                {
+                    deal.arrived = 0;
                     return true;
+                }
+                // A bot that arrives greets its new group with a buff. The trade waits until it has stood there for
+                // three seconds and is not casting: in a test the window did not open when both came together.
+                if (!theirs)
+                {
+                    if (!deal.arrived)
+                        deal.arrived = now;
+                    if (deal.arrived + 3 > now || bot->IsNonMeleeSpellCast(false) || player->IsNonMeleeSpellCast(false))
+                        return true;
+                }
                 if (deal.botSells && !Collect(deal, bot))
                 {
                     // Not as whole stacks, and no free slot to split one in: the mail can do that.
@@ -1860,6 +1887,13 @@ namespace
                     Trading().insert(deal.bot.GetCounter());
                 }
                 deal.had = bot->GetItemCount(deal.item);
+                {
+                    std::lock_guard<std::mutex> guard(TradingLock());
+                    if (theirs)
+                        Answerers().insert(deal.player.GetCounter());   // the player opened it: his window is open
+                    else
+                        Answerers().erase(deal.player.GetCounter());
+                }
                 if (!theirs)
                 {
                     WorldPacket open;
@@ -1912,14 +1946,31 @@ namespace
                 return ByMail(deal, now);
             }
 
-            // The player's game answers a trade request by itself, and then the window opens on both screens.
-            // It does not always (seen in a test: the trade existed, "you are already trading", but no window),
-            // so after a second the bot opens it from its side - what the server would do on that answer.
-            if (!deal.opened && deal.meetAt + 1 <= now)
+            // The player's game answers a trade request by itself, and the server then opens the window on both
+            // screens. The module sees that answer. When it does not come (seen in a test: the trade existed,
+            // "you are already trading", but no window), the bot opens the window from its side after a few
+            // seconds - what the server does on that answer. Nothing is put in before the window is open.
+            if (!deal.opened)
             {
-                WorldPacket begin;
-                bot->GetSession()->HandleBeginTradeOpcode(begin);
-                deal.opened = true;
+                bool answered;
+                {
+                    std::lock_guard<std::mutex> guard(TradingLock());
+                    answered = Answerers().count(deal.player.GetCounter()) != 0;
+                }
+                if (answered)
+                {
+                    deal.opened = true;
+                    deal.meetAt = now;
+                }
+                else if (deal.meetAt + 4 <= now)
+                {
+                    WorldPacket begin;
+                    bot->GetSession()->HandleBeginTradeOpcode(begin);
+                    deal.opened = true;
+                    deal.meetAt = now;
+                    if (cfg.debug)
+                        LOG_INFO("module", "PlayerbotsAuctions: the game of {} did not answer the trade request; {} opens the window from its side.", player->GetName(), bot->GetName());
+                }
                 return true;
             }
             // Its own side goes in a moment after the window opened on the player's screen.
@@ -2019,6 +2070,12 @@ namespace
         {
             static std::mutex lock;
             return lock;
+        }
+        /// Players whose game has answered a trade request since their bot asked for the trade.
+        static std::set<ObjectGuid::LowType>& Answerers()
+        {
+            static std::set<ObjectGuid::LowType> players;
+            return players;
         }
 
     private:
@@ -2605,6 +2662,16 @@ namespace
             return false;
         std::lock_guard<std::mutex> guard(Deals::TradingLock());
         return Deals::Trading().count(bot->GetGUID().GetCounter()) != 0;
+    }
+
+    void TradeAnswered(Player* player)
+    {
+        if (!player)
+            return;
+        std::lock_guard<std::mutex> guard(Deals::TradingLock());
+        // Only while a bot of the module waits for it: the set stays empty otherwise.
+        if (!Deals::Trading().empty())
+            Deals::Answerers().insert(player->GetGUID().GetCounter());
     }
 
     bool DealHoldsMail(uint32 mailId)
