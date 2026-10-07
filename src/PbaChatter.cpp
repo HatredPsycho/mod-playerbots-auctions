@@ -164,7 +164,7 @@ namespace
             return;
         CharacterDatabase.DirectExecute(
             "CREATE TABLE IF NOT EXISTS `mod_playerbots_auctions_personas` ("
-            "`guid` INT UNSIGNED NOT NULL, `name` VARCHAR(12) NOT NULL DEFAULT '', `personality` VARCHAR(24) NOT NULL, "
+            "`guid` INT UNSIGNED NOT NULL, `name` VARCHAR(64) NOT NULL DEFAULT '', `personality` VARCHAR(24) NOT NULL, "
             "`streak` VARCHAR(24) NOT NULL DEFAULT '', PRIMARY KEY (`guid`)) "
             "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mod-playerbots-auctions: who each bot is in chat'");
         // Tables of the versions in which everybody was one thing only.
@@ -172,9 +172,12 @@ namespace
             CharacterDatabase.DirectExecute("ALTER TABLE `mod_playerbots_auctions_personas` ADD COLUMN `streak` VARCHAR(24) NOT NULL DEFAULT '' AFTER `personality`");
         if (!CharacterDatabase.Query("SHOW COLUMNS FROM `mod_playerbots_auctions_personas` LIKE 'name'"))
         {
-            CharacterDatabase.DirectExecute("ALTER TABLE `mod_playerbots_auctions_personas` ADD COLUMN `name` VARCHAR(12) NOT NULL DEFAULT '' AFTER `guid`");
+            CharacterDatabase.DirectExecute("ALTER TABLE `mod_playerbots_auctions_personas` ADD COLUMN `name` VARCHAR(64) NOT NULL DEFAULT '' AFTER `guid`");
             CharacterDatabase.DirectExecute("UPDATE `mod_playerbots_auctions_personas` p JOIN `characters` c ON c.`guid` = p.`guid` SET p.`name` = c.`name`");
         }
+        // Names on this realm can be longer than the twelve letters of the original game ("Baine Ashwalker").
+        CharacterDatabase.DirectExecute("ALTER TABLE `mod_playerbots_auctions_personas` MODIFY COLUMN `name` VARCHAR(64) NOT NULL DEFAULT ''");
+        CharacterDatabase.DirectExecute("UPDATE `mod_playerbots_auctions_personas` p JOIN `characters` c ON c.`guid` = p.`guid` SET p.`name` = c.`name` WHERE p.`name` = ''");
         // Gone is who is gone - and who only has the number of somebody who was here before: when the random
         // bots are reset, the new ones get the numbers of the old ones, and must not inherit who those were.
         CharacterDatabase.DirectExecute(

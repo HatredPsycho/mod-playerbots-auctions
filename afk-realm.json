@@ -30,6 +30,12 @@
       "target": "mod-playerbots",
       "file": "patches/mod-playerbots/quiet-wts.patch",
       "why": "mod-playerbots lets every bot that hears \"WTS [item]\" whisper a price it does not mean. With deals by chat enabled, the few bots that really want the item answer instead."
+    },
+    {
+      "name": "Hand-to-hand trades are the module's",
+      "target": "mod-playerbots",
+      "file": "patches/mod-playerbots/deal-trade.patch",
+      "why": "A deal agreed on by chat can be traded in person. mod-playerbots would run its own rules on that trade window (and cancel or accept it by its own prices); for a bot the module is trading for, it stands back."
     }
   ],
   "settings": [

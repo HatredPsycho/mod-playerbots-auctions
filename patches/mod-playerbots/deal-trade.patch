@@ -1,0 +1,46 @@
+diff --git a/src/Ai/Base/Actions/TradeStatusAction.cpp b/src/Ai/Base/Actions/TradeStatusAction.cpp
+index 96d66cb..49c58c9 100644
+--- a/src/Ai/Base/Actions/TradeStatusAction.cpp
++++ b/src/Ai/Base/Actions/TradeStatusAction.cpp
+@@ -17,8 +17,18 @@
+ #include "RandomPlayerbotMgr.h"
+ #include "SetCraftAction.h"
+ 
++// mod-playerbots-auctions: a deal agreed on by chat can be traded hand to hand. The module then puts the
++// goods or the money into the window and decides when to accept; this action stands back for that bot.
++namespace pba
++{
++    bool HandlesTradeOf(Player* bot);
++}
++
+ bool TradeStatusAction::Execute(Event event)
+ {
++    if (pba::HandlesTradeOf(bot))
++        return false;
++
+     if (IsSelfBot(bot))
+         return false;
+ 
+diff --git a/src/Ai/Base/Actions/TradeStatusExtendedAction.cpp b/src/Ai/Base/Actions/TradeStatusExtendedAction.cpp
+index d0d8433..9b85986 100644
+--- a/src/Ai/Base/Actions/TradeStatusExtendedAction.cpp
++++ b/src/Ai/Base/Actions/TradeStatusExtendedAction.cpp
+@@ -11,8 +11,18 @@
+ #include "TradeData.h"
+ #include "WorldPacket.h"
+ 
++// mod-playerbots-auctions: a deal agreed on by chat can be traded hand to hand. The module then puts the
++// goods or the money into the window and decides when to accept; this action stands back for that bot.
++namespace pba
++{
++    bool HandlesTradeOf(Player* bot);
++}
++
+ bool TradeStatusExtendedAction::Execute(Event event)
+ {
++    if (pba::HandlesTradeOf(bot))
++        return false;
++
+     Player* trader = bot->GetTrader();
+     if (!trader)
+         return false;

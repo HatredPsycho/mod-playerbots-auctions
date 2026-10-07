@@ -621,6 +621,30 @@ PlayerbotsAuctions.Chat.Answers = 3
 PlayerbotsAuctions.Chat.Channels = ""
 
 #
+#    PlayerbotsAuctions.Chat.Meet
+#        Description: A bot that is close to the player says so with its offer; "meet" then takes
+#                     the offer and brings the bot over. A bot that was answered with "yes" asks
+#                     whether to meet instead of using the mail. On "meet" it joins the player's group for
+#                     the way (that is how a bot finds a player), walks over, opens the trade
+#                     window, puts in what was agreed and accepts when the other side holds what
+#                     was agreed as well. Then it leaves the group again. If it cannot get there
+#                     within two minutes, or the trade is closed, the deal goes through the mail.
+#        Default:     1 - Enabled
+#                     0 - Disabled (always the mail)
+
+PlayerbotsAuctions.Chat.Meet = 1
+
+#
+#    PlayerbotsAuctions.Chat.MeetDistance
+#        Description: How close the bot has to be to offer that, in yards, on the same map and
+#                     outside of dungeons. A large value (1000 and more) lets nearly every bot of
+#                     the zone offer it, which is handy for trying it out - the walk can then take
+#                     longer than the two minutes a bot gives itself. 5000 at the most.
+#        Default:     150
+
+PlayerbotsAuctions.Chat.MeetDistance = 150
+
+#
 #    PlayerbotsAuctions.Chat.MailDelay
 #        Description: How long the parcel of a bot takes to arrive, in seconds. -1: as long as mail
 #                     between players takes on this server (Mail.DeliveryDelay in worldserver.conf,

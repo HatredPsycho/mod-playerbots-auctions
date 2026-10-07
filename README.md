@@ -52,7 +52,10 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
   the whisper with `yes`, `no`, another price (`3g`, `3 gold 2 silver`, `3.92`, `50s each`) or another number of
   pieces (`only need 3`, `x5`, `2 stacks`, `half`); a bot gives way a little, depending on its character, and no
   further. The goods go by mail, cash on delivery. A bot that sells sends the parcel and gets its money when
-  you take it. A bot that buys asks you to send the parcel to it and pays when it arrives - for what was agreed
+  you take it. A bot that is close to you asks whether to meet instead: say "meet" and it joins your group for
+  the way, walks over, opens the trade window with what was agreed in it, and leaves again after the trade
+  (`PlayerbotsAuctions.Chat.Meet`; if it cannot reach you, the deal goes through the mail after all).
+  A bot that buys asks you to send the parcel to it and pays when it arrives - for what was agreed
   and no more: what is too much in the parcel comes back with the money, a parcel that is something else comes
   back whole, each with a line about why. That does not wait for the bot to be online (random bots take turns):
   what an absent bot bought lies in its mailbox until it is back. What a bot agreed to buy is written down
@@ -67,7 +70,7 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
   nothing in particular. They announce a new level and congratulate each other, name what killed them, show
   what they found, feel for you when you die next to them, wave back when you wave, and answer when you say
   hello, write "ding", ask for a joke or wonder about bots - in a channel, aloud or by whisper. What they say
-  comes from a catalog of more than 16000 lines (`data/lines.txt`; on a running server the table
+  comes from a catalog of more than 17000 lines (`data/lines.txt`; on a running server the table
   `mod_playerbots_auctions_lines`, where lines can be switched off or added). The whispers of a deal come from
   it as well. Once in a very long while one of them says something that makes you wonder whether it knows
   more than it should (`PlayerbotsAuctions.Chatter.EasterEggs`, 0 switches that off). mod-playerbots' own

@@ -11,6 +11,7 @@
 #include "Pba.h"
 
 #include <cstdlib>
+#include <set>
 #include <unordered_set>
 
 namespace pba
@@ -434,6 +435,90 @@ namespace
             "uh, that COD is not what we said ({m} for {g}). not paying that, sorry",
             "wrong parcel? we said {g} for {m}. it'll return to you"
         } };
+        // The two are close to each other: by mail, or hand to hand?
+        Pool const MeetAsk = { "trade.meet_ask", {
+            "deal. i'm not far from you by the way - want it by mail, or shall we meet?",
+            "ok! i see you're close by. mail, or do we meet and trade?",
+            "agreed. you're right around the corner from me, should i come over or mail it?",
+            "fine by me. i'm near you, so: meet up or mail?",
+            "done. we're in the same area, want to trade in person or by mail?",
+            "good. i could walk over, i'm close. meet or mail?",
+            "sounds good. i'm nearby - shall i come to you, or do you prefer the mail?",
+            "works. mail takes a while and i'm close, want to meet instead? say meet or mail"
+        } };
+        // With its first offer, when it is close: the player may say "meet" right away.
+        Pool const MeetHint = { "trade.meet_hint", {
+            "i'm not far from you by the way. say meet and i come over, then we skip the mail",
+            "btw i'm close by - if you'd rather trade in person, just say meet",
+            "we're in the same area. say meet and i walk over instead of mailing",
+            "i could come to you, i'm nearby. say meet if you want that",
+            "you're close to me. meet instead of mail? just say meet",
+            "no need for the mail if you don't want to wait: say meet and i come by",
+            "i'm around the corner. say meet and we trade hand to hand",
+            "if the mail is too slow for you: i'm near, say meet"
+        } };
+        // It sets off.
+        Pool const MeetComing = { "trade.meet_coming", {
+            "on my way, stay where you are",
+            "coming over, give me a moment",
+            "ok, walking to you now",
+            "be right there, don't run off",
+            "heading your way",
+            "alright, i'll come to you. wait there",
+            "moving. see you in a minute",
+            "stay put, i'm almost there"
+        } };
+        // It stands in front of the player and opens the trade window.
+        Pool const MeetHere = { "trade.meet_here", {
+            "here i am. {g} for {m}, as we said",
+            "there you are. opening trade: {g}, {m}",
+            "made it. {g} for {m}",
+            "hi! let's trade, {g} for {m}",
+            "found you. {g}, {m}, like we agreed",
+            "ok, trade window: {g} for {m}",
+            "here. {g} against {m}",
+            "that's me. {g} for {m}, ready when you are"
+        } };
+        // The trade went through.
+        Pool const MeetDone = { "trade.meet_done", {
+            "thanks, pleasure doing business!",
+            "done. thank you!",
+            "great, thanks. see you around",
+            "good deal. take care!",
+            "thx! back to work for me",
+            "nice doing business with you",
+            "all good. bye!",
+            "thanks, that helps a lot"
+        } };
+        // It cannot get there, or the trade fell through: by mail after all.
+        Pool const MeetFail = { "trade.meet_fail", {
+            "that's not working out, i'll do it by mail instead",
+            "can't get to you. mail it is",
+            "hm, no luck meeting up. we'll use the mail",
+            "let's do it by mail after all",
+            "i give up finding you, mail is easier",
+            "ok, the mail then",
+            "this takes too long, i'll settle it by mail",
+            "never mind meeting, mail works too"
+        } };
+        // The player is in somebody else's group: it cannot join by itself.
+        Pool const MeetInvite = { "trade.meet_invite", {
+            "you're in a group already - get me an invite so i can find you, or say mail",
+            "i can't join you while you're grouped. have me invited, or we use the mail",
+            "you are in a party. invite me and i come over, otherwise say mail",
+            "grouped up, i see. get me into the group for a moment and i'll find you, or just say mail",
+            "need an invite to find you, you're in a group. or we do it by mail",
+            "invite me to your group so i can see where you are. or say mail"
+        } };
+        // The trade window does not hold what was agreed.
+        Pool const MeetWrong = { "trade.meet_wrong", {
+            "that's not what we said: {g} for {m}",
+            "hm, we agreed on {g} for {m}. please change it",
+            "not quite. {g} for {m} was the deal",
+            "the window doesn't match our deal ({g}, {m})",
+            "we said {g} for {m}, can you fix that?",
+            "{g} for {m} please, as agreed"
+        } };
         // A parcel held more than was agreed: the rest goes back.
         Pool const ParcelExtra = { "trade.parcel_extra", {
             "you sent more than we agreed on, so {g} comes back to you",
@@ -676,12 +761,20 @@ namespace
         bool askedEach = false;
         uint64 price = 0;               // what the bot stands at, for all of it
         uint64 limit = 0;               // as far as it would go: the least it sells for, the most it pays
-        uint8 stage = 0;                // 0 has not answered yet, 1 made its offer, 2 paid a parcel while away and has to send back what was too much
+        uint8 stage = 0;                // 0 has not answered yet, 1 made its offer, 2 paid a parcel while away and has to send back what was too much,
+                                        // 3 asked "by mail or shall we meet", 4 on its way to the player, 5 at the trade window
         uint8 haggled = 0;
         time_t at = 0;                  // when it answers
         time_t until = 0;               // when it stops waiting
         time_t noted = 0;               // when the log last said why a parcel is not paid yet
         uint32 mail = 0;                // stage 2: the paid parcel that holds more than was agreed
+        time_t meetAt = 0;              // stages 3 to 5: when that stage began
+        bool grouped = false;           // the bot joined the player's group to find its way there
+        bool opened = false;            // the trade window was opened on both screens
+        bool placed = false;            // the bot has put its side into the trade window
+        bool complained = false;        // it said once that the window does not hold what was agreed
+        uint32 had = 0;                 // how many of the item the bot had before the trade
+        std::vector<uint16> give;       // bag positions of what the bot hands over
     };
 
     struct Heard
@@ -734,10 +827,15 @@ namespace
                 bool keep = deal.until > now;
                 if (keep && deal.stage == 0 && deal.at <= now)
                     keep = Offer(deal, now);
+                if (keep && deal.stage >= 3)
+                    keep = Meeting(deal, now);
                 if (keep)
                     ++i;
                 else
+                {
+                    EndMeeting(deal);
                     _deals.erase(_deals.begin() + i);
+                }
             }
 
             // Parcels a player sent to a bot that buys, and the money of parcels a bot sent.
@@ -746,7 +844,7 @@ namespace
                 _mailTicks = 0;
                 for (size_t i = 0; i < _deals.size();)
                 {
-                    if (_deals[i].stage >= 1 && !_deals[i].botSells && Parcel(_deals[i], now))
+                    if (_deals[i].stage >= 1 && _deals[i].stage <= 3 && !_deals[i].botSells && Parcel(_deals[i], now))
                         _deals.erase(_deals.begin() + i);
                     else
                         ++i;
@@ -1247,9 +1345,14 @@ namespace
             if (deal.botSells)
                 deal.until = now + 10 * MINUTE;
             deal.stage = 1;
+            // Close to the player: it says so, and "meet" will bring it over.
+            std::string const apart = WhyNotMeet(bot, player);
+            if (apart.empty())
+                Tell(bot, player, Pick(bot, Lines::MeetHint));
             if (cfg.debug)
-                LOG_INFO("module", "PlayerbotsAuctions: {} offers {} to {} {} x{} for {} copper (as far as {}).", bot->GetName(), player->GetName(),
-                    deal.botSells ? "sell" : "buy", sObjectMgr->GetItemTemplate(deal.item)->Name1, deal.count, deal.price, deal.limit);
+                LOG_INFO("module", "PlayerbotsAuctions: {} offers {} to {} {} x{} for {} copper (as far as {}); {}.", bot->GetName(), player->GetName(),
+                    deal.botSells ? "sell" : "buy", sObjectMgr->GetItemTemplate(deal.item)->Name1, deal.count, deal.price, deal.limit,
+                    apart.empty() ? "it is close enough to meet" : "no meeting: " + apart);
             return true;
         }
 
@@ -1257,6 +1360,17 @@ namespace
 
         void Answered(Player* player, ObjectGuid botGuid, std::string const& msg, time_t now)
         {
+            // "meet" or "mail", to a bot that asked - or "mail" to one that is on its way.
+            auto meeting = std::find_if(_deals.begin(), _deals.end(), [&](Deal const& deal) { return deal.bot == botGuid && deal.player == player->GetGUID() && deal.stage >= 3; });
+            if (meeting != _deals.end())
+            {
+                if (!MeetAnswered(*meeting, player, msg, now))
+                {
+                    EndMeeting(*meeting);
+                    _deals.erase(meeting);
+                }
+                return;
+            }
             auto found = std::find_if(_deals.begin(), _deals.end(), [&](Deal const& deal) { return deal.bot == botGuid && deal.player == player->GetGUID() && deal.stage == 1; });
             if (found == _deals.end())
             {
@@ -1270,7 +1384,13 @@ namespace
                 return;
 
             Reply const reply = ReadReply(msg);
-            bool const yes = reply.yes, no = reply.no;
+            // "meet" (without another price or number) takes the offer and asks the bot over in one word.
+            bool const meet = Said(msg, { " meet", " treff", " come ", " komm", " in person", " hand to hand" }) &&
+                !Said(msg, { " mail", " post", " cod ", " send" }) && !reply.no;
+            bool const yes = reply.yes || (meet && !reply.money && !reply.count), no = reply.no;
+            if (cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: {} answers {} \"{}\": {}{}{}.", player->GetName(), bot->GetName(), msg,
+                    yes ? "yes" : no ? "no" : "neither yes nor no", reply.money ? ", names a price" : "", meet ? ", wants to meet" : "");
 
             // Another number of pieces: the price follows, and the bot says what that comes to.
             uint32 wanted = reply.count * (reply.stacks ? std::max<uint32>(1, proto->GetMaxStackSize()) : 1);
@@ -1337,6 +1457,21 @@ namespace
                 }
                 else if (!yes && !named)
                     return;                                     // something else it was told: not about the deal
+                // Asked over in so many words: it sets off (or says why not, and mails it).
+                if (meet)
+                {
+                    deal.stage = 3;
+                    deal.meetAt = now;
+                    if (!Approach(deal, bot, player, now))
+                    {
+                        EndMeeting(deal);
+                        _deals.erase(found);
+                    }
+                    return;
+                }
+                // Close to each other: it asks whether to meet instead of using the mail.
+                if (AskWhere(deal, bot, player, now))
+                    return;
                 Ship(deal, bot, player, proto, now);
                 _deals.erase(found);
                 return;
@@ -1366,9 +1501,527 @@ namespace
                 deal.price = named;                             // cheaper than it offered: gladly
             else if (!yes)
                 return;
+            if (meet)
+            {
+                deal.stage = 3;
+                deal.meetAt = now;
+                Approach(deal, bot, player, now);       // a bot that buys keeps waiting for a parcel if this fails
+                return;
+            }
+            if (AskWhere(deal, bot, player, now))
+                return;
             Tell(bot, player, Fill(Pick(bot, Lines::BuyAgreed),
                 goods, MoneyText(deal.price)));
         }
+
+        // ------------------------------------------------------------------------------- meeting to trade
+        //
+        // When the two are close to each other, the bot offers to come over instead of using the mail. It
+        // joins the player's group for the way - that is how a bot finds a player, with the pathfinding it
+        // has for following - opens the trade window, puts in what was agreed, and takes the trade when
+        // the other side holds what was agreed as well. Whatever goes wrong on the way ends in the mail,
+        // which is known to work.
+
+        static bool Said(std::string const& text, std::initializer_list<char const*> words)
+        {
+            std::string const padded = " " + Lower(text) + " ";
+            for (char const* word : words)
+                if (padded.find(word) != std::string::npos)
+                    return true;
+            return false;
+        }
+
+        /// Why the bot cannot walk over and trade right now; empty when it can.
+        static std::string WhyNotMeet(Player* bot, Player* player)
+        {
+            if (!cfg.dealMeet)
+                return "meeting is switched off";
+            if (!bot || !player || !bot->IsInWorld() || !player->IsInWorld())
+                return "one of the two is not in the world";
+            if (bot->GetMapId() != player->GetMapId())
+                return "they are on different continents";
+            if (bot->GetMap()->Instanceable())
+                return "they are in a dungeon or battleground";
+            if (bot->GetTeamId() != player->GetTeamId())
+                return "they are of different factions";
+            if (!bot->IsAlive() || !player->IsAlive())
+                return "one of the two is dead";
+            if (bot->IsInFlight() || player->IsInFlight() || bot->IsBeingTeleported())
+                return "one of the two is travelling";
+            if (bot->GetGroup())
+                return "the bot is in a group";
+            if (bot->GetTradeData())
+                return "the bot is trading with somebody";
+            float const apart = bot->GetDistance(player);
+            if (apart > float(cfg.dealMeetDistance))
+                return Acore::StringFormat("the bot is {} yards away, more than the {} allowed", uint32(apart), cfg.dealMeetDistance);
+            return "";
+        }
+
+        static bool CanMeet(Player* bot, Player* player)
+        {
+            return WhyNotMeet(bot, player).empty();
+        }
+
+        /// Asks "by mail, or shall we meet?" when that is an option. False: it is not, the mail it is.
+        bool AskWhere(Deal& deal, Player* bot, Player* player, time_t now)
+        {
+            std::string const apart = WhyNotMeet(bot, player);
+            if (!apart.empty())
+            {
+                if (cfg.debug)
+                    LOG_INFO("module", "PlayerbotsAuctions: {} does not offer {} to meet: {}.", bot->GetName(), player->GetName(), apart);
+                return false;
+            }
+            deal.stage = 3;
+            deal.meetAt = now;
+            deal.until = std::max<time_t>(deal.until, now + 10 * MINUTE);
+            Tell(bot, player, Pick(bot, Lines::MeetAsk));
+            return true;
+        }
+
+        /// The deal goes through the mail after all. False: the deal is over (the bot has sent its parcel).
+        bool ByMail(Deal& deal, time_t now)
+        {
+            if (cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: a deal that was to be traded hand to hand goes through the mail (it was at step {}).", uint32(deal.stage));
+            EndMeeting(deal);
+            Player* bot = ObjectAccessor::FindConnectedPlayer(deal.bot);
+            Player* player = ObjectAccessor::FindConnectedPlayer(deal.player);
+            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(deal.item);
+            if (deal.botSells)
+            {
+                if (bot && player && proto && bot->IsInWorld() && player->IsInWorld())
+                    Ship(deal, bot, player, proto, now);
+                return false;
+            }
+            // It waits for the player's parcel, as it would have without the detour.
+            deal.stage = 1;
+            deal.until = std::max<time_t>(deal.until, now + 3 * HOUR + sWorld->getIntConfig(CONFIG_MAIL_DELIVERY_DELAY));
+            if (bot && player && proto && player->IsInWorld())
+                Tell(bot, player, Fill(Pick(bot, Lines::BuyAgreed), Goods(deal.count, proto), MoneyText(deal.price)));
+            return true;
+        }
+
+        /// What the player says to a bot that asked where to trade, or that is on its way. False: the deal is over.
+        bool MeetAnswered(Deal& deal, Player* player, std::string const& msg, time_t now)
+        {
+            Player* bot = ObjectAccessor::FindConnectedPlayer(deal.bot);
+            if (!bot)
+                return true;
+            bool const mail = Said(msg, { " mail", " post", " cod ", " send", " parcel", " brief", " paket", " schick", " cancel", " stop ", " abbrechen", " never mind", " forget it" });
+            bool const meet = Said(msg, { " meet", " treff", " trade", " come ", " komm", " here ", " in person", " face", " hand ", " walk", " hier " });
+            if (deal.stage == 3)
+            {
+                if (meet && !mail)
+                    return Approach(deal, bot, player, now);
+                if (mail)
+                    return ByMail(deal, now);
+                return true;                // something else: it keeps waiting for one of the two words
+            }
+            // On its way, or at the window: only "mail" changes anything.
+            if (mail && !meet)
+            {
+                Tell(bot, player, Pick(bot, Lines::MeetFail));
+                return ByMail(deal, now);
+            }
+            return true;
+        }
+
+        /// The bot joins the player's group and sets off. False: the deal is over.
+        bool Approach(Deal& deal, Player* bot, Player* player, time_t now)
+        {
+            PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
+            if (!botAI || !CanMeet(bot, player))
+            {
+                if (cfg.debug)
+                    LOG_INFO("module", "PlayerbotsAuctions: {} cannot come to {}: {}.", bot->GetName(), player->GetName(), WhyNotMeet(bot, player));
+                Tell(bot, player, Pick(bot, Lines::MeetFail));
+                return ByMail(deal, now);
+            }
+            // A bot that buys has to have the money on it.
+            if (!deal.botSells && cfg.buyUseBotMoney && !bot->HasEnoughMoney(uint32(std::min<uint64>(deal.price, MAX_MONEY_AMOUNT))))
+            {
+                Tell(bot, player, Pick(bot, Lines::MeetFail));
+                return ByMail(deal, now);
+            }
+
+            Group* group = player->GetGroup();
+            if (group && (group->GetLeaderGUID() != player->GetGUID() || group->IsFull() || group->isBGGroup() || group->isLFGGroup()))
+            {
+                // Not the player's group to add somebody to: it waits a while for an invitation.
+                deal.stage = 4;
+                deal.meetAt = now;
+                deal.grouped = false;
+                deal.until = std::max<time_t>(deal.until, now + 15 * MINUTE);
+                Tell(bot, player, Pick(bot, Lines::MeetInvite));
+                return true;
+            }
+
+            // What the server does when a player invites somebody and that one accepts.
+            bool created = false;
+            if (!group)
+            {
+                group = new Group();
+                if (!group->AddLeaderInvite(player))
+                {
+                    delete group;
+                    Tell(bot, player, Pick(bot, Lines::MeetFail));
+                    return ByMail(deal, now);
+                }
+                created = true;
+            }
+            if (!group->AddInvite(bot))
+            {
+                if (created)
+                {
+                    group->RemoveAllInvites();
+                    delete group;
+                }
+                Tell(bot, player, Pick(bot, Lines::MeetFail));
+                return ByMail(deal, now);
+            }
+            WorldPacket accept;
+            accept << uint32(0);
+            bot->GetSession()->HandleGroupAcceptOpcode(accept);
+            if (!bot->GetGroup() || !bot->GetGroup()->IsMember(player->GetGUID()))
+            {
+                Tell(bot, player, Pick(bot, Lines::MeetFail));
+                return ByMail(deal, now);
+            }
+            // As mod-playerbots does for a bot that accepted an invitation, without the teleport.
+            botAI->SetMaster(player);
+            botAI->ResetStrategies();
+            botAI->ChangeStrategy("+follow,-lfg,-bg", BOT_STATE_NON_COMBAT);
+            botAI->Reset();
+
+            deal.grouped = true;
+            deal.stage = 4;
+            deal.meetAt = now;
+            deal.until = std::max<time_t>(deal.until, now + 15 * MINUTE);
+            Tell(bot, player, Pick(bot, Lines::MeetComing));
+            if (cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: {} joins the group of {} to bring a trade over.", bot->GetName(), player->GetName());
+            return true;
+        }
+
+        /// The bot leaves the group it joined for the way, closes a trade that is still open, and is its own again.
+        void EndMeeting(Deal& deal)
+        {
+            if (deal.stage < 3)
+                return;
+            {
+                std::lock_guard<std::mutex> guard(TradingLock());
+                Trading().erase(deal.bot.GetCounter());
+            }
+            Player* bot = ObjectAccessor::FindConnectedPlayer(deal.bot);
+            if (bot)
+            {
+                if (TradeData* open = bot->GetTradeData())
+                    if (open->GetTrader() && open->GetTrader()->GetGUID() == deal.player)
+                        bot->TradeCancel(true);
+                // mod-playerbots gives a random bot without a group its own life back by itself.
+                if (deal.grouped && bot->GetGroup())
+                    if (PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot))
+                        botAI->LeaveOrDisbandGroup();
+            }
+            deal.grouped = false;
+            deal.placed = false;
+            deal.opened = false;
+            deal.give.clear();
+        }
+
+        /// A free slot in the bot's bags, as a position, or 0.
+        static uint16 FreeSlot(Player* bot)
+        {
+            for (uint8 slot = INVENTORY_SLOT_ITEM_START; slot < INVENTORY_SLOT_ITEM_END; ++slot)
+                if (!bot->GetItemByPos(INVENTORY_SLOT_BAG_0, slot))
+                    return (uint16(INVENTORY_SLOT_BAG_0) << 8) | slot;
+            for (uint8 bag = INVENTORY_SLOT_BAG_START; bag < INVENTORY_SLOT_BAG_END; ++bag)
+                if (Bag* container = bot->GetBagByPos(bag))
+                    if (!container->GetTemplate() || container->GetTemplate()->Class == ITEM_CLASS_CONTAINER)
+                        for (uint8 slot = 0; slot < container->GetBagSize(); ++slot)
+                            if (!bot->GetItemByPos(bag, slot))
+                                return (uint16(bag) << 8) | slot;
+            return 0;
+        }
+
+        /// The stacks the bot hands over, exactly as many pieces as agreed; a stack is split when it has to be.
+        bool Collect(Deal& deal, Player* bot)
+        {
+            deal.give.clear();
+            PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
+            std::vector<Item*> stacks;
+            if (botAI)
+                Spare(bot, botAI, deal.item, stacks);
+            std::sort(stacks.begin(), stacks.end(), [](Item* a, Item* b) { return a->GetCount() > b->GetCount(); });
+            uint32 left = deal.count;
+            for (Item* stack : stacks)
+            {
+                if (!left || deal.give.size() >= TRADE_SLOT_TRADED_COUNT)
+                    break;
+                if (stack->GetCount() <= left)
+                {
+                    left -= stack->GetCount();
+                    deal.give.push_back(stack->GetPos());
+                }
+            }
+            if (left && deal.give.size() < TRADE_SLOT_TRADED_COUNT)
+            {
+                // A part of a stack is needed: it is split off into a free slot.
+                for (auto stack = stacks.rbegin(); stack != stacks.rend(); ++stack)
+                {
+                    if ((*stack)->GetCount() <= left || std::find(deal.give.begin(), deal.give.end(), (*stack)->GetPos()) != deal.give.end())
+                        continue;
+                    uint16 const to = FreeSlot(bot);
+                    if (!to)
+                        break;
+                    bot->SplitItem((*stack)->GetPos(), to, left);
+                    Item* part = bot->GetItemByPos(to);
+                    if (part && part->GetEntry() == deal.item && part->GetCount() == left)
+                    {
+                        deal.give.push_back(to);
+                        left = 0;
+                    }
+                    break;
+                }
+            }
+            return !left && !deal.give.empty();
+        }
+
+        /// One step of a meeting, once a second. False: the deal is over.
+        bool Meeting(Deal& deal, time_t now)
+        {
+            Player* bot = ObjectAccessor::FindConnectedPlayer(deal.bot);
+            Player* player = ObjectAccessor::FindConnectedPlayer(deal.player);
+            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(deal.item);
+            if (!proto)
+                return false;
+
+            if (deal.stage == 3)
+            {
+                // No word for three minutes: the mail, as if it had not asked.
+                if (!bot || !player || deal.meetAt + 3 * MINUTE < now)
+                    return ByMail(deal, now);
+                return true;
+            }
+            if (!bot || !player || !bot->IsInWorld() || !player->IsInWorld())
+                return ByMail(deal, now);
+
+            if (deal.stage == 4)
+            {
+                bool const together = bot->GetGroup() && bot->GetGroup()->IsMember(player->GetGUID());
+                if (!deal.grouped)
+                {
+                    // It asked for an invitation: a minute for that.
+                    if (together)
+                    {
+                        deal.grouped = true;
+                        deal.meetAt = now;
+                        Tell(bot, player, Pick(bot, Lines::MeetComing));
+                    }
+                    else if (deal.meetAt + MINUTE < now)
+                    {
+                        Tell(bot, player, Pick(bot, Lines::MeetFail));
+                        return ByMail(deal, now);
+                    }
+                    return true;
+                }
+                bool const lost = !together || bot->GetMapId() != player->GetMapId() || !bot->IsAlive() || !player->IsAlive() ||
+                    !bot->IsWithinDistInMap(player, std::max(300.0f, 2.0f * float(cfg.dealMeetDistance)));
+                if (lost || deal.meetAt + 2 * MINUTE < now)
+                {
+                    Tell(bot, player, Pick(bot, Lines::MeetFail));
+                    return ByMail(deal, now);
+                }
+                if (cfg.debug && deal.noted + 20 < now)
+                {
+                    deal.noted = now;
+                    LOG_INFO("module", "PlayerbotsAuctions: {} is {} yards from {}{}{}.", bot->GetName(), uint32(bot->GetDistance(player)), player->GetName(),
+                        bot->IsInCombat() ? ", in a fight" : "", player->GetTradeData() ? ", and the player has a trade window open" : "");
+                }
+                // There, and both with their hands free?
+                // The player was quicker and opened the trade himself: that window will do.
+                bool const theirs = bot->GetTradeData() && bot->GetTradeData()->GetTrader() == player;
+                if (!theirs && (!bot->IsWithinDistInMap(player, 9.5f) || bot->IsInCombat() || player->IsInCombat() || player->GetTradeData() || bot->GetTradeData() ||
+                    player->IsInFlight() || bot->IsBeingTeleported()))
+                    return true;
+                if (deal.botSells && !Collect(deal, bot))
+                {
+                    // Not as whole stacks, and no free slot to split one in: the mail can do that.
+                    if (cfg.debug)
+                        LOG_INFO("module", "PlayerbotsAuctions: {} cannot lay out {} x{} for a trade window ({} of them in its bags).", bot->GetName(), proto->Name1,
+                            deal.count, bot->GetItemCount(deal.item));
+                    Tell(bot, player, Pick(bot, Lines::MeetFail));
+                    return ByMail(deal, now);
+                }
+                {
+                    std::lock_guard<std::mutex> guard(TradingLock());
+                    Trading().insert(deal.bot.GetCounter());
+                }
+                deal.had = bot->GetItemCount(deal.item);
+                if (!theirs)
+                {
+                    WorldPacket open;
+                    open << player->GetGUID();
+                    bot->GetSession()->HandleInitiateTradeOpcode(open);
+                }
+                if (!bot->GetTradeData())
+                {
+                    if (cfg.debug && deal.noted + 15 < now)
+                    {
+                        deal.noted = now;
+                        LOG_INFO("module", "PlayerbotsAuctions: {} stands next to {} but the trade window does not open yet; it tries again.", bot->GetName(), player->GetName());
+                    }
+                    return true;            // not this second: it tries again
+                }
+                deal.stage = 5;
+                deal.meetAt = now;
+                deal.placed = false;
+                deal.opened = false;
+                deal.complained = false;
+                Tell(bot, player, Fill(Pick(bot, Lines::MeetHere), Goods(deal.count, proto), MoneyText(deal.price)));
+                return true;
+            }
+
+            // ---- at the trade window
+            TradeData* mine = bot->GetTradeData();
+            if (!mine || mine->GetTrader() != player)
+            {
+                // The window is gone: taken, or closed?
+                uint32 const has = bot->GetItemCount(deal.item);
+                bool const done = deal.botSells ? has + deal.count <= deal.had : has >= deal.had + deal.count;
+                if (done)
+                {
+                    _bought[bot->GetGUID().GetCounter()][deal.item] = now;
+                    market.RecordSale(deal.item, deal.price, deal.count);
+                    Tell(bot, player, Pick(bot, Lines::MeetDone));
+                    if (cfg.debug)
+                        LOG_INFO("module", "PlayerbotsAuctions: {} traded {} x{} with {} for {} copper, hand to hand.", bot->GetName(), proto->Name1, deal.count,
+                            player->GetName(), deal.price);
+                    EndMeeting(deal);
+                    return false;
+                }
+                Tell(bot, player, Pick(bot, Lines::MeetFail));
+                return ByMail(deal, now);
+            }
+            TradeData* theirs = mine->GetTraderData();
+            if (!theirs || deal.meetAt + 3 * MINUTE < now)
+            {
+                Tell(bot, player, Pick(bot, Lines::MeetFail));
+                return ByMail(deal, now);
+            }
+
+            // The player's game answers a trade request by itself, and then the window opens on both screens.
+            // It does not always (seen in a test: the trade existed, "you are already trading", but no window),
+            // so after a second the bot opens it from its side - what the server would do on that answer.
+            if (!deal.opened && deal.meetAt + 1 <= now)
+            {
+                WorldPacket begin;
+                bot->GetSession()->HandleBeginTradeOpcode(begin);
+                deal.opened = true;
+                return true;
+            }
+            // Its own side goes in a moment after the window opened on the player's screen.
+            if (!deal.placed && deal.meetAt + 2 <= now)
+            {
+                if (deal.botSells)
+                {
+                    for (size_t i = 0; i < deal.give.size(); ++i)
+                    {
+                        WorldPacket put;
+                        put << uint8(i) << uint8(deal.give[i] >> 8) << uint8(deal.give[i] & 255);
+                        bot->GetSession()->HandleSetTradeItemOpcode(put);
+                    }
+                }
+                else
+                {
+                    WorldPacket gold;
+                    gold << uint32(std::min<uint64>(deal.price, MAX_MONEY_AMOUNT));
+                    bot->GetSession()->HandleSetTradeGoldOpcode(gold);
+                }
+                deal.placed = true;
+                if (cfg.debug)
+                {
+                    uint32 inWindow = 0;
+                    for (uint8 slot = 0; slot < TRADE_SLOT_TRADED_COUNT; ++slot)
+                        if (Item* item = mine->GetItem(TradeSlots(slot)))
+                            inWindow += item->GetCount();
+                    LOG_INFO("module", "PlayerbotsAuctions: {} put its side into the trade window: {} piece(s), {} copper.", bot->GetName(), inWindow, mine->GetMoney());
+                }
+                return true;
+            }
+            if (!deal.placed)
+                return true;
+
+            // Does the other side hold what was agreed?
+            bool right;
+            if (deal.botSells)
+                right = theirs->GetMoney() >= deal.price;
+            else
+            {
+                uint32 count = 0;
+                bool only = true;
+                for (uint8 slot = 0; slot < TRADE_SLOT_TRADED_COUNT; ++slot)
+                    if (Item* item = theirs->GetItem(TradeSlots(slot)))
+                    {
+                        if (item->GetEntry() == deal.item)
+                            count += item->GetCount();
+                        else
+                            only = false;
+                    }
+                right = only && count == deal.count;
+            }
+            // What it put in itself must still be there, too.
+            if (right && deal.botSells)
+            {
+                uint32 count = 0;
+                for (uint8 slot = 0; slot < TRADE_SLOT_TRADED_COUNT; ++slot)
+                    if (Item* item = mine->GetItem(TradeSlots(slot)))
+                        if (item->GetEntry() == deal.item)
+                            count += item->GetCount();
+                if (count != deal.count)
+                {
+                    Tell(bot, player, Pick(bot, Lines::MeetFail));
+                    return ByMail(deal, now);
+                }
+            }
+            WorldPacket none;
+            none << uint32(0);
+            if (right && !mine->IsAccepted())
+                bot->GetSession()->HandleAcceptTradeOpcode(none);
+            else if (!right && mine->IsAccepted())
+                bot->GetSession()->HandleUnacceptTradeOpcode(none);
+            if (!right && !deal.complained && deal.meetAt + 25 < now && (theirs->GetMoney() || theirs->IsAccepted() || HasItems(theirs)))
+            {
+                deal.complained = true;
+                Tell(bot, player, Fill(Pick(bot, Lines::MeetWrong), Goods(deal.count, proto), MoneyText(deal.price)));
+            }
+            return true;
+        }
+
+        static bool HasItems(TradeData* data)
+        {
+            for (uint8 slot = 0; slot < TRADE_SLOT_TRADED_COUNT; ++slot)
+                if (data->GetItem(TradeSlots(slot)))
+                    return true;
+            return false;
+        }
+
+    public:
+        /// Bots whose trade window the module looks after; mod-playerbots stands back for those (see the patch).
+        static std::set<ObjectGuid::LowType>& Trading()
+        {
+            static std::set<ObjectGuid::LowType> bots;
+            return bots;
+        }
+        static std::mutex& TradingLock()
+        {
+            static std::mutex lock;
+            return lock;
+        }
+
+    private:
 
         // ------------------------------------------------------------------------------------- the mail
 
@@ -1944,6 +2597,14 @@ namespace
     void SaveDeals(bool wait)
     {
         deals.Save(wait);
+    }
+
+    bool HandlesTradeOf(Player* bot)
+    {
+        if (!bot)
+            return false;
+        std::lock_guard<std::mutex> guard(Deals::TradingLock());
+        return Deals::Trading().count(bot->GetGUID().GetCounter()) != 0;
     }
 
     bool DealHoldsMail(uint32 mailId)
