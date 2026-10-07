@@ -770,6 +770,7 @@ namespace
         uint32 mail = 0;                // stage 2: the paid parcel that holds more than was agreed
         time_t meetAt = 0;              // stages 3 to 5: when that stage began
         bool grouped = false;           // the bot joined the player's group to find its way there
+        bool opened = false;            // the trade window was opened on both screens
         bool placed = false;            // the bot has put its side into the trade window
         bool complained = false;        // it said once that the window does not hold what was agreed
         uint32 had = 0;                 // how many of the item the bot had before the trade
@@ -1726,6 +1727,7 @@ namespace
             }
             deal.grouped = false;
             deal.placed = false;
+            deal.opened = false;
             deal.give.clear();
         }
 
@@ -1839,8 +1841,10 @@ namespace
                         bot->IsInCombat() ? ", in a fight" : "", player->GetTradeData() ? ", and the player has a trade window open" : "");
                 }
                 // There, and both with their hands free?
-                if (!bot->IsWithinDistInMap(player, 9.5f) || bot->IsInCombat() || player->IsInCombat() || player->GetTradeData() || bot->GetTradeData() ||
-                    player->IsInFlight() || bot->IsBeingTeleported())
+                // The player was quicker and opened the trade himself: that window will do.
+                bool const theirs = bot->GetTradeData() && bot->GetTradeData()->GetTrader() == player;
+                if (!theirs && (!bot->IsWithinDistInMap(player, 9.5f) || bot->IsInCombat() || player->IsInCombat() || player->GetTradeData() || bot->GetTradeData() ||
+                    player->IsInFlight() || bot->IsBeingTeleported()))
                     return true;
                 if (deal.botSells && !Collect(deal, bot))
                 {
@@ -1856,9 +1860,12 @@ namespace
                     Trading().insert(deal.bot.GetCounter());
                 }
                 deal.had = bot->GetItemCount(deal.item);
-                WorldPacket open;
-                open << player->GetGUID();
-                bot->GetSession()->HandleInitiateTradeOpcode(open);
+                if (!theirs)
+                {
+                    WorldPacket open;
+                    open << player->GetGUID();
+                    bot->GetSession()->HandleInitiateTradeOpcode(open);
+                }
                 if (!bot->GetTradeData())
                 {
                     if (cfg.debug && deal.noted + 15 < now)
@@ -1871,6 +1878,7 @@ namespace
                 deal.stage = 5;
                 deal.meetAt = now;
                 deal.placed = false;
+                deal.opened = false;
                 deal.complained = false;
                 Tell(bot, player, Fill(Pick(bot, Lines::MeetHere), Goods(deal.count, proto), MoneyText(deal.price)));
                 return true;
@@ -1904,6 +1912,16 @@ namespace
                 return ByMail(deal, now);
             }
 
+            // The player's game answers a trade request by itself, and then the window opens on both screens.
+            // It does not always (seen in a test: the trade existed, "you are already trading", but no window),
+            // so after a second the bot opens it from its side - what the server would do on that answer.
+            if (!deal.opened && deal.meetAt + 1 <= now)
+            {
+                WorldPacket begin;
+                bot->GetSession()->HandleBeginTradeOpcode(begin);
+                deal.opened = true;
+                return true;
+            }
             // Its own side goes in a moment after the window opened on the player's screen.
             if (!deal.placed && deal.meetAt + 2 <= now)
             {
