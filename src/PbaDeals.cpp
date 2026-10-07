@@ -1832,15 +1832,24 @@ namespace
                     Tell(bot, player, Pick(bot, Lines::MeetFail));
                     return ByMail(deal, now);
                 }
+                if (cfg.debug && deal.noted + 20 < now)
+                {
+                    deal.noted = now;
+                    LOG_INFO("module", "PlayerbotsAuctions: {} is {} yards from {}{}{}.", bot->GetName(), uint32(bot->GetDistance(player)), player->GetName(),
+                        bot->IsInCombat() ? ", in a fight" : "", player->GetTradeData() ? ", and the player has a trade window open" : "");
+                }
                 // There, and both with their hands free?
                 if (!bot->IsWithinDistInMap(player, 9.5f) || bot->IsInCombat() || player->IsInCombat() || player->GetTradeData() || bot->GetTradeData() ||
                     player->IsInFlight() || bot->IsBeingTeleported())
                     return true;
                 if (deal.botSells && !Collect(deal, bot))
                 {
-                    Tell(bot, player, Pick(bot, Lines::Gone));
-                    EndMeeting(deal);
-                    return false;
+                    // Not as whole stacks, and no free slot to split one in: the mail can do that.
+                    if (cfg.debug)
+                        LOG_INFO("module", "PlayerbotsAuctions: {} cannot lay out {} x{} for a trade window ({} of them in its bags).", bot->GetName(), proto->Name1,
+                            deal.count, bot->GetItemCount(deal.item));
+                    Tell(bot, player, Pick(bot, Lines::MeetFail));
+                    return ByMail(deal, now);
                 }
                 {
                     std::lock_guard<std::mutex> guard(TradingLock());
@@ -1851,7 +1860,14 @@ namespace
                 open << player->GetGUID();
                 bot->GetSession()->HandleInitiateTradeOpcode(open);
                 if (!bot->GetTradeData())
+                {
+                    if (cfg.debug && deal.noted + 15 < now)
+                    {
+                        deal.noted = now;
+                        LOG_INFO("module", "PlayerbotsAuctions: {} stands next to {} but the trade window does not open yet; it tries again.", bot->GetName(), player->GetName());
+                    }
                     return true;            // not this second: it tries again
+                }
                 deal.stage = 5;
                 deal.meetAt = now;
                 deal.placed = false;
@@ -1907,6 +1923,14 @@ namespace
                     bot->GetSession()->HandleSetTradeGoldOpcode(gold);
                 }
                 deal.placed = true;
+                if (cfg.debug)
+                {
+                    uint32 inWindow = 0;
+                    for (uint8 slot = 0; slot < TRADE_SLOT_TRADED_COUNT; ++slot)
+                        if (Item* item = mine->GetItem(TradeSlots(slot)))
+                            inWindow += item->GetCount();
+                    LOG_INFO("module", "PlayerbotsAuctions: {} put its side into the trade window: {} piece(s), {} copper.", bot->GetName(), inWindow, mine->GetMoney());
+                }
                 return true;
             }
             if (!deal.placed)
