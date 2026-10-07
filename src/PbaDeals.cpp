@@ -446,6 +446,17 @@ namespace
             "sounds good. i'm nearby - shall i come to you, or do you prefer the mail?",
             "works. mail takes a while and i'm close, want to meet instead? say meet or mail"
         } };
+        // With its first offer, when it is close: the player may say "meet" right away.
+        Pool const MeetHint = { "trade.meet_hint", {
+            "i'm not far from you by the way. say meet and i come over, then we skip the mail",
+            "btw i'm close by - if you'd rather trade in person, just say meet",
+            "we're in the same area. say meet and i walk over instead of mailing",
+            "i could come to you, i'm nearby. say meet if you want that",
+            "you're close to me. meet instead of mail? just say meet",
+            "no need for the mail if you don't want to wait: say meet and i come by",
+            "i'm around the corner. say meet and we trade hand to hand",
+            "if the mail is too slow for you: i'm near, say meet"
+        } };
         // It sets off.
         Pool const MeetComing = { "trade.meet_coming", {
             "on my way, stay where you are",
@@ -1333,9 +1344,14 @@ namespace
             if (deal.botSells)
                 deal.until = now + 10 * MINUTE;
             deal.stage = 1;
+            // Close to the player: it says so, and "meet" will bring it over.
+            std::string const apart = WhyNotMeet(bot, player);
+            if (apart.empty())
+                Tell(bot, player, Pick(bot, Lines::MeetHint));
             if (cfg.debug)
-                LOG_INFO("module", "PlayerbotsAuctions: {} offers {} to {} {} x{} for {} copper (as far as {}).", bot->GetName(), player->GetName(),
-                    deal.botSells ? "sell" : "buy", sObjectMgr->GetItemTemplate(deal.item)->Name1, deal.count, deal.price, deal.limit);
+                LOG_INFO("module", "PlayerbotsAuctions: {} offers {} to {} {} x{} for {} copper (as far as {}); {}.", bot->GetName(), player->GetName(),
+                    deal.botSells ? "sell" : "buy", sObjectMgr->GetItemTemplate(deal.item)->Name1, deal.count, deal.price, deal.limit,
+                    apart.empty() ? "it is close enough to meet" : "no meeting: " + apart);
             return true;
         }
 
@@ -1367,7 +1383,13 @@ namespace
                 return;
 
             Reply const reply = ReadReply(msg);
-            bool const yes = reply.yes, no = reply.no;
+            // "meet" (without another price or number) takes the offer and asks the bot over in one word.
+            bool const meet = Said(msg, { " meet", " treff", " come ", " komm", " in person", " hand to hand" }) &&
+                !Said(msg, { " mail", " post", " cod ", " send" }) && !reply.no;
+            bool const yes = reply.yes || (meet && !reply.money && !reply.count), no = reply.no;
+            if (cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: {} answers {} \"{}\": {}{}{}.", player->GetName(), bot->GetName(), msg,
+                    yes ? "yes" : no ? "no" : "neither yes nor no", reply.money ? ", names a price" : "", meet ? ", wants to meet" : "");
 
             // Another number of pieces: the price follows, and the bot says what that comes to.
             uint32 wanted = reply.count * (reply.stacks ? std::max<uint32>(1, proto->GetMaxStackSize()) : 1);
@@ -1434,6 +1456,18 @@ namespace
                 }
                 else if (!yes && !named)
                     return;                                     // something else it was told: not about the deal
+                // Asked over in so many words: it sets off (or says why not, and mails it).
+                if (meet)
+                {
+                    deal.stage = 3;
+                    deal.meetAt = now;
+                    if (!Approach(deal, bot, player, now))
+                    {
+                        EndMeeting(deal);
+                        _deals.erase(found);
+                    }
+                    return;
+                }
                 // Close to each other: it asks whether to meet instead of using the mail.
                 if (AskWhere(deal, bot, player, now))
                     return;
@@ -1466,6 +1500,13 @@ namespace
                 deal.price = named;                             // cheaper than it offered: gladly
             else if (!yes)
                 return;
+            if (meet)
+            {
+                deal.stage = 3;
+                deal.meetAt = now;
+                Approach(deal, bot, player, now);       // a bot that buys keeps waiting for a parcel if this fails
+                return;
+            }
             if (AskWhere(deal, bot, player, now))
                 return;
             Tell(bot, player, Fill(Pick(bot, Lines::BuyAgreed),
@@ -1489,25 +1530,48 @@ namespace
             return false;
         }
 
-        /// Could the bot walk over and trade right now?
+        /// Why the bot cannot walk over and trade right now; empty when it can.
+        static std::string WhyNotMeet(Player* bot, Player* player)
+        {
+            if (!cfg.dealMeet)
+                return "meeting is switched off";
+            if (!bot || !player || !bot->IsInWorld() || !player->IsInWorld())
+                return "one of the two is not in the world";
+            if (bot->GetMapId() != player->GetMapId())
+                return "they are on different continents";
+            if (bot->GetMap()->Instanceable())
+                return "they are in a dungeon or battleground";
+            if (bot->GetTeamId() != player->GetTeamId())
+                return "they are of different factions";
+            if (!bot->IsAlive() || !player->IsAlive())
+                return "one of the two is dead";
+            if (bot->IsInFlight() || player->IsInFlight() || bot->IsBeingTeleported())
+                return "one of the two is travelling";
+            if (bot->GetGroup())
+                return "the bot is in a group";
+            if (bot->GetTradeData())
+                return "the bot is trading with somebody";
+            float const apart = bot->GetDistance(player);
+            if (apart > float(cfg.dealMeetDistance))
+                return Acore::StringFormat("the bot is {} yards away, more than the {} allowed", uint32(apart), cfg.dealMeetDistance);
+            return "";
+        }
+
         static bool CanMeet(Player* bot, Player* player)
         {
-            if (!cfg.dealMeet || !bot || !player || !bot->IsInWorld() || !player->IsInWorld())
-                return false;
-            if (bot->GetMapId() != player->GetMapId() || bot->GetMap()->Instanceable() || bot->GetTeamId() != player->GetTeamId())
-                return false;
-            if (!bot->IsAlive() || !player->IsAlive() || bot->IsInCombat() || bot->IsInFlight() || player->IsInFlight() || bot->IsBeingTeleported())
-                return false;
-            if (bot->GetGroup() || bot->GetTradeData())
-                return false;
-            return bot->IsWithinDistInMap(player, float(cfg.dealMeetDistance));
+            return WhyNotMeet(bot, player).empty();
         }
 
         /// Asks "by mail, or shall we meet?" when that is an option. False: it is not, the mail it is.
         bool AskWhere(Deal& deal, Player* bot, Player* player, time_t now)
         {
-            if (!CanMeet(bot, player))
+            std::string const apart = WhyNotMeet(bot, player);
+            if (!apart.empty())
+            {
+                if (cfg.debug)
+                    LOG_INFO("module", "PlayerbotsAuctions: {} does not offer {} to meet: {}.", bot->GetName(), player->GetName(), apart);
                 return false;
+            }
             deal.stage = 3;
             deal.meetAt = now;
             deal.until = std::max<time_t>(deal.until, now + 10 * MINUTE);
@@ -1518,6 +1582,8 @@ namespace
         /// The deal goes through the mail after all. False: the deal is over (the bot has sent its parcel).
         bool ByMail(Deal& deal, time_t now)
         {
+            if (cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: a deal that was to be traded hand to hand goes through the mail (it was at step {}).", uint32(deal.stage));
             EndMeeting(deal);
             Player* bot = ObjectAccessor::FindConnectedPlayer(deal.bot);
             Player* player = ObjectAccessor::FindConnectedPlayer(deal.player);
@@ -1567,6 +1633,8 @@ namespace
             PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
             if (!botAI || !CanMeet(bot, player))
             {
+                if (cfg.debug)
+                    LOG_INFO("module", "PlayerbotsAuctions: {} cannot come to {}: {}.", bot->GetName(), player->GetName(), WhyNotMeet(bot, player));
                 Tell(bot, player, Pick(bot, Lines::MeetFail));
                 return ByMail(deal, now);
             }
