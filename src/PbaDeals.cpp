@@ -878,15 +878,22 @@ namespace
             CharacterDatabase.DirectExecute(
                 "CREATE TABLE IF NOT EXISTS `mod_playerbots_auctions_deals` ("
                 "`bot` INT UNSIGNED NOT NULL, `player` INT UNSIGNED NOT NULL, `item` INT UNSIGNED NOT NULL, `count` INT UNSIGNED NOT NULL, "
-                "`price` BIGINT UNSIGNED NOT NULL, `until` BIGINT UNSIGNED NOT NULL, `paid` INT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY (`bot`, `player`, `item`)) "
+                "`price` BIGINT UNSIGNED NOT NULL, `until` BIGINT UNSIGNED NOT NULL, `paid` INT UNSIGNED NOT NULL DEFAULT 0, `botname` VARCHAR(64) NOT NULL DEFAULT '', PRIMARY KEY (`bot`, `player`, `item`)) "
                 "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mod-playerbots-auctions: parcels of players that bots agreed to pay for'");
             _table = true;
+            // `botname`: after a reset of the random bots the new ones get the numbers of the old ones, and must
+            // not inherit what those promised.
+            if (!CharacterDatabase.Query("SHOW COLUMNS FROM `mod_playerbots_auctions_deals` LIKE 'botname'"))
+            {
+                CharacterDatabase.DirectExecute("ALTER TABLE `mod_playerbots_auctions_deals` ADD COLUMN `botname` VARCHAR(64) NOT NULL DEFAULT ''");
+                CharacterDatabase.DirectExecute("UPDATE `mod_playerbots_auctions_deals` d JOIN `characters` c ON c.`guid` = d.`bot` SET d.`botname` = c.`name`");
+            }
             // `paid`: the mail a bot paid while it was away, when that mail holds more than was agreed.
             if (!CharacterDatabase.Query("SHOW COLUMNS FROM `mod_playerbots_auctions_deals` LIKE 'paid'"))
                 CharacterDatabase.DirectExecute("ALTER TABLE `mod_playerbots_auctions_deals` ADD COLUMN `paid` INT UNSIGNED NOT NULL DEFAULT 0");
             CharacterDatabase.DirectExecute(
-                "DELETE d FROM `mod_playerbots_auctions_deals` d LEFT JOIN `characters` b ON b.`guid` = d.`bot` LEFT JOIN `characters` p ON p.`guid` = d.`player` "
-                "WHERE b.`guid` IS NULL OR p.`guid` IS NULL");
+                "DELETE d FROM `mod_playerbots_auctions_deals` d LEFT JOIN `characters` b ON b.`guid` = d.`bot` AND b.`name` = d.`botname` "
+                "LEFT JOIN `characters` p ON p.`guid` = d.`player` WHERE b.`guid` IS NULL OR p.`guid` IS NULL");
 
             // The time the server was off does not count: nobody could send anything.
             time_t const now = GameTime::GetGameTime().count();
@@ -934,15 +941,20 @@ namespace
             std::string rows;
             for (Deal const& deal : _deals)
                 if (deal.stage >= 1 && !deal.botSells && deal.item && deal.count)
-                    rows += Acore::StringFormat("{}({}, {}, {}, {}, {}, {}, {})", rows.empty() ? "" : ", ", deal.bot.GetCounter(), deal.player.GetCounter(),
-                        deal.item, deal.count, deal.price, uint64(deal.until), deal.mail);
+                {
+                    std::string name;
+                    sCharacterCache->GetCharacterNameByGuid(deal.bot, name);
+                    CharacterDatabase.EscapeString(name);
+                    rows += Acore::StringFormat("{}({}, {}, {}, {}, {}, {}, {}, '{}')", rows.empty() ? "" : ", ", deal.bot.GetCounter(), deal.player.GetCounter(),
+                        deal.item, deal.count, deal.price, uint64(deal.until), deal.mail, name);
+                }
             if (rows == _stored)
                 return;
             _stored = rows;
             CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
             trans->Append("DELETE FROM `mod_playerbots_auctions_deals`");
             if (!rows.empty())
-                trans->Append("REPLACE INTO `mod_playerbots_auctions_deals` (`bot`, `player`, `item`, `count`, `price`, `until`, `paid`) VALUES " + rows);
+                trans->Append("REPLACE INTO `mod_playerbots_auctions_deals` (`bot`, `player`, `item`, `count`, `price`, `until`, `paid`, `botname`) VALUES " + rows);
             if (wait)
                 CharacterDatabase.DirectCommitTransaction(trans);
             else
