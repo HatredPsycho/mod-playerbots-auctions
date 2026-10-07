@@ -1713,6 +1713,7 @@ namespace
             {
                 std::lock_guard<std::mutex> guard(TradingLock());
                 Trading().erase(deal.bot.GetCounter());
+                Answerers().erase(deal.player.GetCounter());
             }
             Player* bot = ObjectAccessor::FindConnectedPlayer(deal.bot);
             if (bot)
@@ -1860,6 +1861,13 @@ namespace
                     Trading().insert(deal.bot.GetCounter());
                 }
                 deal.had = bot->GetItemCount(deal.item);
+                {
+                    std::lock_guard<std::mutex> guard(TradingLock());
+                    if (theirs)
+                        Answerers().insert(deal.player.GetCounter());   // the player opened it: his window is open
+                    else
+                        Answerers().erase(deal.player.GetCounter());
+                }
                 if (!theirs)
                 {
                     WorldPacket open;
@@ -1912,14 +1920,31 @@ namespace
                 return ByMail(deal, now);
             }
 
-            // The player's game answers a trade request by itself, and then the window opens on both screens.
-            // It does not always (seen in a test: the trade existed, "you are already trading", but no window),
-            // so after a second the bot opens it from its side - what the server would do on that answer.
-            if (!deal.opened && deal.meetAt + 1 <= now)
+            // The player's game answers a trade request by itself, and the server then opens the window on both
+            // screens. The module sees that answer. When it does not come (seen in a test: the trade existed,
+            // "you are already trading", but no window), the bot opens the window from its side after a few
+            // seconds - what the server does on that answer. Nothing is put in before the window is open.
+            if (!deal.opened)
             {
-                WorldPacket begin;
-                bot->GetSession()->HandleBeginTradeOpcode(begin);
-                deal.opened = true;
+                bool answered;
+                {
+                    std::lock_guard<std::mutex> guard(TradingLock());
+                    answered = Answerers().count(deal.player.GetCounter()) != 0;
+                }
+                if (answered)
+                {
+                    deal.opened = true;
+                    deal.meetAt = now;
+                }
+                else if (deal.meetAt + 4 <= now)
+                {
+                    WorldPacket begin;
+                    bot->GetSession()->HandleBeginTradeOpcode(begin);
+                    deal.opened = true;
+                    deal.meetAt = now;
+                    if (cfg.debug)
+                        LOG_INFO("module", "PlayerbotsAuctions: the game of {} did not answer the trade request; {} opens the window from its side.", player->GetName(), bot->GetName());
+                }
                 return true;
             }
             // Its own side goes in a moment after the window opened on the player's screen.
@@ -2019,6 +2044,12 @@ namespace
         {
             static std::mutex lock;
             return lock;
+        }
+        /// Players whose game has answered a trade request since their bot asked for the trade.
+        static std::set<ObjectGuid::LowType>& Answerers()
+        {
+            static std::set<ObjectGuid::LowType> players;
+            return players;
         }
 
     private:
@@ -2605,6 +2636,16 @@ namespace
             return false;
         std::lock_guard<std::mutex> guard(Deals::TradingLock());
         return Deals::Trading().count(bot->GetGUID().GetCounter()) != 0;
+    }
+
+    void TradeAnswered(Player* player)
+    {
+        if (!player)
+            return;
+        std::lock_guard<std::mutex> guard(Deals::TradingLock());
+        // Only while a bot of the module waits for it: the set stays empty otherwise.
+        if (!Deals::Trading().empty())
+            Deals::Answerers().insert(player->GetGUID().GetCounter());
     }
 
     bool DealHoldsMail(uint32 mailId)

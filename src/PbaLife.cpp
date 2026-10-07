@@ -2202,6 +2202,20 @@ public:
     }
 };
 
+/// Sees the answer of a player's game to a trade request, so a bot knows when the window is open.
+class PlayerbotsAuctionsPackets : public ServerScript
+{
+public:
+    PlayerbotsAuctionsPackets() : ServerScript("PlayerbotsAuctionsPackets", { SERVERHOOK_CAN_PACKET_RECEIVE }) { }
+
+    bool CanPacketReceive(WorldSession* session, WorldPacket const& packet) override
+    {
+        if (packet.GetOpcode() == CMSG_BEGIN_TRADE && session && session->GetPlayer())
+            pba::TradeAnswered(session->GetPlayer());
+        return true;
+    }
+};
+
 class PlayerbotsAuctionsHouse : public AuctionHouseScript
 {
 public:
@@ -2241,5 +2255,6 @@ void AddSC_playerbots_auctions()
 #endif
     new PlayerbotsAuctionsWorld();
     new PlayerbotsAuctionsHouse();
+    new PlayerbotsAuctionsPackets();
     new PlayerbotsAuctionsPlayer();
 }

@@ -375,6 +375,8 @@ namespace pba
     bool DealHoldsMail(uint32 mailId);
     /// The module looks after this bot's trade window right now (a deal traded hand to hand): mod-playerbots stands back.
     bool HandlesTradeOf(Player* bot);
+    /// A player's game answered a trade request (the window opens on its screen).
+    void TradeAnswered(Player* player);
 
     // ------------------------------------------------------------------------------------------ chatter
 
