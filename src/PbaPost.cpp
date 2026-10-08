@@ -1380,18 +1380,24 @@ namespace pba
             {
                 case ITEM_CLASS_TRADE_GOODS:
                     // Ore asks for jewelcrafting and herbs for inscription in the item table - to prospect and
-                    // to mill them. Everybody can carry and use them, so that is not asked about here.
+                    // to mill them. Materials are for making things, so a profession they ask for is no reason to
+                    // leave them out. Explosives and devices are not materials but things to use: those that only
+                    // an engineer can use are of no use to anybody else.
+                    if ((proto.SubClass == ITEM_SUBCLASS_EXPLOSIVES || proto.SubClass == ITEM_SUBCLASS_DEVICES) &&
+                        (proto.RequiredSkill || proto.RequiredSpell))
+                        return false;
                     crafted = false;
                     break;
                 case ITEM_CLASS_GEM:
-                    if (proto.RequiredSkill)
+                    if (proto.RequiredSkill || proto.RequiredSpell)
                         return false;       // a cut only a jeweler can wear
                     crafted = proto.GemProperties != 0;
                     break;
                 case ITEM_CLASS_CONSUMABLE:
-                    // Only what a crafter makes: potions, elixirs, flasks, meals, scrolls, armor kits and the
-                    // like. Nothing that needs a profession to be used - bandages, an engineer's toys.
-                    if (!made.count(proto.ItemId) || proto.RequiredSkill || proto.SubClass == ITEM_SUBCLASS_BANDAGE)
+                    // Only what a crafter makes: potions, elixirs, flasks, meals, scrolls, armor kits, sharpening
+                    // stones, oils and the like. Nothing that needs a profession to be used - bandages, an
+                    // engineer's toys, a stone only a smith may use.
+                    if (!made.count(proto.ItemId) || proto.RequiredSkill || proto.RequiredSpell || proto.SubClass == ITEM_SUBCLASS_BANDAGE)
                         return false;
                     crafted = true;
                     break;
