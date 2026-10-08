@@ -163,7 +163,7 @@ namespace pba
 
         // trading post
         bool   post = true;                    // every auctioneer also sells what the auction house is short of
-        uint32 postScarce = 10;                // a material is sold while the auction house holds fewer pieces than this; 0: always
+        uint32 postScarce = 1;                 // a material is sold while the auction house holds fewer pieces than this (1: none at all); 0: always
         float  postPriceRaw = 3.0f;            // buyout, delivered at once: times what a material usually goes for
         float  postPriceMade = 4.0f;           // ... and what a crafter makes
         float  postBidRaw = 2.0f;              // lowest bid, delivered when the auction ends

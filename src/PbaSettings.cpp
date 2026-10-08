@@ -119,7 +119,7 @@ namespace pba
         cfg.chatterMixed        = std::min<uint32>(100, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chatter.Mixed", 65));
         cfg.chatterEggs         = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chatter.EasterEggs", 300);
         cfg.post                = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.TradingPost.Enable", true);
-        cfg.postScarce          = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.ScarceBelow", 10);
+        cfg.postScarce          = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.ScarceBelow", 1);
         cfg.postPriceRaw        = std::clamp(sConfigMgr->GetOption<float>("PlayerbotsAuctions.TradingPost.Price.Materials", 3.0f), 1.0f, 100.0f);
         cfg.postPriceMade       = std::clamp(sConfigMgr->GetOption<float>("PlayerbotsAuctions.TradingPost.Price.Crafted", 4.0f), 1.0f, 100.0f);
         cfg.postDailyRaw        = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.Daily.Materials", 20), 1, 100);

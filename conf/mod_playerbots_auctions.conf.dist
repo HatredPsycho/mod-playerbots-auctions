@@ -735,12 +735,15 @@ PlayerbotsAuctions.TradingPost.FreeSample = 1
 #
 #    PlayerbotsAuctions.TradingPost.ScarceBelow
 #        Description: The post sells a material while the auction house holds fewer pieces of it
-#                     than this, all auctions together (a single ore in the auction house helps
-#                     nobody). What crafters make is sold while the auction house has none of it.
-#        Default:     10
+#                     than this, all auctions together. With 1, a single auction of it is enough to
+#                     take it off the post's shelves; with 10, the post goes on selling while the
+#                     auction house has only a handful. What crafters make is sold only while the
+#                     auction house has none of it. The shelves follow the auction house when the
+#                     post is opened and every 15 seconds while somebody looks at them.
+#        Default:     1
 #                     0 - The post sells everything it knows, whatever the auction house holds
 
-PlayerbotsAuctions.TradingPost.ScarceBelow = 10
+PlayerbotsAuctions.TradingPost.ScarceBelow = 1
 
 #
 #    PlayerbotsAuctions.TradingPost.Price.Materials
