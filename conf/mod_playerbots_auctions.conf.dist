@@ -679,8 +679,10 @@ PlayerbotsAuctions.Chat.MailDelay = -1
 #    The first time a character logs in, a letter announces the grand opening of the post: what it
 #    is, where to find it, how it works. Once that letter has been read, a flyer comes at the first
 #    login of every day: a shameless leaflet with a few of today's offers that suit the character's
-#    level, at today's prices, what the customers left at the counter yesterday (a public pillory),
-#    and a wink that it will end up in the bin anyway. Every letter and flyer is written by one of
+#    level, at today's prices - each with when the auction house last had it, for how much and from
+#    whom (written down every ten minutes) - what the customers left at the counter yesterday (a
+#    public pillory), for the misers the best bargains in the auction house right now, and a wink
+#    that it will end up in the bin anyway. Every letter and flyer is written by one of
 #    the post's four clerks from start to end, in that clerk's voice, from hundreds of pieces. There
 #    is never more than one flyer in the mailbox - the new one replaces yesterday's, and each is gone
 #    after a day. At the auctioneer, "Stop sending me your flyers" ends them for that character.

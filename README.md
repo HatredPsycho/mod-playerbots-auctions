@@ -72,7 +72,8 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
   day) - both well above the usual price. The goods come with a letter from one of the post's clerks, each
   with a voice of its own. A first letter announces the grand opening; after it
   was read, a cheeky flyer arrives at the first login of each day, written by one of the post's clerks in their
-  own voice: a few of today's offers, what customers left at the counter yesterday, and a wink that it will end
+  own voice: a few of today's offers with when, for how much and from whom the auction house last had them, what
+  customers left at the counter yesterday, the best bargains next door "for the misers among you", and a wink that it will end
   up in the bin (one in the mailbox at a time, gone after a day, can be stopped at the auctioneer). Once a week
   there is a free sample to collect at the auctioneer, praised to the skies - and always junk. Each post has a limited stock a day for all players together, dearer
   the emptier the shelf, and a character gets one lot of a thing a day. No equipment, nothing that needs a

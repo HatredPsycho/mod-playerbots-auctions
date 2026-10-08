@@ -930,6 +930,162 @@ namespace pba
         { "goblin", "nixa", "unsubscribe", "Per the cancellation clause, the Customer may stop these flyers at any auctioneer. Binning this flyer does not count as cancellation." },
         { "goblin", "nixa", "unsubscribe", "Notice: annoyance caused by this flyer is not covered by any guarantee. Remedy: ask your local auctioneer to stop sending you flyers." },
         { "goblin", "nixa", "unsubscribe", "By throwing this flyer away, the Customer waives nothing. To actually stop the flyers, inform any auctioneer. Fine print ends here." },
+        { "horde", "any", "lastseen", "- {item}: {seller} sold it next door {when} for {price}. A fool's price. Ours is {ours} now, or {caravan} if you trust the caravan." },
+        { "horde", "any", "lastseen", "- {item}: the auction house had it {when}, {price} from {seller}. We charge {ours} on the spot, {caravan} by caravan. Quality costs, grunt." },
+        { "horde", "any", "lastseen", "- {item}: last spotted {when} at {price}, posted by {seller}. Gone now. Ours waits for you at {ours}, or {caravan} with the next caravan." },
+        { "horde", "any", "lastseen", "- {item}: {seller} let it go for {price} {when}. Such generosity is not our way. {ours} here, {caravan} if you can wait for the wolves." },
+        { "horde", "any", "lastseen", "- {item}: seen next door {when} - {price} each, seller {seller}. Our price: {ours} today, {caravan} when the kodos arrive. Patience is cheaper." },
+        { "horde", "any", "lastseen", "- {item}: {when}, {seller} asked {price} for it at the auction house. We ask {ours}. Or {caravan}, delivered by caravan. Honor has a price tag." },
+        { "horde", "any", "lastseen", "- {item}: the clerks next door saw it {when} at {price} from {seller}. Here it costs {ours} at once, {caravan} by caravan. Do not haggle." },
+        { "horde", "any", "lastseen", "- {item}: {price} a piece from {seller}, {when}. That was then. This is the Trading Post: {ours} now, {caravan} on the caravan." },
+        { "horde", "any", "lastseen", "- {item}: last on the auction board {when}, {seller} wanted {price}. Our counter says {ours}, the caravan says {caravan}. Both are final." },
+        { "horde", "any", "lastseen", "- {item}: {seller} sold it for {price} {when} and probably regrets nothing. We charge {ours}, or {caravan} by caravan, and regret nothing either." },
+        { "horde", "any", "neverseen", "- {item}: never seen at the auction house in living memory. Here: {ours} at once, or {caravan} with the caravan." },
+        { "horde", "any", "neverseen", "- {item}: the auction house has no record of it. None. We have it for {ours}, or {caravan} by caravan." },
+        { "horde", "any", "neverseen", "- {item}: not one sighting next door since the clerks started counting. Ours: {ours}, or {caravan} if you can wait." },
+        { "horde", "any", "neverseen", "- {item}: the auctioneer swears it never passed his counter. Ours costs {ours} today, {caravan} with the next caravan." },
+        { "horde", "any", "neverseen", "- {item}: nobody has ever posted this next door. Rare things cost. {ours} now, {caravan} when the kodos arrive." },
+        { "horde", "any", "neverseen", "- {item}: unseen at the auction house since the founding of the city. Here: {ours} on the spot, {caravan} by caravan." },
+        { "horde", "any", "neverseen", "- {item}: the elders cannot remember it on the auction board. We can sell it for {ours}, or {caravan} with the caravan." },
+        { "horde", "any", "neverseen", "- {item}: never listed next door. Not once. Ours waits at {ours}, or {caravan} if the caravan survives the road." },
+        { "horde", "any", "neverseen", "- {item}: even the oldest auction ledgers are silent about it. Here: {ours}, or {caravan} delivered later." },
+        { "horde", "any", "neverseen", "- {item}: the auction house has never seen one. We have. Pay {ours} today, or {caravan} and wait for the caravan." },
+        { "horde", "grukka", "misers", "For the misers among you. The Quartermaster writes this with clenched teeth. Cheapest goods at the auction house next door:" },
+        { "horde", "grukka", "misers", "Grukka does not like this list. Honor demands it anyway. The cheapest bargains next door, for the misers:" },
+        { "horde", "grukka", "misers", "Misers. You know who you are. These are the cheapest offers at the auction house right now. Do not thank me." },
+        { "horde", "grukka", "misers", "It pains me to write this. The auction house next door sells these cheap. Take them, misers, and be gone." },
+        { "horde", "grukka", "hurry", "Move fast. First come, first served. The bots buy cheap things themselves." },
+        { "horde", "grukka", "hurry", "These bargains will not wait. Neither will the bots. Go now, or lose them." },
+        { "horde", "grukka", "hurry", "First come, first served. Hesitate, and a bot takes it. That is the way of war." },
+        { "horde", "grukka", "hurry", "Cheap goods do not last. The bots are faster than you. Run." },
+        { "horde", "zuljabi", "misers", "For de misers among you, mon. Zul'jabi be cryin' while he write dis: de cheapest bargains next door." },
+        { "horde", "zuljabi", "misers", "Ah, de misers! Dis list hurt me heart, mon. Here be de cheapest things at de auction house right now." },
+        { "horde", "zuljabi", "misers", "It pains me to write dis, mon. But de spirits say share, so here be de cheapest stuff next door:" },
+        { "horde", "zuljabi", "misers", "You too cheap for de Trading Post? No worries, mon. Dat auction house got dese bargains for ya:" },
+        { "horde", "zuljabi", "hurry", "Hurry, mon! First come, first served. De bots be snatchin' de cheap stuff demselves." },
+        { "horde", "zuljabi", "hurry", "Dese bargains no gonna wait for ya, mon. Run fast before de bots grab dem!" },
+        { "horde", "zuljabi", "hurry", "First come, first served, mon. De bots love a cheap deal more dan anybody." },
+        { "horde", "zuljabi", "hurry", "Go go go, mon! Dat cheap stuff vanish faster dan a troll at tax time." },
+        { "horde", "thalsorn", "misers", "For the misers among you. Even the river sometimes runs shallow. These are the cheapest bargains at the auction house next door:" },
+        { "horde", "thalsorn", "misers", "It pains me to write this, as a drought pains the plains. The cheapest offers next door, for those who count each copper:" },
+        { "horde", "thalsorn", "misers", "The Ledger-Keeper bows to the thrifty. Like seeds scattered by wind, these cheap offers lie next door:" },
+        { "horde", "thalsorn", "misers", "Not every traveler can afford the Trading Post. For the misers, the earth offers these bargains at the auction house:" },
+        { "horde", "thalsorn", "hurry", "Hurry. First come, first served. The bots graze on cheap goods like hungry kodos." },
+        { "horde", "thalsorn", "hurry", "Bargains melt like spring snow. The bots will gather them if you do not." },
+        { "horde", "thalsorn", "hurry", "First come, first served. The wind does not wait, and neither do the bots." },
+        { "horde", "thalsorn", "hurry", "Move swiftly, friend. Cheap things are taken before the sun sets." },
+        { "horde", "ambrose", "misers", "For the misers among you. Writing this list is more painful than my own death was. The cheapest bargains next door:" },
+        { "horde", "ambrose", "misers", "It pains me to write this, and I no longer feel pain. The auction house next door offers these, for the thrifty:" },
+        { "horde", "ambrose", "misers", "Misers, rejoice. Briefly. Here are the cheapest offers next door, listed with all the enthusiasm of a gravedigger." },
+        { "horde", "ambrose", "misers", "The Shipping Clerk grudgingly exhumes the cheapest bargains at the auction house next door, for the stingy among you:" },
+        { "horde", "ambrose", "hurry", "Hurry. First come, first served. The bots buy cheap things themselves, and they never sleep either." },
+        { "horde", "ambrose", "hurry", "These bargains will not wait. They will die young, like most things." },
+        { "horde", "ambrose", "hurry", "First come, first served. The bots descend on cheap goods like crows on a battlefield." },
+        { "horde", "ambrose", "hurry", "Move along quickly. Unlike me, the bargains do not last forever." },
+        { "alliance", "any", "lastseen", "- {item}: last seen at the auction house {when}, {price} each from {seller}. Our humble price: {ours} at once, {caravan} by caravan." },
+        { "alliance", "any", "lastseen", "- {item}: {seller} parted with it {when} for a mere {price}. A tragic lack of ambition. Ours: {ours} now, {caravan} with the caravan." },
+        { "alliance", "any", "lastseen", "- {item}: the auctioneer recorded it {when} at {price}, sold by {seller}. Kindly compare with our {ours}, or {caravan} by wagon." },
+        { "alliance", "any", "lastseen", "- {item}: {when}, {price} a piece from {seller}. Alas, sold out. The Trading Post offers {ours} today, or {caravan} with the caravan." },
+        { "alliance", "any", "lastseen", "- {item}: listed next door {when} by {seller} at {price}. Here it is {ours} immediately, {caravan} when the caravan rolls in. Splendid value." },
+        { "alliance", "any", "lastseen", "- {item}: {seller} asked only {price} for it {when}. We ask {ours}. Or {caravan}, should you prefer to wait for the caravan." },
+        { "alliance", "any", "lastseen", "- {item}: last seen {when} at the auction house - {price} each, from {seller}. Ours: {ours} at once, {caravan} by caravan. Service has a price." },
+        { "alliance", "any", "lastseen", "- {item}: {price} from {seller}, {when}. Lucky buyer. Unlucky you. Our offer: {ours} today, {caravan} via the caravan." },
+        { "alliance", "any", "lastseen", "- {item}: according to the auction ledger, {seller} sold it {when} for {price}. Our ledger says {ours}, or {caravan} with the caravan." },
+        { "alliance", "any", "lastseen", "- {item}: seen next door {when} for {price}, courtesy of {seller}. Here: {ours} on the spot, {caravan} by caravan. Worth every copper." },
+        { "alliance", "any", "neverseen", "- {item}: not seen at the auction house in living memory. Here: {ours}, or {caravan} with the caravan." },
+        { "alliance", "any", "neverseen", "- {item}: the auction house has never listed it. We, naturally, have. {ours} at once, {caravan} by caravan." },
+        { "alliance", "any", "neverseen", "- {item}: no record of it next door, not in any ledger. Ours: {ours} today, or {caravan} with the caravan." },
+        { "alliance", "any", "neverseen", "- {item}: never once on the auction board. A true rarity at {ours}, or {caravan} if you can wait for the caravan." },
+        { "alliance", "any", "neverseen", "- {item}: the auctioneer has never laid eyes on it. You may, for {ours} now or {caravan} via the caravan." },
+        { "alliance", "any", "neverseen", "- {item}: unseen at the auction house since anyone started keeping books. Here: {ours}, or {caravan} by caravan." },
+        { "alliance", "any", "neverseen", "- {item}: no seller has ever posted it next door. Our price: {ours} at once, {caravan} when the caravan arrives." },
+        { "alliance", "any", "neverseen", "- {item}: absent from the auction house as long as anyone remembers. Ours: {ours} today, {caravan} delivered later." },
+        { "alliance", "any", "neverseen", "- {item}: the auction clerks claim it is a myth. We sell the myth for {ours}, or {caravan} with the caravan." },
+        { "alliance", "any", "neverseen", "- {item}: never seen next door, not even rumored. Here it costs {ours}, or {caravan} by the slow caravan." },
+        { "alliance", "percival", "misers", "For the misers among you, and it pains me deeply to write this: the cheapest bargains at the auction house next door." },
+        { "alliance", "percival", "misers", "The Steward must, under protest, acknowledge the existence of cheap goods. They are next door. For the misers:" },
+        { "alliance", "percival", "misers", "Should you lack the refinement to shop with us, the auction house next door offers these regrettable bargains:" },
+        { "alliance", "percival", "misers", "It is with the heaviest of hearts that I list the cheapest offers next door. Misers, please lower your eyes as you read:" },
+        { "alliance", "percival", "hurry", "Do hurry. First come, first served, and the bots have no manners whatsoever." },
+        { "alliance", "percival", "hurry", "These bargains will not wait for your leisurely stroll. The bots certainly will not." },
+        { "alliance", "percival", "hurry", "First come, first served. One does not dawdle where cheap goods and bots are concerned." },
+        { "alliance", "percival", "hurry", "Make haste, good people. The bots snap up cheap things with appalling speed." },
+        { "alliance", "tibbly", "misers", "For the misers among you. Tibbly has triple-checked this list and still hates it. Cheapest bargains next door:" },
+        { "alliance", "tibbly", "misers", "It pains me to write this, and it ruins my lovely margins. The cheapest offers at the auction house next door:" },
+        { "alliance", "tibbly", "misers", "Entry under protest: cheapest bargains at the auction house next door, for misers. Filed, sorted, regretted." },
+        { "alliance", "tibbly", "misers", "Against all accounting principles, the Bookkeeper lists the cheapest auction house offers. For the misers only:" },
+        { "alliance", "tibbly", "hurry", "Hurry! First come, first served. The bots buy cheap things themselves, alphabetically and fast." },
+        { "alliance", "tibbly", "hurry", "These bargains will not wait. By my calculations, the bots get there first." },
+        { "alliance", "tibbly", "hurry", "First come, first served. Late arrivals will be noted in the ledger. In red ink." },
+        { "alliance", "tibbly", "hurry", "Quickly now! Cheap goods vanish faster than a rounding error." },
+        { "alliance", "durgan", "misers", "For the misers among you. Durgan needs a stiff ale after writing this. The cheapest bargains next door:" },
+        { "alliance", "durgan", "misers", "Bah. It pains me to write this. The auction house next door sells these cheap. Go on then, misers." },
+        { "alliance", "durgan", "misers", "Misers, listen up. These cheap offers next door are the only reason I'm not sober today." },
+        { "alliance", "durgan", "misers", "Grumble, grumble. Here be the cheapest bargains at the auction house, for those who drink water to save coin:" },
+        { "alliance", "durgan", "hurry", "Hurry up! First come, first served. The bots grab cheap things faster than I grab a tankard." },
+        { "alliance", "durgan", "hurry", "These bargains won't wait, and neither will the bots. Off with ye." },
+        { "alliance", "durgan", "hurry", "First come, first served. Dawdle and a bot drinks your ale. So to speak." },
+        { "alliance", "durgan", "hurry", "Move yer feet! Cheap goods go quick, like the first keg of the night." },
+        { "alliance", "ishaali", "misers", "For the misers among you. The Light teaches charity, so I write this, though it pains me. The cheapest bargains next door:" },
+        { "alliance", "ishaali", "misers", "It pains me to write this, yet the Light asks for honesty. The auction house next door offers these at humble prices:" },
+        { "alliance", "ishaali", "misers", "May the Light forgive me for this list. For the thrifty souls, the cheapest offers at the auction house next door:" },
+        { "alliance", "ishaali", "misers", "Even the frugal deserve guidance. With a heavy heart, I present the cheapest bargains next door:" },
+        { "alliance", "ishaali", "hurry", "Hurry, friends. First come, first served. The bots buy cheap things themselves, without prayer." },
+        { "alliance", "ishaali", "hurry", "These bargains will not wait. The Light guides the swift, and so do the bots." },
+        { "alliance", "ishaali", "hurry", "First come, first served. Do not tarry, for patience is not rewarded here." },
+        { "alliance", "ishaali", "hurry", "Move with purpose. Cheap blessings are claimed quickly, mostly by bots." },
+        { "goblin", "any", "lastseen", "- {item}: last seen next door {when}, {price} per piece from {seller}. Here: {ours} instantly, {caravan} with the caravan. Plus fees. Kidding. Mostly." },
+        { "goblin", "any", "lastseen", "- {item}: {seller} dumped it {when} for {price}. Bad business! We sell at {ours} now, or {caravan} on the caravan. Good business!" },
+        { "goblin", "any", "lastseen", "- {item}: the auction house had it {when} at {price}, seller {seller}. Our price: {ours} express, {caravan} economy caravan." },
+        { "goblin", "any", "lastseen", "- {item}: {when}, {seller} let it go for {price}. Rookie. Ours: {ours} right now, {caravan} by caravan. Time is money, friend." },
+        { "goblin", "any", "lastseen", "- {item}: last listing next door: {price} from {seller}, {when}. Our listing: {ours} at once, {caravan} by caravan. Spot the professional." },
+        { "goblin", "any", "lastseen", "- {item}: {seller} sold it for {price} {when}. We call that a missed opportunity. We call {ours} an opportunity. Caravan price: {caravan}." },
+        { "goblin", "any", "lastseen", "- {item}: seen at the auction house {when} at {price} via {seller}. Here: {ours} today, {caravan} with the caravan. Markup is an art." },
+        { "goblin", "any", "lastseen", "- {item}: {price} each from {seller}, {when}. Sold out, sucker. Ours: {ours} immediate, {caravan} when the caravan shows up." },
+        { "goblin", "any", "lastseen", "- {item}: our market spies saw it {when} for {price}, from {seller}. Our sticker says {ours}, caravan sticker says {caravan}. No refunds." },
+        { "goblin", "any", "lastseen", "- {item}: {seller} sold it {when} at {price} and walked away happy. We charge {ours}, or {caravan} by caravan, and walk away happier." },
+        { "goblin", "any", "neverseen", "- {item}: never seen at the auction house in living memory. Here: {ours} express, or {caravan} by caravan." },
+        { "goblin", "any", "neverseen", "- {item}: zero listings next door, ever. Scarcity is beautiful. {ours} now, {caravan} with the caravan." },
+        { "goblin", "any", "neverseen", "- {item}: the auction house never had one. We do. Monopoly price: {ours}, or {caravan} via caravan." },
+        { "goblin", "any", "neverseen", "- {item}: not a single sighting next door. Exclusive deal: {ours} at once, {caravan} when the caravan rolls in." },
+        { "goblin", "any", "neverseen", "- {item}: our spies watched the auction house for ages. Nothing. Ours: {ours}, or {caravan} by caravan." },
+        { "goblin", "any", "neverseen", "- {item}: unseen next door since before the first coin was minted. Here: {ours} today, {caravan} with the caravan." },
+        { "goblin", "any", "neverseen", "- {item}: no auction record, no competition, no mercy. {ours} right now, or {caravan} on the caravan." },
+        { "goblin", "any", "neverseen", "- {item}: the auction house does not even know it exists. Yours for {ours}, or {caravan} with the caravan." },
+        { "goblin", "any", "neverseen", "- {item}: never listed next door. Supply and demand says {ours}. The caravan says {caravan}." },
+        { "goblin", "any", "neverseen", "- {item}: absent from the auction house in living memory. Rare goods, rare prices: {ours}, or {caravan} delivered later." },
+        { "goblin", "gizzik", "misers", "For the misers among you. Gizzik writes this through tears. Cheapest bargains next door - but have you seen our premium line?" },
+        { "goblin", "gizzik", "misers", "It pains me to write this. These are the cheapest offers at the auction house. Upgrade to ours anytime, friend!" },
+        { "goblin", "gizzik", "misers", "Sure, sure, you want cheap. Here are the cheapest bargains next door. Consider buying two of ours instead." },
+        { "goblin", "gizzik", "misers", "Misers, welcome! Here is the bargain bin of the auction house. Ask me about our deluxe caravan package." },
+        { "goblin", "gizzik", "hurry", "Hurry! First come, first served. The bots buy cheap stuff themselves. Ours never runs out!" },
+        { "goblin", "gizzik", "hurry", "These bargains won't wait. Ours will. That's the premium experience." },
+        { "goblin", "gizzik", "hurry", "First come, first served. Lose out to a bot? Our counter is always open, friend." },
+        { "goblin", "gizzik", "hurry", "Quick, quick! Cheap goods vanish. Expensive goods wait patiently for you. Think about it." },
+        { "goblin", "fenny", "misers", "For the misers among you. It pains me to write this list, since none of it carries a fee. The cheapest bargains next door:" },
+        { "goblin", "fenny", "misers", "No fees, no surcharges, no joy. Here are the cheapest offers at the auction house next door, misers:" },
+        { "goblin", "fenny", "misers", "The Fee Accountant reluctantly lists the cheapest bargains next door. Reading this list is free. For now." },
+        { "goblin", "fenny", "misers", "Cheapest auction house offers, for misers. Note: the auction house deposit fee is not our fault. Ours is." },
+        { "goblin", "fenny", "hurry", "Hurry. First come, first served. The bots buy cheap things themselves and dodge every fee." },
+        { "goblin", "fenny", "hurry", "These bargains will not wait. Waiting fees may apply. Kidding. Probably." },
+        { "goblin", "fenny", "hurry", "First come, first served. Late arrival surcharge: your dignity, lost to a bot." },
+        { "goblin", "fenny", "hurry", "Move fast! Cheap goods vanish before I can even invent a fee for them." },
+        { "goblin", "krazzle", "misers", "For the misers among you. Krazzle almost blew up the press writing this. The cheapest bargains next door:" },
+        { "goblin", "krazzle", "misers", "It pains me to write this. More than that time with the gunpowder barrel. Cheapest offers at the auction house:" },
+        { "goblin", "krazzle", "misers", "Misers! Here's the cheapest stuff next door. Light the fuse and run over there, I guess." },
+        { "goblin", "krazzle", "misers", "Kaboom goes my profit. These are the cheapest bargains at the auction house next door, for the stingy:" },
+        { "goblin", "krazzle", "hurry", "Hurry! First come, first served. The bots grab cheap stuff faster than a short fuse burns." },
+        { "goblin", "krazzle", "hurry", "These bargains won't wait. They're gone quicker than a sapper charge. Boom." },
+        { "goblin", "krazzle", "hurry", "First come, first served. Hesitate and a bot blasts right past you." },
+        { "goblin", "krazzle", "hurry", "Go, go, go! The cheap stuff explodes off the shelves, mostly into bot bags." },
+        { "goblin", "nixa", "misers", "For the misers among you. It pains me to write this. Cheapest auction house bargains next door, see fine print:" },
+        { "goblin", "nixa", "misers", "Clause zero: the Trading Post does not endorse thrift. The cheapest offers at the auction house next door:" },
+        { "goblin", "nixa", "misers", "Per this notice, misers are hereby informed of the cheapest bargains next door. Signed under duress:" },
+        { "goblin", "nixa", "misers", "The Contracts Clerk lists these cheap offers next door against her will. Terms and conditions apply, somewhere:" },
+        { "goblin", "nixa", "hurry", "Hurry. First come, first served. Fine print: the bots buy cheap things themselves." },
+        { "goblin", "nixa", "hurry", "These bargains will not wait. Nothing in this contract obliges them to." },
+        { "goblin", "nixa", "hurry", "First come, first served. Bots are not bound by any agreement and act accordingly." },
+        { "goblin", "nixa", "hurry", "Act fast. Offer valid while supplies last, which is not long at all." },
         };
 
         // ---------------------------------------------------------------------------------- what it sells
@@ -992,6 +1148,15 @@ namespace pba
         };
         std::map<uint64, uint64> spent;                                     // auction house and day -> copper players left there
         std::vector<uint32> junk;                                           // what a free sample can be
+
+        /// When a thing was last seen in an auction house, for how much a piece and from whom.
+        struct Sighting
+        {
+            time_t when = 0;
+            uint32 each = 0;
+            ObjectGuid::LowType seller = 0;
+        };
+        std::unordered_map<uint64, Sighting> seen;                          // auction house and item
         std::unordered_map<ObjectGuid::LowType, Reader> readers;
         bool tables = false;
         thread_local bool passing = false;      // the real auction window is being opened; the menu stays out of it
@@ -1858,6 +2023,128 @@ namespace pba
                 LOG_INFO("module", "PlayerbotsAuctions: trading post - {} collects the free sample of the week: {}.", player->GetName(), proto->Name1);
         }
 
+        /// What lies in the auction houses right now is written down: the cheapest piece of each thing, with its seller.
+        /// On the world's thread.
+        void Watch()
+        {
+            time_t const now = GameTime::GetGameTime().count();
+            std::set<AuctionHouseObject*> done;
+            CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+            uint32 written = 0;
+            for (AuctionHouseId const id : { AuctionHouseId::Alliance, AuctionHouseId::Horde, AuctionHouseId::Neutral })
+            {
+                AuctionHouseObject* house = sAuctionMgr->GetAuctionsMapByHouseId(id);
+                if (!house || !done.insert(house).second)
+                    continue;
+                // With the houses joined, every house number points to the same auctions; they are noted for each.
+                std::unordered_map<uint32, Sighting> cheapest;
+                for (auto const& entry : house->GetAuctions())
+                {
+                    AuctionEntry const* auction = entry.second;
+                    if (!auction || !auction->itemCount)
+                        continue;
+                    uint32 const price = auction->buyout ? auction->buyout : std::max(auction->bid, auction->startbid);
+                    uint32 const each = std::max<uint32>(1, price / auction->itemCount);
+                    Sighting& best = cheapest[auction->item_template];
+                    if (!best.when || each < best.each)
+                        best = { now, each, auction->owner.GetCounter() };
+                }
+                for (AuctionHouseId const number : { AuctionHouseId::Alliance, AuctionHouseId::Horde, AuctionHouseId::Neutral })
+                {
+                    if (sAuctionMgr->GetAuctionsMapByHouseId(number) != house)
+                        continue;
+                    std::lock_guard<std::mutex> guard(lock);
+                    for (auto const& entry : cheapest)
+                    {
+                        seen[Key(uint32(number), entry.first)] = entry.second;
+                        if (tables)
+                        {
+                            trans->Append("REPLACE INTO `mod_playerbots_auctions_post_seen` (`house`, `item`, `seen`, `each`, `seller`) VALUES ({}, {}, {}, {}, {})",
+                                uint32(number), entry.first, uint64(now), entry.second.each, entry.second.seller);
+                            ++written;
+                        }
+                    }
+                }
+            }
+            if (written)
+                CharacterDatabase.CommitTransaction(trans);
+        }
+
+        std::string WhenText(time_t ago)
+        {
+            static char const* const Numbers[] = { "", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+                "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty",
+                "twenty-one", "twenty-two", "twenty-three" };
+            if (ago < HOUR)
+                return "within the hour";
+            if (ago < DAY)
+            {
+                uint32 const hours = uint32(ago / HOUR);
+                return hours == 1 ? std::string("an hour ago") : Acore::StringFormat("{} hours ago", Numbers[hours]);
+            }
+            uint32 const days = uint32(ago / DAY);
+            if (days == 1)
+                return "yesterday";
+            if (days < 14)
+                return Acore::StringFormat("{} days ago", Numbers[days]);
+            if (days < 60)
+                return Acore::StringFormat("{} weeks ago", days / 7 < 24 ? Numbers[days / 7] : "many");
+            return "ages ago";
+        }
+
+        std::string NameOf(ObjectGuid::LowType low)
+        {
+            std::string name;
+            if (!low || !sCharacterCache->GetCharacterNameByGuid(ObjectGuid::Create<HighGuid::Player>(low), name) || name.empty())
+                return "somebody long gone";
+            return name;
+        }
+
+        /// The best bargains in the auction house right now for a character of that level: well under what
+        /// things usually go for. On the world's thread.
+        std::vector<std::string> Bargains(Player* player, uint32 house, size_t most)
+        {
+            struct Find
+            {
+                AuctionEntry const* auction;
+                ItemTemplate const* proto;
+                double usual;
+                double ratio;
+            };
+            std::vector<Find> finds;
+            AuctionHouseObject* auctions = sAuctionMgr->GetAuctionsMapByHouseId(AuctionHouseId(house));
+            if (!auctions)
+                return {};
+            uint32 const level = player->GetLevel();
+            for (auto const& entry : auctions->GetAuctions())
+            {
+                AuctionEntry const* auction = entry.second;
+                if (!auction || !auction->buyout || !auction->itemCount || auction->owner == player->GetGUID())
+                    continue;
+                ItemTemplate const* proto = sObjectMgr->GetItemTemplate(auction->item_template);
+                if (!proto || proto->Quality < ITEM_QUALITY_NORMAL || proto->Quality >= MAX_ITEM_QUALITY || proto->RequiredLevel > level ||
+                    proto->ItemLevel > level + 10 || proto->ItemLevel + 25 < level)
+                    continue;
+                double const usual = market.Value(proto) * auction->itemCount;
+                double const ratio = double(auction->buyout) / std::max(1.0, usual);
+                if (ratio < 0.6 && auction->buyout > proto->SellPrice * auction->itemCount)
+                    finds.push_back({ auction, proto, usual, ratio });
+            }
+            std::sort(finds.begin(), finds.end(), [](Find const& a, Find const& b) { return a.ratio < b.ratio; });
+            std::vector<std::string> lines;
+            std::set<uint32> items;
+            for (Find const& find : finds)
+            {
+                if (lines.size() >= most || !items.insert(find.proto->ItemId).second)
+                    continue;
+                lines.push_back(Acore::StringFormat("- {}{}: {} from {} - usually about {}", find.proto->Name1,
+                    find.auction->itemCount > 1 ? Acore::StringFormat(" x{}", find.auction->itemCount) : std::string(),
+                    MoneyText(find.auction->buyout), NameOf(find.auction->owner.GetCounter()),
+                    MoneyText(uint32(std::min(find.usual, double(MAX_MONEY_AMOUNT))))));
+            }
+            return lines;
+        }
+
         bool IsPostMail(Mail const* mail)
         {
             return mail->state != MAIL_STATE_DELETED && mail->messageType == MAIL_NORMAL && mail->sender >= SellerLow &&
@@ -1958,10 +2245,10 @@ namespace pba
                 }
                 Acore::Containers::RandomShuffle(materials);
                 Acore::Containers::RandomShuffle(crafted);
-                if (materials.size() > 5)
-                    materials.resize(5);
-                if (crafted.size() > 3)
-                    crafted.resize(3);
+                if (materials.size() > 4)
+                    materials.resize(4);
+                if (crafted.size() > 2)
+                    crafted.resize(2);
                 materials.insert(materials.end(), crafted.begin(), crafted.end());
                 for (Offer const* offer : materials)
                 {
@@ -1970,7 +2257,21 @@ namespace pba
                     OnShelf(low, house, ware, gone);
                     uint32 bid, buyout;
                     PricesOf(*offer, ware, gone, bid, buyout);
-                    lines.push_back(Acore::StringFormat("- {}: {} a piece - or {} with the caravan", ware.proto->Name1, MoneyText(buyout), MoneyText(bid)));
+                    // Next to it, when the auction house last had it, for how much and from whom.
+                    auto sighting = seen.find(Key(house, ware.proto->ItemId));
+                    std::string line = PieceOf(SideOf(house), "any", sighting != seen.end() ? "lastseen" : "neverseen");
+                    if (line.empty())
+                        line = "- {item}: {ours} a piece - or {caravan} with the caravan";
+                    Fill(line, "{item}", ware.proto->Name1);
+                    Fill(line, "{ours}", MoneyText(buyout));
+                    Fill(line, "{caravan}", MoneyText(bid));
+                    if (sighting != seen.end())
+                    {
+                        Fill(line, "{when}", WhenText(now - sighting->second.when));
+                        Fill(line, "{price}", MoneyText(sighting->second.each));
+                        Fill(line, "{seller}", NameOf(sighting->second.seller));
+                    }
+                    lines.push_back(line);
                 }
                 if (lines.empty())
                     return;     // nothing to advertise today; maybe tomorrow
@@ -1998,6 +2299,7 @@ namespace pba
 
             char const* const side = SideOf(house);
             char const* const writer = WriterOf(side);
+            std::vector<std::string> const bargains = Bargains(player, house, 3);
             std::string list;
             for (std::string const& line : lines)
                 list += line + "\n";
@@ -2007,8 +2309,16 @@ namespace pba
             std::string body = PieceOf(side, writer, "headline") + "\n\n" + PieceOf(side, writer, "intro") + "\n\n" + shame + "\n\n";
             if (sample)
                 body += PieceOf(side, writer, "sample") + "\n\n";
-            body += PieceOf(side, writer, "listhead") + "\n" + list + "\n" + PieceOf(side, writer, "closing") + "\n\n" +
-                PieceOf(side, writer, "signature") + "\n\n" + PieceOf(side, writer, "ps");
+            body += PieceOf(side, writer, "listhead") + "\n" + list + "\n" + PieceOf(side, writer, "closing") + "\n\n";
+            // For the misers: the best bargains next door, written through gritted teeth.
+            if (!bargains.empty())
+            {
+                body += PieceOf(side, writer, "misers") + "\n";
+                for (std::string const& line : bargains)
+                    body += line + "\n";
+                body += PieceOf(side, writer, "hurry") + "\n\n";
+            }
+            body += PieceOf(side, writer, "signature") + "\n\n" + PieceOf(side, writer, "ps");
             // The post knows where this leaflet ends up, and says so.
             body += "\n\n" + PieceOf(side, writer, "unsubscribe");
             std::string subject = PieceOf(side, writer, "subject");
@@ -2092,6 +2402,11 @@ namespace pba
             CharacterDatabase.DirectExecute("ALTER TABLE `mod_playerbots_auctions_post_flyer` ADD COLUMN `intro` INT UNSIGNED NOT NULL DEFAULT 0, "
                 "ADD COLUMN `introread` TINYINT UNSIGNED NOT NULL DEFAULT 0");
         CharacterDatabase.DirectExecute(
+            "CREATE TABLE IF NOT EXISTS `mod_playerbots_auctions_post_seen` ("
+            "`house` INT UNSIGNED NOT NULL, `item` INT UNSIGNED NOT NULL, `seen` BIGINT UNSIGNED NOT NULL, `each` INT UNSIGNED NOT NULL, "
+            "`seller` INT UNSIGNED NOT NULL, PRIMARY KEY (`house`, `item`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 "
+            "COMMENT='mod-playerbots-auctions: when each thing was last seen in each auction house, the cheapest piece, and its seller'");
+        CharacterDatabase.DirectExecute(
             "CREATE TABLE IF NOT EXISTS `mod_playerbots_auctions_post_spent` ("
             "`house` INT UNSIGNED NOT NULL, `day` INT UNSIGNED NOT NULL, `copper` BIGINT UNSIGNED NOT NULL, "
             "PRIMARY KEY (`house`, `day`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 "
@@ -2108,6 +2423,13 @@ namespace pba
                 reader.sample = fields[3].Get<uint32>();
                 reader.intro = fields[4].Get<uint32>();
                 reader.introRead = fields[5].Get<uint8>() != 0;
+            } while (result->NextRow());
+        seen.clear();
+        if (QueryResult result = CharacterDatabase.Query("SELECT `house`, `item`, `seen`, `each`, `seller` FROM `mod_playerbots_auctions_post_seen`"))
+            do
+            {
+                Field* fields = result->Fetch();
+                seen[Key(fields[0].Get<uint32>(), fields[1].Get<uint32>())] = { time_t(fields[2].Get<uint64>()), fields[3].Get<uint32>(), fields[4].Get<uint32>() };
             } while (result->NextRow());
         spent.clear();
         uint32 const yesterday = DayOf(GameTime::GetGameTime().count() - DAY);
@@ -2203,6 +2525,14 @@ namespace pba
         // Caravans arrive even with the post switched off: they were paid for.
         time_t const now = GameTime::GetGameTime().count();
         DeliverOrders(now);
+
+        // What the auction houses hold is written down now and then, for the "last seen" of the flyers.
+        static time_t watched = 0;
+        if (cfg.enabled && cfg.post && cfg.postFlyer && now - watched >= 10 * MINUTE)
+        {
+            watched = now;
+            Watch();
+        }
         if (!cfg.enabled || !cfg.post)
             return;
 
