@@ -1715,24 +1715,32 @@ namespace pba
             std::lock_guard<std::mutex> guard(lock);
             NewDay();
             std::vector<Row> rows;
+            uint32 shelved = 0, unfit = 0, gone_ = 0, house = 0;
             {
                 ObjectGuid::LowType const low = player->GetGUID().GetCounter();
                 auto visitor = visitors.find(low);
                 if (visitor == visitors.end() || !visitor->second.house)
                     return;
-                uint32 const house = visitor->second.house;
+                house = visitor->second.house;
                 Stock& stock = stocks[house];
                 stock.wanted = now;
+                shelved = uint32(stock.offers.size());
 
                 for (Offer const& offer : stock.offers)
                 {
                     Ware const& ware = wares[offer.ware];
                     ItemTemplate const* proto = ware.proto;
                     if (!Fits(query, ware, player))
+                    {
+                        ++unfit;
                         continue;
+                    }
                     uint32 gone = 0;
                     if (!OnShelf(low, house, ware, gone))
+                    {
+                        ++gone_;
                         continue;
+                    }
                     uint32 const shelf = ShelfSize(ware);
                     // One piece, a handful, and the most one may take.
                     uint32 const most = ware.single ? 1 : std::min({ LotSize(ware), shelf - gone, proto->GetMaxStackSize(), MaxLot });
@@ -1759,8 +1767,10 @@ namespace pba
                 });
 
             if (cfg.debug)
-                LOG_INFO("module", "PlayerbotsAuctions: trading post - {} asks for a list (\"{}\", class {}, kind {}, from {}): {} offer(s), {} copper in the purse.",
-                    player->GetName(), searched, int32(itemClass), int32(itemSubClass), listFrom, rows.size(), player->GetMoney());
+                LOG_INFO("module", "PlayerbotsAuctions: trading post - {} asks for a list (\"{}\", class {}, kind {}, slot {}, quality {}, level {}-{}, usable {}, "
+                    "from {}): {} offer(s); house {} has {} on its shelves, {} do not fit the search, {} bought or sold out. {} known in all; {} copper in the purse.",
+                    player->GetName(), searched, int32(itemClass), int32(itemSubClass), int32(query.slot), int32(query.quality), query.levelMin,
+                    query.levelMax, query.usable, listFrom, rows.size(), house, shelved, unfit, gone_, wares.size(), player->GetMoney());
             WorldPacket data(SMSG_AUCTION_LIST_RESULT, 12 + 140 * MAX_AUCTIONS_PER_PAGE);
             data << uint32(0);
             uint32 count = 0;
