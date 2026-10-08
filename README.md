@@ -70,7 +70,8 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
   really gives and only what that auction house is short of right now. Each offer has a buyout (in the
   mailbox at once) and a lower lowest bid (paid at once, delivered by caravan when the auction ends, within a
   day) - both well above the usual price. The goods come with a letter from one of the post's clerks, each
-  with a voice of its own. Each post has a limited stock a day for all players together, dearer
+  with a voice of its own. When a search of the auction house finds nothing and the post has it, the game says
+  so. Each post has a limited stock a day for all players together, dearer
   the emptier the shelf, and a character gets one lot of a thing a day. No equipment, nothing that needs a
   profession to be used. Only players can use it. A last resort, not a second market
   (`PlayerbotsAuctions.TradingPost.*`). *New, compiled and not yet tried on a server.*

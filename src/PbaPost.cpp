@@ -617,28 +617,92 @@ namespace pba
             data << uint32(0);
         }
 
-        /// The window asks what there is. Runs on the thread of the player's map.
-        void ListItems(WorldSession* session, WorldPacket& recvData)
+        /// What the auction window asked for.
+        struct Query
         {
-            Player* player = session->GetPlayer();
             std::string searched;
-            uint8 levelMin, levelMax, usable, getAll, sortCount;
-            uint32 listFrom, slot, itemClass, itemSubClass, quality;
-            ObjectGuid guid;
-            recvData >> guid >> listFrom >> searched >> levelMin >> levelMax >> slot >> itemClass >> itemSubClass >> quality >> usable >> getAll >> sortCount;
-            if (sortCount > AUCTION_SORT_MAX)
-                return;
+            std::wstring wanted;
+            uint8 levelMin = 0, levelMax = 0, usable = 0, getAll = 0;
+            uint32 listFrom = 0, slot = 0, itemClass = 0, itemSubClass = 0, quality = 0;
+            int locale = 0;
             std::vector<std::pair<uint8, bool>> sorting;
+
+            /// Asked for something in particular - a name or a kind of thing - not just "everything".
+            bool Particular() const
+            {
+                return !wanted.empty() || itemClass != 0xffffffff;
+            }
+        };
+
+        bool ReadQuery(WorldSession* session, WorldPacket& recvData, Query& query)
+        {
+            uint8 sortCount;
+            ObjectGuid guid;
+            recvData >> guid >> query.listFrom >> query.searched >> query.levelMin >> query.levelMax >> query.slot >> query.itemClass
+                >> query.itemSubClass >> query.quality >> query.usable >> query.getAll >> sortCount;
+            if (sortCount > AUCTION_SORT_MAX)
+                return false;
             for (uint8 i = 0; i < sortCount; ++i)
             {
                 uint8 mode, descending;
                 recvData >> mode >> descending;
-                sorting.emplace_back(mode, descending == 1);
+                query.sorting.emplace_back(mode, descending == 1);
             }
-            std::wstring const wanted = SmallLetters(searched);
-            if (!searched.empty() && wanted.empty())
+            query.wanted = SmallLetters(query.searched);
+            query.locale = session->GetSessionDbLocaleIndex();
+            return query.searched.empty() || !query.wanted.empty();
+        }
+
+        bool Fits(Query const& query, Ware const& ware, Player* player)
+        {
+            ItemTemplate const* proto = ware.proto;
+            if (query.itemClass != 0xffffffff && proto->Class != query.itemClass)
+                return false;
+            if (query.itemSubClass != 0xffffffff && proto->SubClass != query.itemSubClass)
+                return false;
+            if (query.slot != 0xffffffff && proto->InventoryType != query.slot)
+                return false;
+            if (query.quality != 0xffffffff && proto->Quality < query.quality)
+                return false;
+            if (query.levelMin && (proto->RequiredLevel < query.levelMin || (query.levelMax && proto->RequiredLevel > query.levelMax)))
+                return false;
+            if (query.usable && player->CanUseItem(proto) != EQUIP_ERR_OK)
+                return false;
+            if (query.wanted.empty() || ware.name.find(query.wanted) != std::wstring::npos)
+                return true;
+            if (query.locale > LOCALE_enUS)
+                if (ItemLocale const* names = sObjectMgr->GetItemLocale(proto->ItemId))
+                {
+                    std::string name = proto->Name1;
+                    ObjectMgr::GetLocaleString(names->Name, query.locale, name);
+                    return SmallLetters(name).find(query.wanted) != std::wstring::npos;
+                }
+            return false;
+        }
+
+        /// Can this player buy it here today: not bought yet, not sold out. Behind the lock.
+        bool OnShelf(ObjectGuid::LowType low, uint32 house, Ware const& ware, uint32& gone)
+        {
+            if (bought.count(Key(low, ware.proto->ItemId)))
+                return false;       // one lot of a thing a day
+            auto had = sold.find(Key(house, ware.proto->ItemId));
+            gone = had != sold.end() ? had->second : 0;
+            return gone < ShelfSize(ware);
+        }
+
+        std::unordered_map<ObjectGuid::LowType, Query> lastSearch;      // what a player last asked the real auction house
+
+        /// The window asks what there is. Runs on the thread of the player's map.
+        void ListItems(WorldSession* session, WorldPacket& recvData)
+        {
+            Player* player = session->GetPlayer();
+            Query query;
+            if (!ReadQuery(session, recvData, query))
                 return;
-            int const locale = session->GetSessionDbLocaleIndex();
+            std::string const& searched = query.searched;
+            uint32 const itemClass = query.itemClass, itemSubClass = query.itemSubClass, listFrom = query.listFrom;
+            uint8 const getAll = query.getAll;
+            auto const& sorting = query.sorting;
 
             time_t const now = GameTime::GetGameTime().count();
             // Held to the end: the rows point into the list of wares, which a reload of the settings rebuilds.
@@ -658,39 +722,12 @@ namespace pba
                 {
                     Ware const& ware = wares[offer.ware];
                     ItemTemplate const* proto = ware.proto;
-                    if (itemClass != 0xffffffff && proto->Class != itemClass)
+                    if (!Fits(query, ware, player))
                         continue;
-                    if (itemSubClass != 0xffffffff && proto->SubClass != itemSubClass)
+                    uint32 gone = 0;
+                    if (!OnShelf(low, house, ware, gone))
                         continue;
-                    if (slot != 0xffffffff && proto->InventoryType != slot)
-                        continue;
-                    if (quality != 0xffffffff && proto->Quality < quality)
-                        continue;
-                    if (levelMin && (proto->RequiredLevel < levelMin || (levelMax && proto->RequiredLevel > levelMax)))
-                        continue;
-                    if (usable && player->CanUseItem(proto) != EQUIP_ERR_OK)
-                        continue;
-                    if (!wanted.empty())
-                    {
-                        bool match = ware.name.find(wanted) != std::wstring::npos;
-                        if (!match && locale > LOCALE_enUS)
-                            if (ItemLocale const* names = sObjectMgr->GetItemLocale(proto->ItemId))
-                            {
-                                std::string name = proto->Name1;
-                                ObjectMgr::GetLocaleString(names->Name, locale, name);
-                                match = SmallLetters(name).find(wanted) != std::wstring::npos;
-                            }
-                        if (!match)
-                            continue;
-                    }
-
-                    if (bought.count(Key(low, proto->ItemId)))
-                        continue;       // one lot of a thing a day
-                    auto had = sold.find(Key(house, proto->ItemId));
-                    uint32 const gone = had != sold.end() ? had->second : 0;
                     uint32 const shelf = ShelfSize(ware);
-                    if (gone >= shelf)
-                        continue;       // sold out until tomorrow
                     // One piece, a handful, and the most one may take.
                     uint32 const most = std::min({ LotSize(ware), shelf - gone, proto->GetMaxStackSize(), MaxLot });
                     uint32 bid, buyout;
@@ -1118,13 +1155,26 @@ namespace pba
                 Player* player = session->GetPlayer();
                 if (!player || !cfg.enabled || !cfg.post)
                     return true;
+                WorldPacket copy(packet);
                 {
                     std::lock_guard<std::mutex> guard(lock);
-                    auto visitor = visitors.find(player->GetGUID().GetCounter());
+                    ObjectGuid::LowType const low = player->GetGUID().GetCounter();
+                    auto visitor = visitors.find(low);
                     if (visitor == visitors.end() || !visitor->second.atPost)
+                    {
+                        // A search of the real auction house: kept, in case it finds nothing.
+                        Query query;
+                        try
+                        {
+                            if (ReadQuery(session, copy, query))
+                                lastSearch[low] = std::move(query);
+                        }
+                        catch (ByteBufferException const&)
+                        {
+                        }
                         return true;
+                    }
                 }
-                WorldPacket copy(packet);
                 try
                 {
                     ListItems(session, copy);
@@ -1154,11 +1204,62 @@ namespace pba
         }
     }
 
+    void PostSent(WorldSession* session, WorldPacket const& packet)
+    {
+        // The real auction house found nothing: if the post has what was asked for, the player hears of it.
+        if (packet.GetOpcode() != SMSG_AUCTION_LIST_RESULT || packet.size() < 4 || packet.read<uint32>(0) != 0)
+            return;
+        Player* player = session->GetPlayer();
+        if (!player || !cfg.enabled || !cfg.post || !OfAPerson(player))
+            return;
+
+        uint32 offers = 0, house = 0;
+        std::string searched;
+        {
+            std::lock_guard<std::mutex> guard(lock);
+            ObjectGuid::LowType const low = player->GetGUID().GetCounter();
+            auto asked = lastSearch.find(low);
+            auto visitor = visitors.find(low);
+            if (asked == lastSearch.end() || visitor == visitors.end() || visitor->second.atPost || !visitor->second.house)
+                return;
+            Query const query = std::move(asked->second);
+            lastSearch.erase(asked);
+            if (!query.Particular())
+                return;
+            NewDay();
+            house = visitor->second.house;
+            Stock& stock = stocks[house];
+            time_t const now = GameTime::GetGameTime().count();
+            if (!stock.built || now - stock.built >= 30)
+                BuildStock(house, stock);       // the results are sent on the world's thread
+            for (Offer const& offer : stock.offers)
+            {
+                uint32 gone = 0;
+                if (Fits(query, wares[offer.ware], player) && OnShelf(low, house, wares[offer.ware], gone))
+                    ++offers;
+            }
+            searched = query.searched;
+        }
+        if (!offers)
+            return;
+
+        char const* post = PostName(house);
+        ChatHandler handler(session);
+        handler.SendNotification(Acore::StringFormat("Nothing here - but the {} has it. Try your luck there!", post));
+        if (searched.empty())
+            handler.PSendSysMessage("The auction house has none of that right now - the {} has {} offer{}. Talk to the auctioneer "
+                "and choose \"Buy at the {}\".", post, offers, offers == 1 ? "" : "s", post);
+        else
+            handler.PSendSysMessage("The auction house has no \"{}\" right now - the {} has {} offer{}. Talk to the auctioneer "
+                "and choose \"Buy at the {}\".", searched, post, offers, offers == 1 ? "" : "s", post);
+    }
+
     void PostLeft(Player* player)
     {
         if (!player)
             return;
         std::lock_guard<std::mutex> guard(lock);
         visitors.erase(player->GetGUID().GetCounter());
+        lastSearch.erase(player->GetGUID().GetCounter());
     }
 }

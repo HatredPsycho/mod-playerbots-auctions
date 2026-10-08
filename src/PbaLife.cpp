@@ -2217,7 +2217,14 @@ public:
 class PlayerbotsAuctionsPackets : public ServerScript
 {
 public:
-    PlayerbotsAuctionsPackets() : ServerScript("PlayerbotsAuctionsPackets", { SERVERHOOK_CAN_PACKET_RECEIVE }) { }
+    PlayerbotsAuctionsPackets() : ServerScript("PlayerbotsAuctionsPackets", { SERVERHOOK_CAN_PACKET_RECEIVE, SERVERHOOK_CAN_PACKET_SEND }) { }
+
+    bool CanPacketSend(WorldSession* session, WorldPacket const& packet) override
+    {
+        if (session && packet.GetOpcode() == SMSG_AUCTION_LIST_RESULT)
+            pba::PostSent(session, packet);
+        return true;
+    }
 
     bool CanPacketReceive(WorldSession* session, WorldPacket const& packet) override
     {

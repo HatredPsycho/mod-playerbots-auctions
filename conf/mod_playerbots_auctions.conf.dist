@@ -675,6 +675,10 @@ PlayerbotsAuctions.Chat.MailDelay = -1
 #    keep showing the real auction house. The goods come with a letter by one of the clerks of that
 #    post - four at each, every one with a voice of its own.
 #
+#    A search of the auction house that finds nothing, while the post has what was asked for, says
+#    so: "Nothing here - but the Horde Trading Post has it", on the screen and in the chat. What a
+#    character has bought today, and what is sold out, no longer shows up at the post.
+#
 #    It is a last resort and built to stay one:
 #      - It sells materials (ore, stone, bars, herbs, cloth, leather, enchanting materials,
 #        elementals, uncut gems, meat and fish, parts) and what crafters make for everybody

@@ -403,6 +403,8 @@ namespace pba
     bool PostGossip(Player* player, Creature* creature, uint32 sender, uint32 action);
     /// Something a player's game sent. False: the post answered it and the server need not.
     bool PostPacket(WorldSession* session, WorldPacket const& packet);
+    /// Something the server sends a player's game: an empty search of the auction house points to the post.
+    void PostSent(WorldSession* session, WorldPacket const& packet);
     void PostLeft(Player* player);
 
     // ------------------------------------------------------------------------------------------ chatter
