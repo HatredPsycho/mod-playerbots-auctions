@@ -778,7 +778,9 @@ PlayerbotsAuctions.TradingPost.Stock.Crafted = 10
 #    PlayerbotsAuctions.TradingPost.Daily.Crafted
 #        Description: A character buys one lot of a thing a day; this is the most pieces that lot
 #                     can have (1 to 100; never more than a stack). Lots of 1, 5 and this many are
-#                     on offer.
+#                     on offer. What enchants one particular piece of equipment for good - the
+#                     scroll of an enchantment, a leg armor, a spellthread, a belt buckle - and
+#                     what one may only carry once are sold one at a time.
 #        Default:     20 of a material, 5 of a crafted thing
 
 PlayerbotsAuctions.TradingPost.Daily.Materials = 20

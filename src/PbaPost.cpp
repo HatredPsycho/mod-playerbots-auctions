@@ -1094,8 +1094,39 @@ namespace pba
         {
             ItemTemplate const* proto = nullptr;
             bool made = false;          // a potion, a meal, a scroll, a cut gem: the living of a crafter
+            bool single = false;        // sold one at a time: nobody puts the same enchantment on the same piece five times
             std::wstring name;          // in small letters, to search in
         };
+
+        /// Something that puts a lasting enchantment on one particular piece of equipment - the scroll of an
+        /// enchantment, a leg armor, a spellthread, a belt buckle - or that one may only carry once. An armor
+        /// kit that fits several slots, a gem for several sockets, a potion: those come by the handful.
+        bool OneAtATime(ItemTemplate const& proto)
+        {
+            if (proto.MaxCount == 1)
+                return true;
+            for (auto const& use : proto.Spells)
+            {
+                SpellInfo const* info = use.SpellId > 0 ? sSpellMgr->GetSpellInfo(use.SpellId) : nullptr;
+                if (!info)
+                    continue;
+                for (SpellEffectInfo const& effect : info->GetEffects())
+                {
+                    if (effect.Effect != SPELL_EFFECT_ENCHANT_ITEM)
+                        continue;
+                    if (info->EquippedItemClass == ITEM_CLASS_WEAPON)
+                        return true;
+                    uint32 mask = uint32(std::max(0, info->EquippedItemInventoryTypeMask));
+                    if (mask & (1 << INVTYPE_ROBE))
+                        mask = (mask & ~(1u << INVTYPE_ROBE)) | (1u << INVTYPE_CHEST);     // a robe is worn where a chest piece is
+                    if (mask & (1 << INVTYPE_WEAPONMAINHAND | 1 << INVTYPE_WEAPONOFFHAND | 1 << INVTYPE_2HWEAPON | 1 << INVTYPE_WEAPON))
+                        mask = (mask & ~(1u << INVTYPE_WEAPONMAINHAND | 1u << INVTYPE_WEAPONOFFHAND | 1u << INVTYPE_2HWEAPON)) | (1u << INVTYPE_WEAPON);
+                    // Only the class "armor" and no particular slot: a slot of its own is not known, so it counts as one.
+                    return mask == 0 || (mask & (mask - 1)) == 0;
+                }
+            }
+            return false;
+        }
 
         struct Offer
         {
@@ -1698,7 +1729,7 @@ namespace pba
                         continue;
                     uint32 const shelf = ShelfSize(ware);
                     // One piece, a handful, and the most one may take.
-                    uint32 const most = std::min({ LotSize(ware), shelf - gone, proto->GetMaxStackSize(), MaxLot });
+                    uint32 const most = ware.single ? 1 : std::min({ LotSize(ware), shelf - gone, proto->GetMaxStackSize(), MaxLot });
                     uint32 bid, buyout;
                     PricesOf(offer, ware, gone, bid, buyout);
                     time_t const ends = EndOf(house, proto->ItemId, now);
@@ -1832,7 +1863,7 @@ namespace pba
                 Offer const& offer = stock.offers[place->second];
                 Ware const& ware = wares[offer.ware];
                 uint32& gone = sold[Key(house, itemId)];
-                if (bought.count(Key(low, itemId)) || count > LotSize(ware) || gone + count > ShelfSize(ware) || count > proto->GetMaxStackSize())
+                if (bought.count(Key(low, itemId)) || count > (ware.single ? 1 : LotSize(ware)) || gone + count > ShelfSize(ware) || count > proto->GetMaxStackSize())
                 {
                     Refuse(session, id, ERR_AUCTION_ITEM_NOT_FOUND);
                     return;
@@ -2497,6 +2528,7 @@ namespace pba
             Ware ware;
             ware.proto = &proto;
             ware.made = isMade;
+            ware.single = OneAtATime(proto);
             ware.name = SmallLetters(proto.Name1);
             wares.push_back(std::move(ware));
             if (isMade)
