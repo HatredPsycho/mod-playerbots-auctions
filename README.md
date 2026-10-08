@@ -63,22 +63,29 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
   count against the time it waits. *New, compiled and not yet tried on a server.*
 
 - **Trading post.** Bots use up most of what they gather, and ore they hardly come by: sometimes the auction
-  house simply has no copper. Every auctioneer therefore runs a trading post too. A click on an auctioneer
-  first asks: *Browse the auction house* or *Buy at the Horde Trading Post* (Alliance, Goblin). The post opens
-  in the game's own auction window - search, categories and sorting work as usual - and sells materials and
-  what crafters make for everybody (potions, meals, scrolls, cut gems and the like): only what the world
-  really gives and only what that auction house is short of right now. Each offer has a buyout (in the
-  mailbox at once) and a lower lowest bid (paid at once, delivered by caravan when the auction ends, within a
-  day) - both well above the usual price. The goods come with a letter from one of the post's clerks, each
-  with a voice of its own. A first letter announces the grand opening; after it
-  was read, a cheeky flyer arrives at the first login of each day, written by one of the post's clerks in their
-  own voice: a few of today's offers with when, for how much and from whom the auction house last had them, what
-  customers left at the counter yesterday, the best bargains next door "for the misers among you", and a wink that it will end
-  up in the bin (one in the mailbox at a time, gone after a day, can be stopped at the auctioneer). Once a week
-  there is a free sample to collect at the auctioneer, praised to the skies - and always junk. Each post has a limited stock a day for all players together, dearer
-  the emptier the shelf, and a character gets one lot of a thing a day. No equipment, nothing that needs a
-  profession to be used. Only players can use it. A last resort, not a second market
-  (`PlayerbotsAuctions.TradingPost.*`). *New, compiled and not yet tried on a server.*
+  house simply has no copper at all. So every auctioneer runs a trading post as well - a last resort, not a
+  second market (`PlayerbotsAuctions.TradingPost.*`, can be switched off). *New, compiled and not yet tried on
+  a server.*
+  - **Where.** A click on any auctioneer first asks: *Browse the auction house* or *Buy at the Horde Trading
+    Post* (Alliance, Goblin). The post opens in the game's own auction window - search, categories and sorting
+    work as usual. No client patch is needed.
+  - **What.** Materials (ore, herbs, cloth, leather, gems, enchanting materials...) and what crafters make for
+    everybody (potions, meals, scrolls, cut gems and the like) - but only what the world really gives and only
+    what that auction house is short of right now. No equipment, nothing that needs a profession to be used,
+    and an enchantment for one slot only one at a time.
+  - **How.** Every offer has a buyout - the goods are in the mailbox at once - and a lower lowest bid: paid at
+    once as well, but delivered by caravan when the auction ends, within a day. Both are well above the usual
+    price. Each post has a limited stock a day for all players together, dearer the emptier the shelf, and a
+    character gets one lot of a thing a day. Only players can use it; the gold is gone from the world.
+  - **Mail.** The goods come with a letter from one of the post's four clerks, each with a voice of its own - a
+    gruff orc quartermaster, a pompous human steward, a goblin who never stops selling. A first letter announces
+    the grand opening. Once it has been read, a cheeky flyer arrives at the first login of each day, written by
+    one clerk from start to end: a few of today's offers, each with when, for how much and from whom the auction
+    house last had it; what the customers left at the counter yesterday, as a public pillory; the best bargains
+    next door "for the misers among you"; and a wink that it will end up in the bin anyway. There is only ever
+    one flyer in the mailbox, it is gone after a day, and it can be cancelled at the auctioneer.
+  - **Free sample.** Once a week the flyer praises a free sample to the skies, without ever saying what it is.
+    The auctioneer hands it over with all due ceremony - and it is always junk.
 
 - **Chatter.** Every bot is somebody in chat, too: one of 65 personalities, from the joker, the grumbler and
   the pirate to the one who speaks like a knight of old and the one who hardly speaks at all - and it stays
