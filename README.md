@@ -67,12 +67,12 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
   first asks: *Browse the auction house* or *Buy at the Horde Trading Post* (Alliance, Goblin). The post opens
   in the game's own auction window - search, categories and sorting work as usual - and sells materials and
   what crafters make for everybody (potions, meals, scrolls, cut gems and the like): only what the world
-  really gives, only what that auction house is short of right now, for three to four times the usual price,
-  a stack of a material or five of a crafted thing per character a day, sent by mail. No equipment, nothing
-  that needs a profession to be used. Once a day you can do something about the prices: the trader is short of
-  something itself (a few pieces of a material, another one every day) - hand it over and you pay 30 percent
-  less until midnight; or roll the dice against it, and your prices move by as much as the rolls are apart, up
-  to a third either way. Only players can use it. A last resort, not a second market
+  really gives and only what that auction house is short of right now. Each offer has a buyout (in the
+  mailbox at once) and a lower lowest bid (paid at once, delivered by caravan when the auction ends, within a
+  day) - both well above the usual price. The goods come with a letter from one of the post's clerks, each
+  with a voice of its own. Each post has a limited stock a day for all players together, dearer
+  the emptier the shelf, and a character gets one lot of a thing a day. No equipment, nothing that needs a
+  profession to be used. Only players can use it. A last resort, not a second market
   (`PlayerbotsAuctions.TradingPost.*`). *New, compiled and not yet tried on a server.*
 
 - **Chatter.** Every bot is somebody in chat, too: one of 65 personalities, from the joker, the grumbler and

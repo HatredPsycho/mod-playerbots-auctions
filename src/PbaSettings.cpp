@@ -124,7 +124,10 @@ namespace pba
         cfg.postPriceMade       = std::clamp(sConfigMgr->GetOption<float>("PlayerbotsAuctions.TradingPost.Price.Crafted", 4.0f), 1.0f, 100.0f);
         cfg.postDailyRaw        = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.Daily.Materials", 20), 1, 100);
         cfg.postDailyMade       = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.Daily.Crafted", 5), 1, 100);
-        cfg.postHaggle          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.TradingPost.Haggle", true);
+        cfg.postBidRaw          = std::clamp(sConfigMgr->GetOption<float>("PlayerbotsAuctions.TradingPost.Bid.Materials", 2.0f), 1.0f, 100.0f);
+        cfg.postBidMade         = std::clamp(sConfigMgr->GetOption<float>("PlayerbotsAuctions.TradingPost.Bid.Crafted", 2.5f), 1.0f, 100.0f);
+        cfg.postStockRaw        = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.Stock.Materials", 60), 1, 100000);
+        cfg.postStockMade       = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.Stock.Crafted", 10), 1, 100000);
         cfg.postMaxQuality      = std::min<uint32>(ITEM_QUALITY_EPIC, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.MaxQuality", ITEM_QUALITY_RARE));
         LoadNumbers(sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.TradingPost.ExcludedItemIDs",
             "12360,14342,15407,21845,23571,24271,24272,37663,41593,41594,41595,43102,45087,47556,49908"), cfg.postExcluded);

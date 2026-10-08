@@ -164,11 +164,14 @@ namespace pba
         // trading post
         bool   post = true;                    // every auctioneer also sells what the auction house is short of
         uint32 postScarce = 10;                // a material is sold while the auction house holds fewer pieces than this; 0: always
-        float  postPriceRaw = 3.0f;            // times what a material usually goes for
+        float  postPriceRaw = 3.0f;            // buyout, delivered at once: times what a material usually goes for
         float  postPriceMade = 4.0f;           // ... and what a crafter makes
-        uint32 postDailyRaw = 20;              // pieces of one material a character gets a day
+        float  postBidRaw = 2.0f;              // lowest bid, delivered when the auction ends
+        float  postBidMade = 2.5f;
+        uint32 postDailyRaw = 20;              // the most pieces of one material a character takes in its one lot a day
         uint32 postDailyMade = 5;              // ... and of one crafted thing
-        bool   postHaggle = true;              // once a day: bring the trader what it is short of, or roll the dice, for other prices
+        uint32 postStockRaw = 60;              // pieces of one material a post has a day, for everybody together
+        uint32 postStockMade = 10;             // ... and of one crafted thing
         uint32 postMaxQuality = ITEM_QUALITY_RARE;
         std::unordered_set<uint32> postExcluded;
     };

@@ -665,9 +665,15 @@ PlayerbotsAuctions.Chat.MailDelay = -1
 #        What is the Trading Post?
 #
 #    The post opens in the game's own auction window - search, categories, filters and sorting
-#    work as usual - and shows its own goods there, each with a buyout price. What is bought comes
-#    by mail at once, from the auctioneer. The tabs for bids and for one's own auctions keep
-#    showing the real auction house.
+#    work as usual - and lists its goods there like auctions of a seller called "Trading Post".
+#    Each has two prices:
+#      - the buyout: the goods are in the mailbox at once;
+#      - the lowest bid, lower: paid at once as well, but the goods come with the caravan and
+#        reach the mailbox when that auction ends - the time left is shown as with any auction,
+#        a day at the most. That also works across a restart and for a player who is offline.
+#    Both are well above what things usually go for. The tabs for bids and for one's own auctions
+#    keep showing the real auction house. The goods come with a letter by one of the clerks of that
+#    post - four at each, every one with a voice of its own.
 #
 #    It is a last resort and built to stay one:
 #      - It sells materials (ore, stone, bars, herbs, cloth, leather, enchanting materials,
@@ -677,25 +683,18 @@ PlayerbotsAuctions.Chat.MailDelay = -1
 #        sells anyway, nothing that binds.
 #      - Only what the world really gives: what is in a loot table, and what a recipe makes of
 #        that. The many unfinished items of an item table never show up.
-#      - Only what the auction house next to it is short of right now. What the auction house
-#        has, the post does not carry.
-#      - For a multiple of what the thing usually goes for among the bots.
-#      - In small amounts: so many pieces of one thing for a character a day.
+#      - Only what the auction house next to it is short of right now.
+#      - A limited stock: so many pieces of a thing a day for each post, for all players together.
+#        The emptier a shelf, the dearer the rest, by up to a half. At midnight it is full again.
+#      - One lot of a thing for a character a day, bid or buyout.
 #    Only players can use it. The money is gone from the world.
-#
-#    Once a day a player can do something about the prices. Every day the trader is short of
-#    something itself - a few pieces of a material a character of that level comes by, another one
-#    for every player and day. Who carries it hands it over and pays 30 percent less until
-#    midnight. Who does not can roll the dice against the trader, 1 to 100, once: the prices move
-#    by as much as the rolls are apart, up to a third either way. Or the player just looks at the
-#    goods at the asking price and decides later that day.
 #
 ###################################################################################################
 
 #
 #    PlayerbotsAuctions.TradingPost.Enable
 #        Description: Auctioneers offer the trading post. Disabled, a click on an auctioneer
-#                     opens the auction house as always.
+#                     opens the auction house as always. Goods already bid on still arrive.
 #        Default:     1 - Enabled
 #                     0 - Disabled
 
@@ -714,32 +713,44 @@ PlayerbotsAuctions.TradingPost.ScarceBelow = 10
 #
 #    PlayerbotsAuctions.TradingPost.Price.Materials
 #    PlayerbotsAuctions.TradingPost.Price.Crafted
-#        Description: What the post asks, as a multiple of what the thing usually goes for among
-#                     the bots (the same value their own prices start from). The gift or the dice move it by
-#                     up to a third. 1 to 100.
+#        Description: The buyout - delivered at once - as a multiple of what the thing usually goes
+#                     for among the bots (the same value their own prices start from). 1 to 100.
 #        Default:     3.0 for materials, 4.0 for what crafters make
 
 PlayerbotsAuctions.TradingPost.Price.Materials = 3.0
 PlayerbotsAuctions.TradingPost.Price.Crafted = 4.0
 
 #
+#    PlayerbotsAuctions.TradingPost.Bid.Materials
+#    PlayerbotsAuctions.TradingPost.Bid.Crafted
+#        Description: The lowest bid - delivered when the auction ends - in the same way. Kept below
+#                     the buyout. 1 to 100.
+#        Default:     2.0 for materials, 2.5 for what crafters make
+
+PlayerbotsAuctions.TradingPost.Bid.Materials = 2.0
+PlayerbotsAuctions.TradingPost.Bid.Crafted = 2.5
+
+#
+#    PlayerbotsAuctions.TradingPost.Stock.Materials
+#    PlayerbotsAuctions.TradingPost.Stock.Crafted
+#        Description: How many pieces of one thing each post has a day, for all players together.
+#                     Raise it with the number of players on the server. The day ends at midnight,
+#                     server time.
+#        Default:     60 of a material, 10 of a crafted thing
+
+PlayerbotsAuctions.TradingPost.Stock.Materials = 60
+PlayerbotsAuctions.TradingPost.Stock.Crafted = 10
+
+#
 #    PlayerbotsAuctions.TradingPost.Daily.Materials
 #    PlayerbotsAuctions.TradingPost.Daily.Crafted
-#        Description: How many pieces of one thing a character can buy a day (1 to 100). The day
-#                     ends at midnight, server time.
+#        Description: A character buys one lot of a thing a day; this is the most pieces that lot
+#                     can have (1 to 100; never more than a stack). Lots of 1, 5 and this many are
+#                     on offer.
 #        Default:     20 of a material, 5 of a crafted thing
 
 PlayerbotsAuctions.TradingPost.Daily.Materials = 20
 PlayerbotsAuctions.TradingPost.Daily.Crafted = 5
-
-#
-#    PlayerbotsAuctions.TradingPost.Haggle
-#        Description: Once a day a player can bring the trader what it is short of, or roll the dice
-#                     against it, for better prices that day.
-#        Default:     1 - Enabled
-#                     0 - Disabled (everybody pays the asking price)
-
-PlayerbotsAuctions.TradingPost.Haggle = 1
 
 #
 #    PlayerbotsAuctions.TradingPost.MaxQuality
