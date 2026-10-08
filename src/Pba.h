@@ -173,6 +173,7 @@ namespace pba
         uint32 postStockRaw = 60;              // pieces of one material a post has a day, for everybody together
         uint32 postStockMade = 10;             // ... and of one crafted thing
         bool   postFlyer = true;               // players get a leaflet with the day's offers at their first login of the day
+        bool   postSample = true;              // and once a week a free sample to collect - always junk
         uint32 postMaxQuality = ITEM_QUALITY_RARE;
         std::unordered_set<uint32> postExcluded;
     };

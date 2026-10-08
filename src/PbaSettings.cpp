@@ -125,6 +125,7 @@ namespace pba
         cfg.postDailyRaw        = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.Daily.Materials", 20), 1, 100);
         cfg.postDailyMade       = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.Daily.Crafted", 5), 1, 100);
         cfg.postFlyer           = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.TradingPost.Flyer", true);
+        cfg.postSample          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.TradingPost.FreeSample", true);
         cfg.postBidRaw          = std::clamp(sConfigMgr->GetOption<float>("PlayerbotsAuctions.TradingPost.Bid.Materials", 2.0f), 1.0f, 100.0f);
         cfg.postBidMade         = std::clamp(sConfigMgr->GetOption<float>("PlayerbotsAuctions.TradingPost.Bid.Crafted", 2.5f), 1.0f, 100.0f);
         cfg.postStockRaw        = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.Stock.Materials", 60), 1, 100000);
