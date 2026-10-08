@@ -39,12 +39,12 @@ namespace pba
         constexpr uint32 IdFlag     = 0x40000000;
         constexpr uint32 IdMask     = 0xC0000000;
         constexpr uint32 MaxLot     = 60;
-        constexpr uint32 SellerLow  = 0xFFFFFF00;       // the "player" the goods are listed under: no character has this number
+        constexpr uint32 SellerLow  = 0xFFFFFF00;       // + the house: the "player" the goods are listed under and the flyer comes from; no character has these numbers
         constexpr time_t Shortest   = 30 * MINUTE;      // a bid always waits at least this long
 
-        ObjectGuid Seller()
+        ObjectGuid Seller(uint32 house)
         {
-            return ObjectGuid::Create<HighGuid::Player>(SellerLow);
+            return ObjectGuid::Create<HighGuid::Player>(SellerLow + house);
         }
 
         enum Action : uint32
@@ -52,7 +52,9 @@ namespace pba
             ACT_BROWSE = 1,
             ACT_POST,
             ACT_INFO,
-            ACT_BACK
+            ACT_BACK,
+            ACT_FLYERS_OFF,
+            ACT_FLYERS_ON
         };
 
         // ---------------------------------------------------------------------------------- what is said
@@ -161,6 +163,239 @@ namespace pba
         { "goblin", "caravan", "{player},\nNotice of delivery: {count} x {item}, transported by caravan, received complete.\nBandits attempted to seize the shipment. I presented them with a cease and desist notice. They did not read it either, but the guards behind me were very persuasive.\nAll terms fulfilled. Please sign nowhere. I did it already.\n- Nixa Fastfingers, Contracts Clerk of the Goblin Trading Post" },
         };
 
+        /// The pieces of the daily flyer: subject, headline, intro, listhead, closing, ps, signature.
+        Letter const Flyer[] =
+        {
+        { "horde", "subject", "TODAY ONLY at the Horde Trading Post!" },
+        { "horde", "subject", "Lok'tar! Fresh goods have arrived!" },
+        { "horde", "subject", "Your daily offer from Orgrimmar, mon" },
+        { "horde", "subject", "The auction house is empty. We are not." },
+        { "horde", "subject", "Strong goods for strong warriors!" },
+        { "horde", "subject", "Limited stock! Act now, grunt!" },
+        { "horde", "subject", "Kodo-loads of bargains (expensive)" },
+        { "horde", "subject", "Forsaken-approved: still fresh-ish" },
+        { "horde", "subject", "Do not make the Quartermaster wait" },
+        { "horde", "subject", "New wares, old prices: high ones" },
+        { "horde", "subject", "The caravan is here. Are you?" },
+        { "horde", "subject", "Herbs, ore, cloth - Horde quality!" },
+        { "horde", "headline", "THE AUCTION HOUSE IS EMPTY - THE HORDE TRADING POST IS NOT!" },
+        { "horde", "headline", "STRONG GOODS! STRONG PRICES! STRONG CUSTOMERS ONLY!" },
+        { "horde", "headline", "FRESH FROM THE BARRENS, STILL WARM FROM THE KODO!" },
+        { "horde", "headline", "BUY NOW, MON, BEFORE DE SPIRITS TELL SOMEONE ELSE!" },
+        { "horde", "headline", "OUR PRICES ARE HIGH BECAUSE OUR QUALITY IS HIGHER!" },
+        { "horde", "headline", "LOK'TAR OGAR! VICTORY OR... WELL, VICTORY AND SHOPPING!" },
+        { "horde", "headline", "THE EARTH MOTHER PROVIDES. WE CHARGE FOR DELIVERY." },
+        { "horde", "headline", "DEATH IS TEMPORARY. THESE BARGAINS ARE TOO!" },
+        { "horde", "headline", "WHILE STOCKS LAST - AND THEY NEVER LAST LONG!" },
+        { "horde", "headline", "ORE! HERBS! CLOTH! LEATHER! SHOUTING!" },
+        { "horde", "headline", "BLOOD AND THUNDER AND VERY REASONABLE MARGINS!" },
+        { "horde", "headline", "A WARRIOR WITHOUT SUPPLIES IS JUST A LOUD PEASANT!" },
+        { "horde", "intro", "Hail, {player}! The grunts at the auction house have been staring at empty shelves all morning. Not us. Our wolves dragged in fresh supplies at dawn, and the Quartermaster says you look like someone with gold to spare." },
+        { "horde", "intro", "Listen well, warrior. Strength is earned in battle, but potions, ore and good leather are earned at the Horde Trading Post. We do not haggle. We do not apologize. We do have exactly what you need today." },
+        { "horde", "intro", "Ey, {player} mon! De loa whisper to Zul'jabi dat you be needing tings. Herbs, cloth, maybe a little someting for de cooking pot. Good news: we got it. Bad news for your purse: it be very good stuff." },
+        { "horde", "intro", "Peace, traveler. The winds over the plains brought our caravan home safely, heavy with the gifts of the land. Walk calmly, breathe deeply, and then open your coin purse. The Earth Mother is generous. Our prices are not." },
+        { "horde", "intro", "Greetings from beyond the grave, {player}. The Undercity sends its regards and its finest goods, all guaranteed free of plague (mostly). Our customers never complain. Some of them can no longer speak, but still." },
+        { "horde", "intro", "The auction house is empty, {player}. Bare. Hollow. Sad. We looked inside and a single moth flew out. So we filled our own shelves instead, and today they are bursting with honest Horde goods for honest Horde gold." },
+        { "horde", "intro", "Orgrimmar does not sleep, and neither does the Horde Trading Post. While others were still snoring, our grunts loaded the kodos with ore, herbs and gems. Now the kodos are tired and you get to shop. Everyone wins." },
+        { "horde", "intro", "Strong arms need strong gear, {player}, and strong gear needs materials. We have them. Others do not. That is the whole speech. Grukka wanted it longer, but Grukka was told to go count crates instead." },
+        { "horde", "intro", "Hear the drums? That is the sound of a fresh delivery rolling through the gates of Orgrimmar. Leather from the plains, cloth from the far camps, potions brewed by people who mostly know what they are doing." },
+        { "horde", "intro", "Welcome, {player}, valued customer and probable hero of the Horde. We have saved some of our finest stock for you today. Not all of it, of course. We are proud, not foolish. But enough to make you smile." },
+        { "horde", "intro", "A quiet word, friend. The stock is limited, the line is long, and the troll at the back keeps cutting in. If you want something from today's list, do not stand around admiring it. Buy it. Admire it later." },
+        { "horde", "intro", "Lok'tar, {player}! Another day, another empty auction house, another chance to pay a bit more for something you actually need. Some call it greed. We call it the fine art of being the only ones who showed up." },
+        { "horde", "listhead", "Fresh on our shelves today:" },
+        { "horde", "listhead", "Today's loot, fairly acquired (mostly):" },
+        { "horde", "listhead", "Unloaded from the kodos this morning:" },
+        { "horde", "listhead", "Look, mon, look at all dis:" },
+        { "horde", "listhead", "What the Earth Mother gave us today:" },
+        { "horde", "listhead", "Today's offers, for the strong of purse:" },
+        { "horde", "listhead", "Grab it before the grunts do:" },
+        { "horde", "listhead", "Still in stock (for now):" },
+        { "horde", "closing", "Stocks are limited and the Quartermaster does not restock out of pity. Talk to any auctioneer, choose the Horde Trading Post, and take what you need before someone stronger does." },
+        { "horde", "closing", "Pay the full price and your goods are in your mailbox at once. Bid less and they ride with the next caravan, slow as a sleepy kodo. Either way, the Horde delivers." },
+        { "horde", "closing", "Just walk up to any auctioneer, mon, and ask for de Trading Post. Buy outright, it be in your mailbox right away. Bid cheap, and de caravan bring it when de caravan feel like it." },
+        { "horde", "closing", "When it is gone, it is gone. We do not hide extra crates in the back. Well, we do, but they are for tomorrow. Visit any auctioneer and pick the {post} while there is still something to pick." },
+        { "horde", "closing", "Do not wait, warrior. Limited stock means exactly that: limited. Speak to an auctioneer in any city, select the Trading Post, and let your gold do the fighting for once." },
+        { "horde", "closing", "Buy outright for instant delivery to your mailbox, or place a cheaper bid and trust the caravan. The caravan is honest. Slow, but honest. Mostly honest. It has wolves." },
+        { "horde", "closing", "Our auctioneers know the way. Tell them you want the Horde Trading Post, point at what you like, and pay. That is all. No paperwork. Grukka cannot read paperwork anyway." },
+        { "horde", "closing", "Supplies are limited, patience is limited, and the Quartermaster's temper is very limited. Act today. Tomorrow the list changes, and you will be left with nothing but regret and an empty bag." },
+        { "horde", "closing", "Patience is a virtue, friend. Bid low and the caravan will bring your goods in time. Impatience is also fine, and costs a little more: buy outright and find it in your mailbox at once." },
+        { "horde", "closing", "The dead have time to wait. You do not. Find an auctioneer, ask for the Horde Trading Post, and claim today's goods while stocks last. We hold grudges, not goods." },
+        { "horde", "closing", "Every crate on this list is a crate someone else wants. Be faster than them. Talk to any auctioneer, choose the Trading Post, and the goods are yours before your rivals finish their war cry." },
+        { "horde", "closing", "Limited daily stock, mon. When de shelves be empty, dey stay empty till tomorrow. So come quick, buy smart, and if you be cheap, de caravan still love you. Just slower." },
+        { "horde", "ps", "P.S. The auction house called. It wants its customers back. We said no." },
+        { "horde", "ps", "P.S. Yes, our prices are high. So is Thunder Bluff. Nobody complains about that." },
+        { "horde", "ps", "P.S. Grukka asked us to remind you that refunds are for the weak." },
+        { "horde", "ps", "P.S. De troll at de counter say hello. He also say buy more, mon." },
+        { "horde", "ps", "P.S. Our potions are guaranteed fresh. Our shipping clerk is not, but that is a different matter." },
+        { "horde", "ps", "P.S. Any kodo found sleeping on the merchandise has been given a stern talking to." },
+        { "horde", "ps", "P.S. The Alliance pays even more for worse goods. We checked. We laughed." },
+        { "horde", "ps", "P.S. If the caravan is late, blame the Barrens. Everyone else does." },
+        { "horde", "ps", "P.S. \"Expensive\" is just a weak word for \"worth it\"." },
+        { "horde", "ps", "P.S. The goblins say they are cheaper. The goblins also say a lot of things right before something explodes." },
+        { "horde", "ps", "P.S. Bringing a wolf to haggle does not work. We have bigger wolves." },
+        { "horde", "ps", "P.S. The auction house is still empty. We went to look again, just to enjoy it." },
+        { "horde", "signature", "Strength and honor (and fair-ish prices),\n- Grukka Ironjaw, Quartermaster of the Horde Trading Post" },
+        { "horde", "signature", "Lok'tar! Now go shop,\n- Grukka Ironjaw, Quartermaster of the Horde Trading Post" },
+        { "horde", "signature", "Stay strong and spend wisely, mon,\n- Zul'jabi, Caravan Master of the Horde Trading Post" },
+        { "horde", "signature", "De spirits be watching your purse,\n- Zul'jabi, Caravan Master of the Horde Trading Post" },
+        { "horde", "signature", "Walk with the Earth Mother (and with full bags),\n- Thalsorn Mistwalker, Ledger-Keeper of the Horde Trading Post" },
+        { "horde", "signature", "May your ledger always balance,\n- Thalsorn Mistwalker, Ledger-Keeper of the Horde Trading Post" },
+        { "horde", "signature", "Yours in eternal unlife and commerce,\n- Ambrose Hollowmere, Shipping Clerk of the Horde Trading Post" },
+        { "horde", "signature", "Dark regards and swift delivery,\n- Ambrose Hollowmere, Shipping Clerk of the Horde Trading Post" },
+        { "alliance", "subject", "TODAY ONLY at the Alliance Trading Post!" },
+        { "alliance", "subject", "By royal decree: fresh goods today" },
+        { "alliance", "subject", "The auction house is empty. Pity." },
+        { "alliance", "subject", "Fine wares for discerning heroes" },
+        { "alliance", "subject", "Limited stock! Gryphons standing by!" },
+        { "alliance", "subject", "Your daily offer from Stormwind" },
+        { "alliance", "subject", "Ironforge-tested, gnome-counted!" },
+        { "alliance", "subject", "The Light smiles upon your purse" },
+        { "alliance", "subject", "Quality costs. Quality is here." },
+        { "alliance", "subject", "Act now, before the dwarves drink it" },
+        { "alliance", "subject", "Freshly audited bargains inside!" },
+        { "alliance", "subject", "A noble offer for a noble customer" },
+        { "alliance", "headline", "THE AUCTION HOUSE IS EMPTY - THE ALLIANCE TRADING POST IS NOT!" },
+        { "alliance", "headline", "BY ORDER OF GOOD TASTE: THE FINEST WARES IN THE KINGDOM!" },
+        { "alliance", "headline", "OUR PRICES ARE HIGH BECAUSE OUR STANDARDS ARE HIGHER!" },
+        { "alliance", "headline", "AUDITED! CERTIFIED! TRIPLE-COUNTED! AND FOR SALE!" },
+        { "alliance", "headline", "STRAIGHT FROM THE MOUNTAIN, DOWN A TERRIBLE ROAD!" },
+        { "alliance", "headline", "BLESSED BY THE LIGHT, PRICED BY ACCOUNTANTS!" },
+        { "alliance", "headline", "LIMITED STOCK - UNLIMITED ELEGANCE!" },
+        { "alliance", "headline", "THE GRYPHONS ARE SADDLED! THE CRATES ARE FULL!" },
+        { "alliance", "headline", "WHILE STOCKS LAST, WHICH IS TO SAY: NOT LONG!" },
+        { "alliance", "headline", "ORE FROM IRONFORGE! CLOTH FROM STORMWIND! JOY FOR YOU!" },
+        { "alliance", "headline", "A GENTLEMAN NEVER HAGGLES. A GNOME ALWAYS COUNTS." },
+        { "alliance", "headline", "FOR KING, COUNTRY AND A MODEST PROFIT MARGIN!" },
+        { "alliance", "intro", "Good day, {player}. It has come to our attention that the auction house is, regrettably, empty. Such vulgar scarcity cannot be tolerated in a civilized realm, and so the Alliance Trading Post humbly presents today's selection." },
+        { "alliance", "intro", "Greetings, esteemed hero! Tibbly here, with fresh numbers and fresher goods. Every crate on today's list has been counted, recounted, weighed and gently patted. The figures say you need supplies. The figures are never wrong." },
+        { "alliance", "intro", "Oi, {player}. Durgan here. I hauled these crates down from the mountain on roads that should be ashamed of themselves. A wheel lost, the mule sulking, ale ration gone. So you will pay what they are worth, and they are worth plenty." },
+        { "alliance", "intro", "May the Light guide you, {player}. We strive for patience, generosity and humility. We manage the first two. The third is difficult when one's goods are this good. Please accept our offering with an open heart and an open purse." },
+        { "alliance", "intro", "The cathedral bells of Stormwind ring today in honor of our new delivery. Well, they ring every day, but we like to think it is for us. Fine cloth, polished gems and potions bottled with genuine care await you." },
+        { "alliance", "intro", "Dear {player}, you strike us as a person of refinement. You would never stoop to rummaging through an empty auction house. No, you deserve proper service, proper goods, and a proper price. A proper high one." },
+        { "alliance", "intro", "Ironforge sends its warmest greetings, which is quite warm given the forge. Ore fresh from the deep, gems cut by steady hands and leather tough enough for any campaign. Come and see before the mountain folk buy it back." },
+        { "alliance", "intro", "According to our ledgers, {player}, you have not bought anything from us in far too long. This is a statistical anomaly we would very much like to correct. Kindly review today's list and do the reasonable thing." },
+        { "alliance", "intro", "The auction house shelves are bare, the merchants are sighing, and somewhere a noble is weeping into his silk handkerchief. Dry your eyes, good folk. The Alliance Trading Post has arrived with full carts and fuller confidence." },
+        { "alliance", "intro", "Hail and well met! The gryphons have landed, the crates are open and the steward is wearing his good hat. That only happens on special occasions, and today's offer is exactly that kind of occasion." },
+        { "alliance", "intro", "A word to the wise, {player}: supplies are scarce, heroes are many, and our stock is limited. Those who hesitate will be left with nothing but polite regret. Those who act will be left with excellent goods." },
+        { "alliance", "intro", "Welcome, friend of the Alliance. Whether you march with the knights, tinker with the gnomes, drink with the dwarves or pray with the draenei, you will find something on today's list. Probably several things. Pricey things." },
+        { "alliance", "listhead", "Fresh on our shelves today:" },
+        { "alliance", "listhead", "Today's distinguished selection:" },
+        { "alliance", "listhead", "Counted, certified and available:" },
+        { "alliance", "listhead", "Hauled down the mountain for you:" },
+        { "alliance", "listhead", "Blessed and ready for purchase:" },
+        { "alliance", "listhead", "By royal appointment, today we offer:" },
+        { "alliance", "listhead", "Our finest wares, in no particular order:" },
+        { "alliance", "listhead", "Behold, today's inventory:" },
+        { "alliance", "closing", "Stock is limited and shall not be replenished until the morrow. Kindly speak with any auctioneer, choose the Alliance Trading Post, and conclude your purchase like the cultured soul you are." },
+        { "alliance", "closing", "Buy outright and your goods reach your mailbox at once, by gryphon. Place a cheaper bid and they travel with the caravan, by road. Durgan has opinions about the road." },
+        { "alliance", "closing", "Procedure, for your convenience: approach an auctioneer, select the Trading Post, choose your goods, pay. Instant delivery if bought outright, caravan delivery if bid. Tibbly has made a chart." },
+        { "alliance", "closing", "When the crates are empty, they are empty, and no amount of noble indignation will refill them. Visit any auctioneer, ask for the {post}, and secure your share while stocks last." },
+        { "alliance", "closing", "Those who pay the full price receive their wares at once, in their mailbox. Those who bid wait for the caravan, as patience is also a virtue. The Light rewards both, just not equally fast." },
+        { "alliance", "closing", "Any auctioneer in Stormwind, Ironforge or beyond will happily direct you to the Alliance Trading Post. Simply choose it, pick what pleases you, and act before the stock runs dry." },
+        { "alliance", "closing", "We must stress: the stock is limited. Tibbly has stressed this in writing, in triplicate. Do not wait for tomorrow, as tomorrow's list may not include what you need today." },
+        { "alliance", "closing", "Make haste, good hero. Speak with an auctioneer, request the Trading Post, and claim today's goods. Buy outright for the mailbox, or bid and wait for the caravan if your purse is feeling modest." },
+        { "alliance", "closing", "The caravan does arrive, eventually. Durgan swears by it. But if you value your time more than your coin, buy outright and the goods are in your mailbox before you can finish your ale." },
+        { "alliance", "closing", "Limited stock, limited time, unlimited quality. Find any auctioneer, choose the Alliance Trading Post, and spend your gold where it will be properly appreciated." },
+        { "alliance", "closing", "It would be most unfortunate if a lesser adventurer bought what was meant for you. Avoid this tragedy. Act now, while stocks last, and let the steward know you came by recommendation." },
+        { "alliance", "closing", "An empty auction house is a sad thing, but an empty shopping bag is sadder. Visit an auctioneer, pick the Trading Post, and let us fix both problems at once." },
+        { "alliance", "ps", "P.S. The auction house sends its regrets. It has nothing else to send." },
+        { "alliance", "ps", "P.S. Tibbly wishes to confirm that every price was calculated with great care and a very large abacus." },
+        { "alliance", "ps", "P.S. Durgan would like to know who keeps building roads out of potholes." },
+        { "alliance", "ps", "P.S. Our prices are high, yes. So are the towers of Stormwind, and people still visit those." },
+        { "alliance", "ps", "P.S. No gryphons were harmed in the delivery of these goods. One was mildly inconvenienced." },
+        { "alliance", "ps", "P.S. The Horde Trading Post claims to be cheaper. They also claim kodos smell nice." },
+        { "alliance", "ps", "P.S. Haggling with the steward is permitted. Succeeding is not." },
+        { "alliance", "ps", "P.S. The draenei clerk has blessed every crate. The gnome has billed for it." },
+        { "alliance", "ps", "P.S. If you can find a better offer at the auction house, you must have very good eyes. It is empty." },
+        { "alliance", "ps", "P.S. The goblins called our prices outrageous. Coming from goblins, we take that as high praise." },
+        { "alliance", "ps", "P.S. Ale is not on today's list. Durgan drank it. We apologize on his behalf." },
+        { "alliance", "ps", "P.S. A true noble never asks the price. A true gnome tells it anyway, twice." },
+        { "alliance", "signature", "With the utmost respect and an elegant bow,\n- Percival Ashcombe, Steward of the Alliance Trading Post" },
+        { "alliance", "signature", "For the Alliance (and for good taste),\n- Percival Ashcombe, Steward of the Alliance Trading Post" },
+        { "alliance", "signature", "Accurately and punctually yours,\n- Tibbly Gearwhistle, Bookkeeper of the Alliance Trading Post" },
+        { "alliance", "signature", "Counted twice, signed once,\n- Tibbly Gearwhistle, Bookkeeper of the Alliance Trading Post" },
+        { "alliance", "signature", "Mind the roads and keep your ale cold,\n- Durgan Stoutkeg, Caravan Master of the Alliance Trading Post" },
+        { "alliance", "signature", "Safe travels, and curse every pothole,\n- Durgan Stoutkeg, Caravan Master of the Alliance Trading Post" },
+        { "alliance", "signature", "May the Light keep you and your parcels safe,\n- Ishaali, Shipping Clerk of the Alliance Trading Post" },
+        { "alliance", "signature", "In faith and prompt delivery,\n- Ishaali, Shipping Clerk of the Alliance Trading Post" },
+        { "goblin", "subject", "TODAY ONLY at the Goblin Trading Post!" },
+        { "goblin", "subject", "Time is money, friend! Read this!" },
+        { "goblin", "subject", "Special offer! (Fees may apply)" },
+        { "goblin", "subject", "The auction house is empty. Ka-ching!" },
+        { "goblin", "subject", "Exclusive deals, limited stock!" },
+        { "goblin", "subject", "You have been pre-selected, friend!" },
+        { "goblin", "subject", "Neutral goods for every coin purse" },
+        { "goblin", "subject", "Act now! Prices may rise! (They will)" },
+        { "goblin", "subject", "Your daily offer from the docks" },
+        { "goblin", "subject", "Fresh stock, barely exploded!" },
+        { "goblin", "subject", "Buy more, save less, smile always!" },
+        { "goblin", "subject", "Opportunity knocks. Then it bills you." },
+        { "goblin", "headline", "THE AUCTION HOUSE IS EMPTY - THE GOBLIN TRADING POST IS NOT!" },
+        { "goblin", "headline", "TIME IS MONEY, FRIEND, AND YOU ARE WASTING BOTH!" },
+        { "goblin", "headline", "OUR PRICES ARE HIGH BECAUSE OUR OVERHEAD IS EXPLOSIVE!" },
+        { "goblin", "headline", "HORDE GOLD! ALLIANCE GOLD! WE ARE NOT PICKY!" },
+        { "goblin", "headline", "LIMITED STOCK! UNLIMITED FINE PRINT!" },
+        { "goblin", "headline", "EVERYTHING MUST GO! (AT FULL PRICE)" },
+        { "goblin", "headline", "NEUTRAL GROUND, NEUTRAL GOODS, VERY BIASED PRICES!" },
+        { "goblin", "headline", "BUY NOW, ASK QUESTIONS NEVER!" },
+        { "goblin", "headline", "WHILE STOCKS LAST - AND WE PRICED THEM TO VANISH!" },
+        { "goblin", "headline", "NO REFUNDS! NO RETURNS! NO PROBLEM!" },
+        { "goblin", "headline", "FRESH FROM THE DOCKS, MOSTLY NOT ON FIRE!" },
+        { "goblin", "headline", "THE BEST DEAL IN AZEROTH (TERMS AND CONDITIONS APPLY)" },
+        { "goblin", "intro", "Hey there, {player}! Gizzik here, and have I got a deal for you. The auction house is empty, which is bad for you but great for me, which means it is great for you too, because now you can buy from me. Everybody wins. Mostly me." },
+        { "goblin", "intro", "Listen up, friend, because time is money and this letter is costing us both. The Goblin Trading Post has restocked with ore, herbs, cloth, gems and potions, and we sell to anyone with gold. Faction is optional. Gold is not." },
+        { "goblin", "intro", "Congratulations, {player}! You have been selected to receive this exclusive offer. Selection criteria: you are alive, you have a mailbox, and you probably have coin. Please read the list below with great excitement." },
+        { "goblin", "intro", "Our dispatch boss wanted to deliver this flyer by rocket. Legal said no. Accounting said no. The rocket said nothing, because it was already on fire. So here it is by regular mail, along with today's very special offers." },
+        { "goblin", "intro", "Welcome, valued customer! At the Goblin Trading Post we believe every hero deserves quality supplies at a price that reflects our deep, deep love of profit. Today's list is short, sweet and extremely lucrative. For us." },
+        { "goblin", "intro", "Hey, {player}, quick question: do you like having things? Great. Do you like paying for things? Less great, we understand. But the auction house has no things at all, and we have lots of things. Think about it. Then buy." },
+        { "goblin", "intro", "Greetings from the docks! While the auction house twiddles its thumbs, our crews have been hauling crates day and night, with only minor fires. Every item on today's list is genuine, authentic and almost certainly not stolen." },
+        { "goblin", "intro", "Dear {player}, this letter contains limited-time offers, unlimited enthusiasm and a modest handling fee for reading it. Just kidding about the fee. Fenny wanted it, but we overruled her. This time." },
+        { "goblin", "intro", "Neutral ground means neutral prices, friend: equally high for everybody. Horde, Alliance, mercenary, whatever. We do not ask questions. We only ask for gold. Lots of it, preferably in neat little stacks." },
+        { "goblin", "intro", "Psst, {player}. You did not hear this from us, but the auction house is completely empty. Shocking, we know. Luckily the {post} happens to have exactly the supplies you need. What a coincidence. What a price." },
+        { "goblin", "intro", "Business is booming, sometimes literally. Our warehouse is full of materials, potions, scrolls and food, and every crate costs us money just by sitting there. So here is our generous offer: you take it, you pay us. Simple." },
+        { "goblin", "intro", "Hey hey, big spender! The Goblin Trading Post proudly presents today's hand-picked selection of fine goods. Hand-picked by goblins, priced by goblins, and wrapped by a very tired goblin who would like a raise." },
+        { "goblin", "listhead", "Fresh on our shelves today:" },
+        { "goblin", "listhead", "Today's hot deals (handle with gloves):" },
+        { "goblin", "listhead", "Exclusive offers, for you only (and others):" },
+        { "goblin", "listhead", "Look at these beauties, friend:" },
+        { "goblin", "listhead", "Inventory, subject to sudden explosion:" },
+        { "goblin", "listhead", "Today's wares, prices final, fees extra:" },
+        { "goblin", "listhead", "Step right up and pick your purchase:" },
+        { "goblin", "listhead", "Hot off the docks, priced to sell:" },
+        { "goblin", "closing", "Stock is limited, friend, and limited means limited. Talk to any auctioneer, choose the Goblin Trading Post, and close the deal before some other hero snatches your bargain." },
+        { "goblin", "closing", "Buy outright and your goods are in your mailbox at once, express service included. Bid cheaper and they ride with the caravan. Slower, but cheaper. Time is money, so you choose which." },
+        { "goblin", "closing", "How to get there? Easy. Walk up to any auctioneer, Horde or Alliance or neutral, ask for the Trading Post, and start spending. Nixa will handle the contract. Do not read the contract." },
+        { "goblin", "closing", "When it is gone, it is gone, and we will be on a beach somewhere counting your gold. Act now, while stocks last, and remember: every moment you hesitate, the price of regret goes up." },
+        { "goblin", "closing", "Any auctioneer can connect you to the Goblin Trading Post. Just pick it, choose your goods, pay up. Instant mailbox delivery for full price, caravan delivery for bidders. Easy money. For us." },
+        { "goblin", "closing", "Fine print: stock limited, delivery immediate when bought outright, delivery by caravan when bid upon, explosions not covered by warranty, warranty not available. Thank you for your business." },
+        { "goblin", "closing", "Do not wait for tomorrow, friend. Tomorrow has new prices, and trust us, they are never lower. Speak to an auctioneer, select the Trading Post, and lock in today's rate while you still can." },
+        { "goblin", "closing", "Choose your speed! Premium option: buy outright, goods in your mailbox at once. Budget option: bid, and the caravan brings it later. Ultra-budget option: does not exist. We checked." },
+        { "goblin", "closing", "The shelves empty fast, so do not just stand there reading. Go find an auctioneer, ask for the {post}, and turn that heavy purse into something useful." },
+        { "goblin", "closing", "Remember: limited daily stock, no rain checks, no reservations, no exceptions. Unless the exception pays extra. Then we can talk. Then we can definitely talk." },
+        { "goblin", "closing", "It takes a minute: talk to any auctioneer, pick the Trading Post, buy outright for instant delivery or bid and wait for the caravan. A minute is money, friend, so do it now." },
+        { "goblin", "closing", "Krazzle has the caravan fueled and only slightly leaking. Bid and your goods ride along. Pay full price and they are in your mailbox before the caravan even starts. Stocks are limited, so hurry." },
+        { "goblin", "ps", "P.S. The auction house is empty. We would sell it to you, but it is not ours. Yet." },
+        { "goblin", "ps", "P.S. Reading this flyer was free. Next time, who knows." },
+        { "goblin", "ps", "P.S. Fenny would like to remind you that fees are a sign of love." },
+        { "goblin", "ps", "P.S. Our competitors say our prices are outrageous. Our competitors are also out of stock." },
+        { "goblin", "ps", "P.S. The Horde post and the Alliance post both buy from us. Do not tell them." },
+        { "goblin", "ps", "P.S. If an item on this list smokes slightly, that is a feature." },
+        { "goblin", "ps", "P.S. Ask about our extended warranty! Then forget you asked. There is no warranty." },
+        { "goblin", "ps", "P.S. Time is money. You just spent some reading this. Better make it worth it." },
+        { "goblin", "ps", "P.S. Krazzle insists the last explosion was a planned demonstration of product quality." },
+        { "goblin", "ps", "P.S. Haggling is welcome. It increases the price, but it is welcome." },
+        { "goblin", "ps", "P.S. Our prices were set by a very honest goblin. We fired him. Now they are higher." },
+        { "goblin", "ps", "P.S. Tell your friends! Referral bonuses paid in compliments only." },
+        { "goblin", "signature", "Time is money, friend,\n- Gizzik Sharpcoin, Sales Manager of the Goblin Trading Post" },
+        { "goblin", "signature", "Buy big, buy often, buy from us,\n- Gizzik Sharpcoin, Sales Manager of the Goblin Trading Post" },
+        { "goblin", "signature", "Fees fondly applied,\n- Fenny Tollwhistle, Fee Accountant of the Goblin Trading Post" },
+        { "goblin", "signature", "With compound interest and warm regards,\n- Fenny Tollwhistle, Fee Accountant of the Goblin Trading Post" },
+        { "goblin", "signature", "Delivered with a bang (usually figurative),\n- Krazzle Boomgear, Dispatch Boss of the Goblin Trading Post" },
+        { "goblin", "signature", "Keep your mailbox clear of debris,\n- Krazzle Boomgear, Dispatch Boss of the Goblin Trading Post" },
+        { "goblin", "signature", "Signed, sealed and legally binding,\n- Nixa Fastfingers, Contracts Clerk of the Goblin Trading Post" },
+        { "goblin", "signature", "See the fine print for my full regards,\n- Nixa Fastfingers, Contracts Clerk of the Goblin Trading Post" },
+        };
+
         // ---------------------------------------------------------------------------------- what it sells
 
         struct Ware
@@ -211,6 +446,12 @@ namespace pba
         std::unordered_map<uint64, uint32> sold;                            // auction house and item -> pieces, today
         uint32 today = 0;                                                   // the day the two above are about
         std::vector<Order> orders;
+        struct Reader
+        {
+            uint32 day = 0;             // the last flyer
+            bool off = false;           // does not want any
+        };
+        std::unordered_map<ObjectGuid::LowType, Reader> readers;
         bool tables = false;
         thread_local bool passing = false;      // the real auction window is being opened; the menu stays out of it
 
@@ -509,6 +750,16 @@ namespace pba
             AddGossipItemFor(player, GOSSIP_ICON_MONEY_BAG, "Browse the auction house.", PostSender, ACT_BROWSE);
             AddGossipItemFor(player, GOSSIP_ICON_VENDOR, std::string("Buy at the ") + PostName(HouseOf(creature)) + ".", PostSender, ACT_POST);
             AddGossipItemFor(player, GOSSIP_ICON_CHAT, "What is the Trading Post?", PostSender, ACT_INFO);
+            if (cfg.postFlyer)
+            {
+                bool off;
+                {
+                    std::lock_guard<std::mutex> guard(lock);
+                    off = readers[player->GetGUID().GetCounter()].off;
+                }
+                AddGossipItemFor(player, GOSSIP_ICON_CHAT, off ? "Send me your flyers again." : "Stop sending me your flyers.", PostSender,
+                    off ? ACT_FLYERS_ON : ACT_FLYERS_OFF);
+            }
             SendGossipMenuFor(player, TextBase + TEXT_MENU, creature->GetGUID());
         }
 
@@ -555,6 +806,7 @@ namespace pba
 
         struct Row
         {
+            uint32 house;
             Ware const* ware;
             uint32 count;
             uint32 bid;
@@ -608,7 +860,7 @@ namespace pba
             data << uint32(row.count);
             data << uint32(proto->Spells[0].SpellCharges);
             data << uint32(0);
-            data << Seller();
+            data << Seller(row.house);
             data << uint32(row.bid);                                // the lowest bid: the price with the caravan
             data << uint32(0);
             data << uint32(row.buyout);                             // the buyout: the price at once
@@ -627,11 +879,6 @@ namespace pba
             int locale = 0;
             std::vector<std::pair<uint8, bool>> sorting;
 
-            /// Asked for something in particular - a name or a kind of thing - not just "everything".
-            bool Particular() const
-            {
-                return !wanted.empty() || itemClass != 0xffffffff;
-            }
         };
 
         bool ReadQuery(WorldSession* session, WorldPacket& recvData, Query& query)
@@ -690,8 +937,6 @@ namespace pba
             return gone < ShelfSize(ware);
         }
 
-        std::unordered_map<ObjectGuid::LowType, Query> lastSearch;      // what a player last asked the real auction house
-
         /// The window asks what there is. Runs on the thread of the player's map.
         void ListItems(WorldSession* session, WorldPacket& recvData)
         {
@@ -737,7 +982,7 @@ namespace pba
                     for (uint32 const size : { uint32(1), uint32(5), most })
                         if (size <= most && size > last)
                         {
-                            rows.push_back({ &ware, size, Total(bid, size), Total(buyout, size), ends });
+                            rows.push_back({ house, &ware, size, Total(bid, size), Total(buyout, size), ends });
                             last = size;
                         }
                 }
@@ -949,9 +1194,125 @@ namespace pba
                 CharacterDatabase.CommitTransaction(trans);
             }
         }
+
+        std::string MoneyText(uint32 copper)
+        {
+            std::string text;
+            if (copper >= GOLD)
+                text += Acore::StringFormat("{}g", copper / GOLD);
+            if (copper % GOLD >= SILVER)
+                text += Acore::StringFormat("{}{}s", text.empty() ? "" : " ", (copper % GOLD) / SILVER);
+            if (copper % SILVER || text.empty())
+                text += Acore::StringFormat("{}{}c", text.empty() ? "" : " ", copper % SILVER);
+            return text;
+        }
+
+        std::string PieceOf(char const* side, char const* part)
+        {
+            std::vector<char const*> fitting;
+            for (Letter const& piece : Flyer)
+                if (!std::strcmp(piece.house, side) && !std::strcmp(piece.kind, part))
+                    fitting.push_back(piece.text);
+            return fitting.empty() ? std::string() : std::string(fitting[urand(0, uint32(fitting.size()) - 1)]);
+        }
+
+        /// Once a day, at the first login: what the post of the player's side has today, as a leaflet.
+        void SendFlyer(Player* player)
+        {
+            ObjectGuid::LowType const low = player->GetGUID().GetCounter();
+            uint32 const house = uint32(sWorld->getBoolConfig(CONFIG_ALLOW_TWO_SIDE_INTERACTION_AUCTION) ? AuctionHouseId::Neutral :
+                player->GetTeamId() == TEAM_ALLIANCE ? AuctionHouseId::Alliance : AuctionHouseId::Horde);
+            uint32 const level = player->GetLevel();
+
+            std::vector<std::string> lines;
+            {
+                std::lock_guard<std::mutex> guard(lock);
+                NewDay();
+                Reader& reader = readers[low];
+                if (reader.off || reader.day == today)
+                    return;
+                Stock& stock = stocks[house];
+                time_t const now = GameTime::GetGameTime().count();
+                if (!stock.built || now - stock.built >= 60)
+                    BuildStock(house, stock);
+
+                // What suits a character of that level, a few of each kind: mostly materials, some of what crafters make.
+                std::vector<Offer const*> materials, crafted;
+                for (Offer const& offer : stock.offers)
+                {
+                    Ware const& ware = wares[offer.ware];
+                    uint32 gone = 0;
+                    if (!OnShelf(low, house, ware, gone) || ware.proto->RequiredLevel > level)
+                        continue;
+                    if (ware.proto->ItemLevel > level + 10 || ware.proto->ItemLevel + 25 < level)
+                        continue;
+                    (ware.made ? crafted : materials).push_back(&offer);
+                }
+                Acore::Containers::RandomShuffle(materials);
+                Acore::Containers::RandomShuffle(crafted);
+                if (materials.size() > 5)
+                    materials.resize(5);
+                if (crafted.size() > 3)
+                    crafted.resize(3);
+                materials.insert(materials.end(), crafted.begin(), crafted.end());
+                for (Offer const* offer : materials)
+                {
+                    Ware const& ware = wares[offer->ware];
+                    uint32 gone = 0;
+                    OnShelf(low, house, ware, gone);
+                    uint32 bid, buyout;
+                    PricesOf(*offer, ware, gone, bid, buyout);
+                    lines.push_back(Acore::StringFormat("- {}: {} a piece - or {} with the caravan", ware.proto->Name1, MoneyText(buyout), MoneyText(bid)));
+                }
+                if (lines.empty())
+                    return;     // nothing to advertise today; maybe tomorrow
+                reader.day = today;
+                if (tables)
+                    CharacterDatabase.Execute("REPLACE INTO `mod_playerbots_auctions_post_flyer` (`player`, `day`, `off`) VALUES ({}, {}, 0)", low, today);
+            }
+
+            CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+            // Yesterday's flyer goes out with the new one: there is never more than one in the mailbox.
+            for (Mail* mail : player->GetMails())
+                if (mail->state != MAIL_STATE_DELETED && mail->messageType == MAIL_NORMAL &&
+                    mail->sender >= SellerLow && mail->sender <= SellerLow + 7 && mail->items.empty() && !mail->money)
+                {
+                    mail->state = MAIL_STATE_DELETED;
+                    CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_MAIL_BY_ID);
+                    stmt->SetData(0, mail->messageID);
+                    trans->Append(stmt);
+                    PBA_MAIL_DELETED(player->GetGUID());
+                }
+            player->m_mailsUpdated = true;
+
+            char const* const side = AuctionHouseId(house) == AuctionHouseId::Alliance ? "alliance" :
+                AuctionHouseId(house) == AuctionHouseId::Horde ? "horde" : "goblin";
+            std::string list;
+            for (std::string const& line : lines)
+                list += line + "\n";
+            std::string body = PieceOf(side, "headline") + "\n\n" + PieceOf(side, "intro") + "\n\n" + PieceOf(side, "listhead") + "\n" + list +
+                "\n" + PieceOf(side, "closing") + "\n\n" + PieceOf(side, "signature") + "\n\n" + PieceOf(side, "ps");
+            std::string subject = PieceOf(side, "subject");
+            for (std::string* text : { &body, &subject })
+            {
+                Fill(*text, "{player}", player->GetName());
+                Fill(*text, "{post}", PostName(house));
+            }
+            MailDraft(subject, body).SendMailTo(trans, MailReceiver(player, low), MailSender(MAIL_NORMAL, SellerLow + house),
+                MAIL_CHECK_MASK_NONE, 0, 1);    // gone after a day
+            CharacterDatabase.CommitTransaction(trans);
+            if (cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: trading post - {} gets today's flyer, with {} offer(s).", player->GetName(), lines.size());
+        }
     }
 
     // ---------------------------------------------------------------------------------------- from outside
+
+    void PostLogin(Player* player)
+    {
+        if (cfg.enabled && cfg.post && cfg.postFlyer && OfAPerson(player))
+            SendFlyer(player);
+    }
 
     void LoadPost()
     {
@@ -976,7 +1337,21 @@ namespace pba
             "`player` INT UNSIGNED NOT NULL, `item` INT UNSIGNED NOT NULL, `count` INT UNSIGNED NOT NULL, `house` INT UNSIGNED NOT NULL, "
             "`sender` INT UNSIGNED NOT NULL, `due` BIGINT UNSIGNED NOT NULL, PRIMARY KEY (`player`, `item`, `due`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 "
             "COMMENT='mod-playerbots-auctions: bids at the trading post that are on their way'");
+        CharacterDatabase.DirectExecute(
+            "CREATE TABLE IF NOT EXISTS `mod_playerbots_auctions_post_flyer` ("
+            "`player` INT UNSIGNED NOT NULL, `day` INT UNSIGNED NOT NULL, `off` TINYINT UNSIGNED NOT NULL DEFAULT 0, "
+            "PRIMARY KEY (`player`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 "
+            "COMMENT='mod-playerbots-auctions: the daily flyer of the trading post - last one sent, and who wants none'");
         tables = true;
+        readers.clear();
+        if (QueryResult result = CharacterDatabase.Query("SELECT `player`, `day`, `off` FROM `mod_playerbots_auctions_post_flyer`"))
+            do
+            {
+                Field* fields = result->Fetch();
+                Reader& reader = readers[fields[0].Get<uint32>()];
+                reader.day = fields[1].Get<uint32>();
+                reader.off = fields[2].Get<uint8>() != 0;
+            } while (result->NextRow());
 
         today = DayNow();
         bought.clear();
@@ -1114,6 +1489,23 @@ namespace pba
             case ACT_BACK:
                 ShowMenu(player, creature);
                 break;
+            case ACT_FLYERS_OFF:
+            case ACT_FLYERS_ON:
+            {
+                bool const off = action == ACT_FLYERS_OFF;
+                {
+                    std::lock_guard<std::mutex> guard(lock);
+                    Reader& reader = readers[player->GetGUID().GetCounter()];
+                    reader.off = off;
+                    if (tables)
+                        CharacterDatabase.Execute("REPLACE INTO `mod_playerbots_auctions_post_flyer` (`player`, `day`, `off`) VALUES ({}, {}, {})",
+                            player->GetGUID().GetCounter(), reader.day, off ? 1 : 0);
+                }
+                creature->Whisper(off ? "As you wish. No more flyers - but you know where to find us." :
+                    "Splendid! Tomorrow's offers will be in your mailbox.", LANG_UNIVERSAL, player);
+                ShowMenu(player, creature);
+                break;
+            }
             default:
                 CloseGossipMenuFor(player);
                 break;
@@ -1137,17 +1529,39 @@ namespace pba
             }
             case CMSG_NAME_QUERY:
             {
-                if (packet.size() < 8 || ObjectGuid(packet.read<uint64>(0)) != Seller())
+                if (packet.size() < 8)
+                    return true;
+                ObjectGuid const asked(packet.read<uint64>(0));
+                if (!asked.IsPlayer() || asked.GetCounter() < SellerLow || asked.GetCounter() > SellerLow + 7)
                     return true;
                 WorldPackets::Query::NameQueryResponse response;
-                response.Guid = Seller().WriteAsPacked();
+                response.Guid = asked.WriteAsPacked();
                 response.NameUnknown = false;
-                response.Name = "Trading Post";
+                response.Name = PostName(asked.GetCounter() - SellerLow);
                 response.Race = RACE_HUMAN;
                 response.Sex = GENDER_MALE;
                 response.Class = CLASS_ROGUE;
                 response.Declined = false;
                 session->SendPacket(response.Write());
+                return false;
+            }
+            case CMSG_MAIL_RETURN_TO_SENDER:
+            {
+                // A flyer sent back: there is nobody to send it to, so it is simply thrown away.
+                Player* player = session->GetPlayer();
+                if (!player || packet.size() < 12)
+                    return true;
+                Mail* mail = player->GetMail(packet.read<uint32>(8));
+                if (!mail || mail->state == MAIL_STATE_DELETED || mail->messageType != MAIL_NORMAL ||
+                    mail->sender < SellerLow || mail->sender > SellerLow + 7 || mail->HasItems() || mail->money)
+                    return true;
+                mail->state = MAIL_STATE_DELETED;
+                player->m_mailsUpdated = true;
+                CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_MAIL_BY_ID);
+                stmt->SetData(0, mail->messageID);
+                CharacterDatabase.Execute(stmt);
+                PBA_MAIL_DELETED(player->GetGUID());
+                player->SendMailResult(mail->messageID, MAIL_RETURNED_TO_SENDER, MAIL_OK);
                 return false;
             }
             case CMSG_AUCTION_LIST_ITEMS:
@@ -1161,19 +1575,7 @@ namespace pba
                     ObjectGuid::LowType const low = player->GetGUID().GetCounter();
                     auto visitor = visitors.find(low);
                     if (visitor == visitors.end() || !visitor->second.atPost)
-                    {
-                        // A search of the real auction house: kept, in case it finds nothing.
-                        Query query;
-                        try
-                        {
-                            if (ReadQuery(session, copy, query))
-                                lastSearch[low] = std::move(query);
-                        }
-                        catch (ByteBufferException const&)
-                        {
-                        }
                         return true;
-                    }
                 }
                 try
                 {
@@ -1204,62 +1606,11 @@ namespace pba
         }
     }
 
-    void PostSent(WorldSession* session, WorldPacket const& packet)
-    {
-        // The real auction house found nothing: if the post has what was asked for, the player hears of it.
-        if (packet.GetOpcode() != SMSG_AUCTION_LIST_RESULT || packet.size() < 4 || packet.read<uint32>(0) != 0)
-            return;
-        Player* player = session->GetPlayer();
-        if (!player || !cfg.enabled || !cfg.post || !OfAPerson(player))
-            return;
-
-        uint32 offers = 0, house = 0;
-        std::string searched;
-        {
-            std::lock_guard<std::mutex> guard(lock);
-            ObjectGuid::LowType const low = player->GetGUID().GetCounter();
-            auto asked = lastSearch.find(low);
-            auto visitor = visitors.find(low);
-            if (asked == lastSearch.end() || visitor == visitors.end() || visitor->second.atPost || !visitor->second.house)
-                return;
-            Query const query = std::move(asked->second);
-            lastSearch.erase(asked);
-            if (!query.Particular())
-                return;
-            NewDay();
-            house = visitor->second.house;
-            Stock& stock = stocks[house];
-            time_t const now = GameTime::GetGameTime().count();
-            if (!stock.built || now - stock.built >= 30)
-                BuildStock(house, stock);       // the results are sent on the world's thread
-            for (Offer const& offer : stock.offers)
-            {
-                uint32 gone = 0;
-                if (Fits(query, wares[offer.ware], player) && OnShelf(low, house, wares[offer.ware], gone))
-                    ++offers;
-            }
-            searched = query.searched;
-        }
-        if (!offers)
-            return;
-
-        char const* post = PostName(house);
-        ChatHandler handler(session);
-        handler.SendNotification(Acore::StringFormat("Nothing here - but the {} has it. Try your luck there!", post));
-        if (searched.empty())
-            handler.PSendSysMessage("The auction house has none of that right now - the {} has {} offer{}. Talk to the auctioneer "
-                "and choose \"Buy at the {}\".", post, offers, offers == 1 ? "" : "s", post);
-        else
-            handler.PSendSysMessage("The auction house has no \"{}\" right now - the {} has {} offer{}. Talk to the auctioneer "
-                "and choose \"Buy at the {}\".", searched, post, offers, offers == 1 ? "" : "s", post);
-    }
-
     void PostLeft(Player* player)
     {
         if (!player)
             return;
         std::lock_guard<std::mutex> guard(lock);
         visitors.erase(player->GetGUID().GetCounter());
-        lastSearch.erase(player->GetGUID().GetCounter());
     }
 }

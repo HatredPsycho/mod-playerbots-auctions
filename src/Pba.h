@@ -172,6 +172,7 @@ namespace pba
         uint32 postDailyMade = 5;              // ... and of one crafted thing
         uint32 postStockRaw = 60;              // pieces of one material a post has a day, for everybody together
         uint32 postStockMade = 10;             // ... and of one crafted thing
+        bool   postFlyer = true;               // players get a leaflet with the day's offers at their first login of the day
         uint32 postMaxQuality = ITEM_QUALITY_RARE;
         std::unordered_set<uint32> postExcluded;
     };
@@ -403,8 +404,8 @@ namespace pba
     bool PostGossip(Player* player, Creature* creature, uint32 sender, uint32 action);
     /// Something a player's game sent. False: the post answered it and the server need not.
     bool PostPacket(WorldSession* session, WorldPacket const& packet);
-    /// Something the server sends a player's game: an empty search of the auction house points to the post.
-    void PostSent(WorldSession* session, WorldPacket const& packet);
+    /// A player logs in: the first time of the day, the post's flyer comes.
+    void PostLogin(Player* player);
     void PostLeft(Player* player);
 
     // ------------------------------------------------------------------------------------------ chatter

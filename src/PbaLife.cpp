@@ -2121,7 +2121,12 @@ public:
     PlayerbotsAuctionsPlayer() : PlayerScript("PlayerbotsAuctionsPlayer", { PLAYERHOOK_CAN_SELL_ITEM, PLAYERHOOK_ON_LOOT_ITEM,
         PLAYERHOOK_CAN_PLAYER_USE_CHANNEL_CHAT, PLAYERHOOK_CAN_PLAYER_USE_PRIVATE_CHAT, PLAYERHOOK_CAN_PLAYER_USE_CHAT,
         PLAYERHOOK_ON_LEVEL_CHANGED, PLAYERHOOK_ON_PLAYER_KILLED_BY_CREATURE, PLAYERHOOK_ON_CREATURE_KILL, PLAYERHOOK_ON_TEXT_EMOTE,
-        PLAYERHOOK_ON_LOGOUT }) { }
+        PLAYERHOOK_ON_LOGOUT, PLAYERHOOK_ON_LOGIN }) { }
+
+    void OnPlayerLogin(Player* player) override
+    {
+        pba::PostLogin(player);
+    }
 
     void OnPlayerLogout(Player* player) override
     {
@@ -2217,14 +2222,7 @@ public:
 class PlayerbotsAuctionsPackets : public ServerScript
 {
 public:
-    PlayerbotsAuctionsPackets() : ServerScript("PlayerbotsAuctionsPackets", { SERVERHOOK_CAN_PACKET_RECEIVE, SERVERHOOK_CAN_PACKET_SEND }) { }
-
-    bool CanPacketSend(WorldSession* session, WorldPacket const& packet) override
-    {
-        if (session && packet.GetOpcode() == SMSG_AUCTION_LIST_RESULT)
-            pba::PostSent(session, packet);
-        return true;
-    }
+    PlayerbotsAuctionsPackets() : ServerScript("PlayerbotsAuctionsPackets", { SERVERHOOK_CAN_PACKET_RECEIVE }) { }
 
     bool CanPacketReceive(WorldSession* session, WorldPacket const& packet) override
     {

@@ -674,10 +674,13 @@ PlayerbotsAuctions.Chat.MailDelay = -1
 #    Both are well above what things usually go for. The tabs for bids and for one's own auctions
 #    keep showing the real auction house. The goods come with a letter by one of the clerks of that
 #    post - four at each, every one with a voice of its own.
+#    What a character has bought today, and what is sold out, no longer shows up at the post.
 #
-#    A search of the auction house that finds nothing, while the post has what was asked for, says
-#    so: "Nothing here - but the Horde Trading Post has it", on the screen and in the chat. What a
-#    character has bought today, and what is sold out, no longer shows up at the post.
+#    Once a day, at the first login, every player gets a flyer by mail from the post of their side:
+#    a shameless leaflet with a few of today's offers that suit the character's level, at today's
+#    prices. It is put together from pieces written in many voices, so no two are alike. There is
+#    never more than one in the mailbox - the new one replaces yesterday's, and each is gone after a
+#    day. At the auctioneer, "Stop sending me your flyers" ends them for that character.
 #
 #    It is a last resort and built to stay one:
 #      - It sells materials (ore, stone, bars, herbs, cloth, leather, enchanting materials,
@@ -703,6 +706,14 @@ PlayerbotsAuctions.Chat.MailDelay = -1
 #                     0 - Disabled
 
 PlayerbotsAuctions.TradingPost.Enable = 1
+
+#
+#    PlayerbotsAuctions.TradingPost.Flyer
+#        Description: Players get the post's flyer once a day at their first login.
+#        Default:     1 - Enabled
+#                     0 - Disabled
+
+PlayerbotsAuctions.TradingPost.Flyer = 1
 
 #
 #    PlayerbotsAuctions.TradingPost.ScarceBelow
