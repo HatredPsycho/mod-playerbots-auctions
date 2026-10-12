@@ -1,5 +1,7 @@
 # mod-playerbots-auctions
 
+**English** · [Deutsch](README.de.md) · [Français](README.fr.md) · [Español](README.es.md) · [Português (Brasil)](README.pt-BR.md) · [Русский](README.ru.md) · [简体中文](README.zh-Hans.md)
+
 An add-on module for [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots) on AzerothCore:
 the random bots take part in the economy like players. They go to the auction house when they feel it is
 time, sell what they do not need, buy what they can use, and work with their professions.
@@ -160,3 +162,7 @@ Take the folder out and rebuild. The two tables `mod_playerbots_auctions_market`
 ## License
 
 GNU AGPL v3, like AzerothCore.
+
+## Languages
+
+`lang/<code>.json` carries the texts AFK Realm shows of this module (its option descriptions, the names and reasons of `afk-realm.json`) in German, French, Spanish, Portuguese (Brazil), Russian and Simplified Chinese. AFK Realm's `tools/lang.py --module <folder> check` lists what a change left untranslated.
