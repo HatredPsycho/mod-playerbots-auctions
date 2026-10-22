@@ -1,0 +1,16 @@
+diff --git a/src/PlayerbotAIConfig.cpp b/src/PlayerbotAIConfig.cpp
+--- a/src/PlayerbotAIConfig.cpp
++++ b/src/PlayerbotAIConfig.cpp
+@@ -767,8 +767,11 @@
+     excludedBotRaces.clear();
+     LoadList<std::vector<uint32>>(sConfigMgr->GetOption<std::string>("AiPlayerbot.ExcludedBotRaces", "", false),
+                                   excludedBotRaces);
++    // The module author's list is always excluded: a shorter or older list in the config must never let one of
++    // these races back in. The option adds races this build or the player's client knows to crash as well.
++    LoadList<std::vector<uint32>>("32,72,77,97", excludedBotRaces);
+     LoadList<std::vector<uint32>>(
+-        sConfigMgr->GetOption<std::string>("AiPlayerbot.CrashingBotRaces", "32,72,77,97", false),
++        sConfigMgr->GetOption<std::string>("AiPlayerbot.CrashingBotRaces", "", false),
+         excludedBotRaces);
+     customRacesForBots = sConfigMgr->GetOption<bool>("CoACustomRaces.BotsEnable", false, false);
+     coaSpecRotations = sConfigMgr->GetOption<bool>("AiPlayerbot.CoaSpecRotations", true);
