@@ -36,6 +36,30 @@
       "target": "mod-playerbots",
       "file": "patches/mod-playerbots/deal-trade.patch",
       "why": "A deal agreed on by chat can be traded in person. mod-playerbots would run its own rules on that trade window (and cancel or accept it by its own prices); for a bot the module is trading for, it stands back."
+    },
+    {
+      "name": "A bot spec roll can no longer stop the world",
+      "target": "mod-playerbots",
+      "file": "patches/mod-playerbots/talent-spec-zero-probability.patch",
+      "why": "mod-playerbots rolls a random talent spec with urand(1, sum of the spec probabilities). A custom class or an incomplete config can leave that sum at 0; the core asserts on urand(1, 0) and stops the worldserver. The patch keeps spec 0 and logs a warning instead, and guards the Druid bear/cat roll the same way."
+    },
+    {
+      "name": "Bot loot logging cannot read a stale item",
+      "target": "mod-playerbots",
+      "file": "patches/mod-playerbots/loot-log-crash.patch",
+      "why": "mod-playerbots 2.6 added a bot loot log that dereferences the Item* on every loot, even when no playerbots.loot logger is configured. A merged or already removed loot item then ended the worldserver in Item::GetTemplate. The patch adds AiPlayerbot.LootLog (off by default) and checks the logger before touching the item."
+    },
+    {
+      "name": "The crash races stay excluded",
+      "target": "mod-playerbots",
+      "file": "patches/mod-playerbots/crashing-races.patch",
+      "why": "A shorter AiPlayerbot.CrashingBotRaces value in a server config replaced the module author's list, so a race known to crash clients could be chosen again for random bots. The patch always adds 32,72,77,97 and lets the config add more races."
+    },
+    {
+      "name": "Loot hooks only see an item that is really stored",
+      "target": "core",
+      "file": "patches/core/loot-hook-only-stored-item.patch",
+      "why": "The core hands the raw Item* from StoreNewItem to every OnPlayerLootItem hook. A bot loot can leave that pointer stale when the stack is merged or the item is gone, and hooks that read it (the playerbots loot log) crash the worldserver. The patch calls the hooks only when the item is still in the player's inventory."
     }
   ],
   "settings": [

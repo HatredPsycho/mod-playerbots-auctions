@@ -111,7 +111,7 @@ are not sent anywhere and only do their business when they happen to pass an auc
 ## Requirements
 
 - AzerothCore with **mod-playerbots** installed (this module does not build without it)
-- Five small changes to mod-playerbots, in `patches/mod-playerbots`:
+- Nine small changes to mod-playerbots, in `patches/mod-playerbots`, and one to the core, in `patches/core`:
   - **keep-bags-on-refresh.patch** - mod-playerbots empties the bags of every random bot every 10 to 40
     minutes and after every death. With that the bots never have anything to sell. The patch keeps the bags
     and only renews food, drink and potions.
@@ -125,6 +125,25 @@ are not sent anywhere and only do their business when they happen to pass an auc
   - **quiet-wts.patch** - mod-playerbots lets every bot that hears `WTS [item]` whisper "I'll buy ... for ...",
     a price it does not mean; with a few hundred bots that is dozens of whispers. With deals by chat enabled
     the patch keeps that quiet, and the few bots that really want the item answer instead.
+  - **deal-trade.patch** - a deal agreed on by chat can be traded in person. mod-playerbots would apply its
+    own trade rules to that window (and cancel or accept it by its own prices); while this module is trading
+    for a bot, it stands back.
+  - **talent-spec-zero-probability.patch** - a random bot's talent spec is rolled with `urand(1, sum of the
+    spec probabilities)`. A custom class or an incomplete config can leave that sum at 0; the core asserts
+    on `urand(1, 0)` and stops the worldserver. The patch keeps spec 0, logs a warning and guards the Druid
+    bear/cat roll the same way.
+  - **loot-log-crash.patch** - mod-playerbots 2.6 logs bot loot in `OnPlayerLootItem` and reads the `Item*`
+    before checking whether a `playerbots.loot` logger is configured. A merged or already removed loot item
+    then crashes in `Item::GetTemplate`. The patch adds `AiPlayerbot.LootLog` (off by default) and checks the
+    logger before touching the item.
+  - **crashing-races.patch** - a shorter `AiPlayerbot.CrashingBotRaces` value in a server config replaced the
+    module author's list, so a race known to crash clients could be chosen again for random bots. The patch
+    always adds `32,72,77,97`; the option can add more races.
+- The core patch, in `patches/core`:
+  - **loot-hook-only-stored-item.patch** - the core passes the raw `Item*` from `StoreNewItem` to every
+    `OnPlayerLootItem` hook. A bot loot can leave that pointer stale when the stack is merged or the item is
+    gone; hooks that read it (the playerbots loot log) crash the worldserver. The patch calls the hooks only
+    when the item is still in the player's inventory.
 
 ## Installation
 
