@@ -62,6 +62,12 @@
       "why": "A shorter AiPlayerbot.CrashingBotRaces value in a server config replaced the module author's list, so a race known to crash clients could be chosen again for random bots. The patch always adds 32,72,77,97 and lets the config add more races."
     },
     {
+      "name": "Mystic Enchants use the core's two-argument guide",
+      "target": "mod-playerbots",
+      "file": "patches/mod-playerbots/mystic-enchant-apply-guide.patch",
+      "why": "The Zyth45 Playerbots 2.7 branch calls AscensionMysticEnchant::ApplyGuide with a third argument that the current CoA core does not have. The module passes the build's enchant list with the core's own signature instead, so Warcraft Reborn bots keep their Mystic Enchants and the server compiles."
+    },
+    {
       "name": "Loot hooks only see an item that is really stored",
       "target": "core",
       "file": "patches/core/loot-hook-only-stored-item.patch",
