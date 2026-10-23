@@ -107,6 +107,14 @@ namespace pba
         bool   sellJunk = true;                // what is not worth an auction goes to a vendor the bot stands next to
         bool   keepFromVendor = true;          // what is meant for the auction house is not sold to a vendor on the way
 
+        // loot: what a random bot leaves on the corpse instead of carrying it
+        bool   lootFilter = true;
+        uint32 lootMinQuality = ITEM_QUALITY_NORMAL;
+        bool   lootSkipFood = true;
+        bool   lootSkipOtherConsumables = false;
+        std::unordered_set<uint32> lootExcludedItems;
+        std::vector<std::string> lootExcludedNameParts;
+
         // prices
         float  priceMultiplier[MAX_ITEM_QUALITY] = { };
         float  minVendorFactor = 1.5f;
@@ -212,6 +220,8 @@ namespace pba
 
     bool IsEquipment(ItemTemplate const* proto);
     bool IsAllowedKind(ItemTemplate const* proto);
+    /// May a random bot pick this item up? The loot filter keeps gray items, food and configured junk off the bots.
+    bool LootFilterAllows(Player* bot, ItemTemplate const* proto);
     bool IsSellable(Player* bot, Item* item);
     /// Things mod-playerbots hands every bot again and again: ammunition, and potions (also ones the bot cannot
     /// use). Sold, they would come back with the next refresh - goods and money out of nothing. Only an
