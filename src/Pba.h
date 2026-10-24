@@ -168,8 +168,6 @@ namespace pba
         bool   chatterWorld = true;            // with no bot in the player's zone, the channel of the whole realm is used
         uint32 chatterMixed = 65;              // percent of the bots that are a mix of two personalities
         uint32 chatterEggs = 300;              // one in so many things said out of the blue winks at the tools behind it; 0: never
-        bool   chatterDialogues = true;        // two or three nearby bots sometimes hold a short conversation
-        uint32 chatterDialogueInterval = 240;  // seconds between two conversations, give or take
 
         // trading post
         bool   post = true;                    // every auctioneer also sells what the auction house is short of
@@ -433,18 +431,6 @@ namespace pba
     extern CatalogLine const Catalog[];
     extern size_t const CatalogSize;
     extern uint32 const CatalogVersion;
-
-    /// One step of a short conversation between two or three nearby auction bots.
-    struct DialogueStep
-    {
-        uint32 id;
-        uint8 step;
-        char const* personality;
-        char const* text;
-    };
-    extern DialogueStep const Dialogues[];
-    extern size_t const DialogueSize;
-    extern uint32 const DialogueCount;
 
     /// Reads the lines; puts the built-in catalog into its table when that is new. After the settings.
     void LoadChatter();

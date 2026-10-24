@@ -17,7 +17,6 @@
 
 #include "ChannelMgr.h"
 
-#include <algorithm>
 #include <cstdlib>
 #include <ctime>
 
@@ -469,7 +468,6 @@ namespace
                 _nextGeneral = now + urand(60, 180);
                 _nextAloud = now + urand(90, 240);
                 _nextYell = now + urand(300, 900);
-                _nextDialogue = now + urand(120, 300);
             }
             if (_nextGeneral <= now)
             {
@@ -483,10 +481,6 @@ namespace
             // A yell carries much further, and is rarer.
             if (cfg.chatterSay && _nextYell <= now)
                 _nextYell = Shout(now) ? now + time_t(float(cfg.chatterInterval) * frand(4.0f, 9.0f)) : now + 15;
-            // Two or three bots near a player hold a short conversation.
-            if (cfg.chatterDialogues && _nextDialogue <= now)
-                _nextDialogue = Dialogue(now)
-                    ? now + time_t(float(cfg.chatterDialogueInterval) * frand(0.7f, 1.4f)) : now + 15;
         }
 
         // ---- what happens to a bot (called from the map threads: only noted here)
@@ -680,70 +674,6 @@ namespace
         }
 
         // ------------------------------------------------------------------------------------- out of the blue
-
-        /// Two or three bots near a player say a short, written conversation. False: the moment was not right.
-        bool Dialogue(time_t now)
-        {
-            if (!DialogueCount || DialogueSize < 2)
-                return false;
-            std::vector<Player*> players = RealPlayers();
-            if (players.empty())
-                return false;
-            Player* player = players[urand(0, uint32(players.size()) - 1)];
-            std::vector<Player*> nearby = Around(player, ALOUD);
-            if (nearby.size() < 2)
-                return false;
-
-            uint32 const id = urand(1, DialogueCount);
-            std::vector<DialogueStep const*> steps;
-            for (size_t i = 0; i < DialogueSize; ++i)
-                if (Dialogues[i].id == id)
-                    steps.push_back(&Dialogues[i]);
-            if (steps.size() < 2)
-                return false;
-
-            std::vector<Player*> used;
-            std::vector<Line> pending;
-            for (DialogueStep const* step : steps)
-            {
-                Player* speaker = nullptr;
-                uint32 const start = urand(0, uint32(nearby.size()) - 1);
-                for (size_t pass = 0; pass < 2 && !speaker; ++pass)
-                {
-                    for (size_t i = 0; i < nearby.size(); ++i)
-                    {
-                        Player* candidate = nearby[(start + i) % nearby.size()];
-                        if (!CanChat(candidate) || std::find(used.begin(), used.end(), candidate) != used.end())
-                            continue;
-                        auto last = _spoke.find(candidate->GetGUID().GetCounter());
-                        if (last != _spoke.end() && last->second + 4 * MINUTE > now)
-                            continue;
-                        // First the written personality; then anybody still free, so a thin crowd can play it.
-                        if (pass == 0 && !IsA(candidate, step->personality))
-                            continue;
-                        speaker = candidate;
-                        break;
-                    }
-                }
-                if (!speaker)
-                    return false;
-                used.push_back(speaker);
-                Line out;
-                out.at = now + time_t(step->step) * urand(3, 6);
-                out.bot = speaker->GetGUID();
-                out.where = ALOUD;
-                out.text = step->text;
-                pending.push_back(out);
-            }
-            for (Line const& line : pending)
-            {
-                _queue.push_back(line);
-                _spoke[line.bot.GetCounter()] = now;
-            }
-            if (cfg.debug)
-                LOG_INFO("module", "PlayerbotsAuctions: {} bots hold dialogue {} near {}.", pending.size(), id, player->GetName());
-            return true;
-        }
 
         void Unprompted(time_t now)
         {
@@ -1213,7 +1143,7 @@ namespace
         std::unordered_map<ObjectGuid::LowType, time_t> _spoke;
         std::unordered_map<ObjectGuid::LowType, time_t> _lastReply;
         std::unordered_map<ObjectGuid::LowType, time_t> _lastGesture;
-        time_t _nextGeneral = 0, _nextAloud = 0, _nextYell = 0, _nextDialogue = 0;
+        time_t _nextGeneral = 0, _nextAloud = 0, _nextYell = 0;
         uint32 _timer = 0;
     };
 

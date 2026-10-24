@@ -957,6 +957,3 @@ PlayerbotsAuctions.Chatter.Mixed = 65
 
 PlayerbotsAuctions.Chatter.EasterEggs = 300
 
-# Two or three nearby bots sometimes hold a short written conversation.
-PlayerbotsAuctions.Chatter.Dialogues.Enable = 1
-PlayerbotsAuctions.Chatter.Dialogues.Interval = 240

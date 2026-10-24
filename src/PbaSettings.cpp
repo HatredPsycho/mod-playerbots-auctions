@@ -129,9 +129,6 @@ namespace pba
         cfg.chatterWorld        = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chatter.WorldChannel", true);
         cfg.chatterMixed        = std::min<uint32>(100, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chatter.Mixed", 65));
         cfg.chatterEggs         = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chatter.EasterEggs", 300);
-        cfg.chatterDialogues    = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chatter.Dialogues.Enable", true);
-        cfg.chatterDialogueInterval = std::clamp<uint32>(
-            sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chatter.Dialogues.Interval", 240), 60, 3600);
         cfg.post                = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.TradingPost.Enable", true);
         cfg.postScarce          = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.ScarceBelow", 1);
         cfg.postPriceRaw        = std::clamp(sConfigMgr->GetOption<float>("PlayerbotsAuctions.TradingPost.Price.Materials", 3.0f), 1.0f, 100.0f);
