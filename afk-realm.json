@@ -8,6 +8,12 @@
       "why": "mod-playerbots empties the bags of every random bot every 10 to 40 minutes and after every death. Without this change the bots never have anything to sell. Food, drink and potions are still renewed."
     },
     {
+      "name": "Bots leave junk and food on the corpse",
+      "target": "mod-playerbots",
+      "file": "patches/mod-playerbots/loot-filter.patch",
+      "why": "Random bots picked up every grey item, every food and drink and every configured kind of junk, so their bags filled with vendor trash and they kept walking to vendors. The loot filter keeps those items on the corpse; quest items and the always-loot list still pass."
+    },
+    {
       "name": "No crash on level-scaled loot",
       "target": "mod-playerbots",
       "file": "patches/mod-playerbots/scaled-item-lookup.patch",
@@ -54,6 +60,12 @@
       "target": "mod-playerbots",
       "file": "patches/mod-playerbots/crashing-races.patch",
       "why": "A shorter AiPlayerbot.CrashingBotRaces value in a server config replaced the module author's list, so a race known to crash clients could be chosen again for random bots. The patch always adds 32,72,77,97 and lets the config add more races."
+    },
+    {
+      "name": "Mystic Enchants use the core's two-argument guide",
+      "target": "mod-playerbots",
+      "file": "patches/mod-playerbots/mystic-enchant-apply-guide.patch",
+      "why": "The Zyth45 Playerbots 2.7 branch calls AscensionMysticEnchant::ApplyGuide with a third argument that the current CoA core does not have. The module passes the build's enchant list with the core's own signature instead, so Warcraft Reborn bots keep their Mystic Enchants and the server compiles."
     },
     {
       "name": "Loot hooks only see an item that is really stored",

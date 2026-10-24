@@ -574,6 +574,7 @@ namespace
             float const knowledge = TraitOf(bot, TRAIT_KNOWLEDGE);
             float const patience = TraitOf(bot, TRAIT_PATIENCE);
             float const greed = TraitOf(bot, TRAIT_GREED);
+            Market::Band const band = market.BandFor(proto);
             exact = false;
 
             // The cheapest offer of someone else.
@@ -592,7 +593,8 @@ namespace
             {
                 // Knows what the item goes for and looks at the competition.
                 // Nobody offers it: whatever it went for when the market was full, it is scarce now.
-                double const value = cheapest ? market.Value(proto) : std::max(market.Value(proto), Market::Regular(proto));
+                double const value = band.median > 0.0 ? (cheapest ? band.median : std::max(band.median, Market::Regular(proto))) :
+                    (cheapest ? market.Value(proto) : std::max(market.Value(proto), Market::Regular(proto)));
                 each = value * (0.95 + 0.2 * greed);
                 if (!cheapest)
                     each *= 1.15 + 0.45 * greed;                // nobody else offers it: asks for more
@@ -623,6 +625,23 @@ namespace
                 each *= 1.1;        // can wait
             // What came back unsold goes up again for less.
             each *= std::max(0.5, 1.0 - 0.15 * tries);
+
+            // Stay inside the price band the market has shown. A bot that knows little may stray a little
+            // further, but not into fantasy prices.
+            if (cfg.priceBand && band.high > 0.0)
+            {
+                double low = band.low;
+                double high = band.high;
+                if (knowledge < 0.5f)
+                {
+                    low *= 0.9;
+                    high *= 1.1;
+                }
+                double const before = each;
+                each = std::clamp(each, low, high);
+                if (each != before)
+                    exact = false;
+            }
 
             // Never close to the vendor value: nobody should buy from a bot to sell to a vendor.
             double const lowest = double(proto->SellPrice) * cfg.minVendorFactor;

@@ -311,6 +311,51 @@ PlayerbotsAuctions.Sell.JunkToVendor = 1
 PlayerbotsAuctions.Sell.MaxAuctionsPerHouse = 20000
 
 ###################################################################################################
+# LOOT FILTER
+#
+#    What a random bot picks up. Quest items, items of a quest it is doing and the manual always-loot
+#    list are never filtered: this only keeps ordinary vendor trash, food and configured items off
+#    the bot, so its bags stay free for what is worth carrying.
+#
+#    PlayerbotsAuctions.LootFilter.Enable
+#        Description: Filter what random bots pick up. Bots of real players are left alone.
+#        Default:     1 - Enabled
+#                     0 - Disabled (bots pick up everything mod-playerbots offers them)
+#
+#    PlayerbotsAuctions.LootFilter.MinQuality
+#        Description: Lowest quality a random bot picks up: 0 poor (grey), 1 normal (white),
+#                     2 uncommon (green), 3 rare (blue), 4 epic (purple), 5 legendary.
+#        Default:     1 - no grey items
+#
+#    PlayerbotsAuctions.LootFilter.SkipFood
+#        Description: Leave food and drink on the corpse. The bot gets its own food and drink from
+#                     mod-playerbots when it needs them.
+#        Default:     1 - Enabled
+#                     0 - Disabled
+#
+#    PlayerbotsAuctions.LootFilter.SkipOtherConsumables
+#        Description: Leave all other consumables on the corpse: potions, elixirs, flasks, scrolls,
+#                     bandages and other consumables. Food and drink are covered by SkipFood.
+#        Default:     0 - Disabled
+#                     1 - Enabled
+#
+#    PlayerbotsAuctions.LootFilter.SkipItemIDs
+#        Description: Item ids a random bot never picks up, separated by commas.
+#        Default:     ""
+#
+#    PlayerbotsAuctions.LootFilter.SkipNameParts
+#        Description: Items whose name contains one of these texts are never picked up (upper and
+#                     lower case do not matter), separated by commas. Spaces are part of the text.
+#        Default:     ""
+
+PlayerbotsAuctions.LootFilter.Enable = 1
+PlayerbotsAuctions.LootFilter.MinQuality = 1
+PlayerbotsAuctions.LootFilter.SkipFood = 1
+PlayerbotsAuctions.LootFilter.SkipOtherConsumables = 0
+PlayerbotsAuctions.LootFilter.SkipItemIDs = ""
+PlayerbotsAuctions.LootFilter.SkipNameParts = ""
+
+###################################################################################################
 # PRICES
 #
 #    The starting point of every price is the vendor value of an item times the factor of its
@@ -348,6 +393,42 @@ PlayerbotsAuctions.Price.Legendary = 50
 #                     0 - Disabled (always vendor value times quality factor)
 
 PlayerbotsAuctions.Price.LearnFromSales = 1
+
+#
+#    PlayerbotsAuctions.Price.Band.Enable
+#        Description: Keep asking prices inside a band of what the item really sold for. The band has a
+#                     low, a usual and a high price. Bots list within it, undercut only down to its low,
+#                     and do not ask more than its high. No external price data is used.
+#        Default:     1 - Enabled
+#                     0 - Disabled (only the learned usual price is used)
+#
+PlayerbotsAuctions.Price.Band.Enable = 1
+
+#
+#    PlayerbotsAuctions.Price.Band.MinSales
+#        Description: How many sales an item needs before its own low and high are used. With fewer, the
+#                     fallback band around the usual vendor-based price is used.
+#        Default:     3
+#
+PlayerbotsAuctions.Price.Band.MinSales = 3
+
+#
+#    PlayerbotsAuctions.Price.Band.FallbackLowPercent
+#    PlayerbotsAuctions.Price.Band.FallbackHighPercent
+#        Description: The fallback band as percentages of the usual price, while an item has too few
+#                     sales. The low may be 10 to 100; the high 100 or more.
+#        Default:     80 and 135
+#
+PlayerbotsAuctions.Price.Band.FallbackLowPercent = 80
+PlayerbotsAuctions.Price.Band.FallbackHighPercent = 135
+
+#
+#    PlayerbotsAuctions.Price.Band.MaxRegularPercent
+#        Description: The hard cap of the band as a percentage of the usual vendor-based price. A wild
+#                     sale or a realm with fantasy prices cannot lift a bot's asking price above this.
+#        Default:     300
+#
+PlayerbotsAuctions.Price.Band.MaxRegularPercent = 300
 
 #
 #    PlayerbotsAuctions.Price.MinVendorFactor
@@ -911,3 +992,4 @@ PlayerbotsAuctions.Chatter.Mixed = 65
 #                     0 - Never
 
 PlayerbotsAuctions.Chatter.EasterEggs = 300
+

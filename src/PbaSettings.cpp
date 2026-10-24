@@ -64,6 +64,17 @@ namespace pba
         cfg.keepFromVendor      = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Sell.KeepFromVendor", true);
         cfg.sellJunk            = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Sell.JunkToVendor", true);
 
+        cfg.lootFilter          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.LootFilter.Enable", true);
+        cfg.lootMinQuality      = std::min<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.LootFilter.MinQuality", ITEM_QUALITY_NORMAL),
+                                                    MAX_ITEM_QUALITY - 1);
+        cfg.lootSkipFood        = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.LootFilter.SkipFood", true);
+        cfg.lootSkipOtherConsumables = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.LootFilter.SkipOtherConsumables", false);
+        LoadNumbers(sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.LootFilter.SkipItemIDs", ""), cfg.lootExcludedItems);
+        cfg.lootExcludedNameParts.clear();
+        std::string const lootNames = sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.LootFilter.SkipNameParts", "");
+        for (std::string_view part : Acore::Tokenize(lootNames, ',', false))
+            cfg.lootExcludedNameParts.push_back(Lower(std::string(part)));
+
         cfg.priceMultiplier[ITEM_QUALITY_POOR]      = sConfigMgr->GetOption<float>("PlayerbotsAuctions.Price.Poor", 1.5f);
         cfg.priceMultiplier[ITEM_QUALITY_NORMAL]    = sConfigMgr->GetOption<float>("PlayerbotsAuctions.Price.Normal", 3.0f);
         cfg.priceMultiplier[ITEM_QUALITY_UNCOMMON]  = sConfigMgr->GetOption<float>("PlayerbotsAuctions.Price.Uncommon", 6.0f);
@@ -77,6 +88,11 @@ namespace pba
         cfg.minVendorFactor     = std::max(1.0f, sConfigMgr->GetOption<float>("PlayerbotsAuctions.Price.MinVendorFactor", 1.5f));
         cfg.maxBuyout           = uint32(std::min<uint64>(uint64(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.MaxBuyoutGold", 5000)) * GOLD, MAX_MONEY_AMOUNT));
         cfg.learnPrices         = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Price.LearnFromSales", true);
+        cfg.priceBand           = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Price.Band.Enable", true);
+        cfg.priceBandMinSales   = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.Band.MinSales", 3), 1, 100);
+        cfg.priceBandLowPercent = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.Band.FallbackLowPercent", 80), 10, 100);
+        cfg.priceBandHighPercent = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.Band.FallbackHighPercent", 135), 100, 1000);
+        cfg.priceBandMaxRegularPercent = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.Band.MaxRegularPercent", 300), 100, 2000);
 
         cfg.buyEnabled          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Buy.Enable", true);
         cfg.buyCandidates       = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Buy.ItemsLookedAt", 60), 1, 500);
@@ -214,6 +230,32 @@ namespace pba
             if (!part.empty() && name.find(part) != std::string::npos)
                 return false;
 
+        return true;
+    }
+
+    /// What a random bot leaves on the corpse. Quest items and items on the manual always-loot list are
+    /// decided before this filter; it only turns away ordinary loot that would end up at a vendor.
+    bool LootFilterAllows(Player* bot, ItemTemplate const* proto)
+    {
+        if (!cfg.enabled || !cfg.lootFilter || !bot || !proto || !sRandomPlayerbotMgr.IsRandomBot(bot))
+            return true;
+        if (proto->Class == ITEM_CLASS_QUEST || proto->StartQuest ||
+            proto->Bonding == BIND_QUEST_ITEM || proto->Bonding == BIND_QUEST_ITEM1)
+            return true;
+        if (proto->Quality < cfg.lootMinQuality)
+            return false;
+        if (cfg.lootSkipFood && proto->Class == ITEM_CLASS_CONSUMABLE &&
+            proto->SubClass == ITEM_SUBCLASS_FOOD)
+            return false;
+        if (cfg.lootSkipOtherConsumables && proto->Class == ITEM_CLASS_CONSUMABLE)
+            return false;
+        if (cfg.lootExcludedItems.find(proto->ItemId) != cfg.lootExcludedItems.end())
+            return false;
+
+        std::string const name = Lower(proto->Name1);
+        for (std::string const& part : cfg.lootExcludedNameParts)
+            if (!part.empty() && name.find(part) != std::string::npos)
+                return false;
         return true;
     }
 

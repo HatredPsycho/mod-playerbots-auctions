@@ -43,6 +43,10 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
   off - start it for an evening, and by the next evening the auction house is empty again. The module gives
   every auction back the time the server was off, so an auction put up for 24 hours runs for 24 hours of
   server time and the auction house fills up over the days. A setting, on by default.
+- **A price band, not a single guess.** What a thing really sold for gives a low, a usual and a high price.
+  A bot asks within that band and undercuts only down to its low; a wild sale cannot lift it above the
+  hard cap. Until there are enough sales, a band around the usual vendor-based price is used. No external
+  price data or scan is needed.
 - **Memory.** The bots learn what things really sell for and remember what did not sell. That survives a
   restart in small tables of the characters database, which the module creates itself.
 

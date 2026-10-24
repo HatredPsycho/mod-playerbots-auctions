@@ -4,7 +4,7 @@
 
 namespace pba
 {
-    uint32 const CatalogVersion = 864480454u;
+    uint32 const CatalogVersion = 3316961809u;
 
     CatalogLine const Catalog[] =
     {
@@ -8240,7 +8240,7 @@ namespace pba
         { "homesick", "greet", "hi. sorry, i was writing a letter in my head" },
         { "homesick", "greet", "greetings from someone a very long way from the family doorstep" },
         { "homesick", "greet", "hello {name}, pull up a stool, as father would say" },
-        { "homesick", "greet", "oh, hello! for a second it felt like our lane on market day" },
+        { "homesick", "greet", "oh, hello! for a second it felt like I was back in our lane on market day" },
         { "homesick", "greet", "hi hi. the kettle would be on by now if we were at mine" },
         { "homesick", "help", "sorry {name}, i barely know my way around anywhere that is not my village" },
         { "homesick", "help", "no idea. at home you would just ask the miller, he knew everything" },

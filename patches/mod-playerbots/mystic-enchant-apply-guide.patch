@@ -1,0 +1,13 @@
+﻿diff --git a/src/Ai/Class/Coa/CoaReborn.cpp b/src/Ai/Class/Coa/CoaReborn.cpp
+index 16a62fe..64e83f8 100644
+--- a/src/Ai/Class/Coa/CoaReborn.cpp
++++ b/src/Ai/Class/Coa/CoaReborn.cpp
+@@ -591,7 +591,7 @@ bool ApplyWcrBuild(Player* bot)
+     // Mystic Enchants as players set them at an altar, from the tree's list (playerbots_coa_wcr_enchants): the bot is
+     // taught the ones it lacks, then the core fills its slots in list order within its level and quality limits.
+     if (!build->Enchants.empty() && sConfigMgr->GetOption<bool>("AiPlayerbot.CoaWcrMysticEnchants", true))
+-        AscensionMysticEnchant::ApplyGuide(bot, build->Enchants, true);
++        AscensionMysticEnchant::ApplyGuide(bot, build->Enchants);
+     return applied;
+ }
+ 

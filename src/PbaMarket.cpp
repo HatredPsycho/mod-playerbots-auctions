@@ -80,6 +80,36 @@ namespace pba
         return regular + (learned.each - regular) * weight * fade;
     }
 
+    Market::Band Market::BandFor(ItemTemplate const* proto) const
+    {
+        Band band;
+        if (!proto)
+            return band;
+
+        double const regular = Regular(proto);
+        if (regular <= 0.0)
+            return band;
+
+        double const fallbackLow = regular * std::clamp<uint32>(cfg.priceBandLowPercent, 10, 100) / 100.0;
+        double const fallbackHigh = regular * std::max<uint32>(cfg.priceBandHighPercent, 100) / 100.0;
+        double const maxHigh = regular * std::max<uint32>(cfg.priceBandMaxRegularPercent, 100) / 100.0;
+        band.low = std::min(fallbackLow, maxHigh);
+        band.median = std::min(std::max(regular, band.low), maxHigh);
+        band.high = std::min(std::max(fallbackHigh, band.median), maxHigh);
+
+        auto found = _sold.find(proto->ItemId);
+        if (found != _sold.end() && found->second.sales >= std::max<uint32>(1, cfg.priceBandMinSales) &&
+            found->second.low > 0.0 && found->second.high >= found->second.low)
+        {
+            Learned const& learned = found->second;
+            band.low = std::clamp(learned.low, regular * 0.5, maxHigh);
+            band.high = std::clamp(learned.high, band.low, maxHigh);
+            band.median = std::clamp(learned.each, band.low, band.high);
+            band.known = true;
+        }
+        return band;
+    }
+
     void Market::RecordReturn(uint32 itemId)
     {
         ItemTemplate const* proto = sObjectMgr->GetItemTemplate(itemId);
@@ -91,6 +121,14 @@ namespace pba
         Learned& learned = _sold[itemId];
         double const before = learned.sales ? learned.each : regular;
         learned.each = std::max(lowest, before * 0.7 + before * 0.6 * 0.3);
+        if (learned.low > 0.0)
+            learned.low = std::max(lowest, learned.low * 0.9);
+        else
+            learned.low = std::max(lowest, learned.each * 0.9);
+        if (learned.high > 0.0)
+            learned.high = std::max(learned.low, learned.high * 0.9);
+        else
+            learned.high = std::max(learned.low, learned.each * 1.1);
         ++learned.sales;
         learned.last = GameTime::GetGameTime().count();
         _dirty.insert(itemId);
@@ -109,7 +147,30 @@ namespace pba
         double const regular = Regular(proto);
         double const each = std::clamp(double(price) / count, regular * 0.5, regular * 3.0);
         Learned& learned = _sold[itemId];
-        learned.each = learned.sales ? learned.each * 0.8 + each * 0.2 : each;      // newer sales count more
+        if (!learned.sales)
+        {
+            learned.each = each;
+            learned.low = each * 0.9;
+            learned.high = each * 1.1;
+        }
+        else
+        {
+            learned.each = learned.each * 0.8 + each * 0.2;      // newer sales count more
+            // The ends follow the sales that really happened, then slowly close in on the usual price
+            // again: a market that was wild last week may be calm today.
+            if (each < learned.each)
+                learned.low = learned.low * 0.7 + each * 0.3;
+            else
+                learned.high = learned.high * 0.7 + each * 0.3;
+            learned.low = std::min(learned.low, learned.each);
+            learned.high = std::max(learned.high, learned.each);
+            learned.low += (learned.each - learned.low) * 0.03;
+            learned.high += (learned.each - learned.high) * 0.03;
+        }
+        learned.low = std::max(learned.low, regular * 0.5);
+        learned.high = std::min(learned.high, regular * 3.0);
+        if (learned.high < learned.low)
+            learned.high = learned.low;
         ++learned.sales;
         learned.last = GameTime::GetGameTime().count();
         _dirty.insert(itemId);
@@ -183,7 +244,8 @@ namespace pba
 
         CharacterDatabase.DirectExecute(
             "CREATE TABLE IF NOT EXISTS `mod_playerbots_auctions_market` ("
-            "`item` INT UNSIGNED NOT NULL, `price` DOUBLE NOT NULL, `sales` INT UNSIGNED NOT NULL, "
+            "`item` INT UNSIGNED NOT NULL, `price` DOUBLE NOT NULL, `low` DOUBLE NOT NULL DEFAULT 0, "
+            "`high` DOUBLE NOT NULL DEFAULT 0, `sales` INT UNSIGNED NOT NULL, "
             "`seen` BIGINT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY (`item`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='mod-playerbots-auctions: what items sold for'");
         CharacterDatabase.DirectExecute(
             "CREATE TABLE IF NOT EXISTS `mod_playerbots_auctions_unsold` ("
@@ -192,21 +254,31 @@ namespace pba
         // Sellers that no longer exist are forgotten.
         CharacterDatabase.DirectExecute(
             "DELETE u FROM `mod_playerbots_auctions_unsold` u LEFT JOIN `characters` c ON c.`guid` = u.`owner` WHERE c.`guid` IS NULL");
-        // Tables of an older version do not have the time yet.
+        // Tables of an older version do not have the time and the band yet.
         if (QueryResult result = CharacterDatabase.Query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() "
             "AND TABLE_NAME = 'mod_playerbots_auctions_market' AND COLUMN_NAME = 'seen'"))
             if (!result->Fetch()[0].Get<uint64>())
                 CharacterDatabase.DirectExecute("ALTER TABLE `mod_playerbots_auctions_market` ADD COLUMN `seen` BIGINT UNSIGNED NOT NULL DEFAULT 0");
+        if (QueryResult result = CharacterDatabase.Query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() "
+            "AND TABLE_NAME = 'mod_playerbots_auctions_market' AND COLUMN_NAME = 'low'"))
+            if (!result->Fetch()[0].Get<uint64>())
+                CharacterDatabase.DirectExecute("ALTER TABLE `mod_playerbots_auctions_market` ADD COLUMN `low` DOUBLE NOT NULL DEFAULT 0");
+        if (QueryResult result = CharacterDatabase.Query("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() "
+            "AND TABLE_NAME = 'mod_playerbots_auctions_market' AND COLUMN_NAME = 'high'"))
+            if (!result->Fetch()[0].Get<uint64>())
+                CharacterDatabase.DirectExecute("ALTER TABLE `mod_playerbots_auctions_market` ADD COLUMN `high` DOUBLE NOT NULL DEFAULT 0");
         _tables = true;
 
-        if (QueryResult result = CharacterDatabase.Query("SELECT `item`, `price`, `sales`, `seen` FROM `mod_playerbots_auctions_market`"))
+        if (QueryResult result = CharacterDatabase.Query("SELECT `item`, `price`, `low`, `high`, `sales`, `seen` FROM `mod_playerbots_auctions_market`"))
             do
             {
                 Field* fields = result->Fetch();
                 Learned& learned = _sold[fields[0].Get<uint32>()];
                 learned.each = fields[1].Get<double>();
-                learned.sales = fields[2].Get<uint32>();
-                learned.last = time_t(fields[3].Get<uint64>());
+                learned.low = fields[2].Get<double>();
+                learned.high = fields[3].Get<double>();
+                learned.sales = fields[4].Get<uint32>();
+                learned.last = time_t(fields[5].Get<uint64>());
             } while (result->NextRow());
 
         if (QueryResult result = CharacterDatabase.Query("SELECT `owner`, `item`, `tries` FROM `mod_playerbots_auctions_unsold`"))
@@ -327,8 +399,10 @@ namespace pba
         {
             auto found = _sold.find(itemId);
             if (found != _sold.end())
-                CharacterDatabase.Execute("REPLACE INTO `mod_playerbots_auctions_market` (`item`, `price`, `sales`, `seen`) VALUES ({}, {}, {}, {})",
-                    itemId, found->second.each, found->second.sales, uint64(found->second.last));
+                CharacterDatabase.Execute("REPLACE INTO `mod_playerbots_auctions_market` (`item`, `price`, `low`, `high`, `sales`, `seen`) "
+                    "VALUES ({}, {}, {}, {}, {}, {})",
+                    itemId, found->second.each, found->second.low, found->second.high,
+                    found->second.sales, uint64(found->second.last));
         }
         _dirty.clear();
     }
