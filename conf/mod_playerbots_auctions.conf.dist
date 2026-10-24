@@ -395,6 +395,42 @@ PlayerbotsAuctions.Price.Legendary = 50
 PlayerbotsAuctions.Price.LearnFromSales = 1
 
 #
+#    PlayerbotsAuctions.Price.Band.Enable
+#        Description: Keep asking prices inside a band of what the item really sold for. The band has a
+#                     low, a usual and a high price. Bots list within it, undercut only down to its low,
+#                     and do not ask more than its high. No external price data is used.
+#        Default:     1 - Enabled
+#                     0 - Disabled (only the learned usual price is used)
+#
+PlayerbotsAuctions.Price.Band.Enable = 1
+
+#
+#    PlayerbotsAuctions.Price.Band.MinSales
+#        Description: How many sales an item needs before its own low and high are used. With fewer, the
+#                     fallback band around the usual vendor-based price is used.
+#        Default:     3
+#
+PlayerbotsAuctions.Price.Band.MinSales = 3
+
+#
+#    PlayerbotsAuctions.Price.Band.FallbackLowPercent
+#    PlayerbotsAuctions.Price.Band.FallbackHighPercent
+#        Description: The fallback band as percentages of the usual price, while an item has too few
+#                     sales. The low may be 10 to 100; the high 100 or more.
+#        Default:     80 and 135
+#
+PlayerbotsAuctions.Price.Band.FallbackLowPercent = 80
+PlayerbotsAuctions.Price.Band.FallbackHighPercent = 135
+
+#
+#    PlayerbotsAuctions.Price.Band.MaxRegularPercent
+#        Description: The hard cap of the band as a percentage of the usual vendor-based price. A wild
+#                     sale or a realm with fantasy prices cannot lift a bot's asking price above this.
+#        Default:     300
+#
+PlayerbotsAuctions.Price.Band.MaxRegularPercent = 300
+
+#
 #    PlayerbotsAuctions.Price.MinVendorFactor
 #        Description: No bot sells for less than the vendor value times this factor, however low
 #                     the other offers are - neither as buyout price nor as starting bid.

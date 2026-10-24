@@ -88,6 +88,11 @@ namespace pba
         cfg.minVendorFactor     = std::max(1.0f, sConfigMgr->GetOption<float>("PlayerbotsAuctions.Price.MinVendorFactor", 1.5f));
         cfg.maxBuyout           = uint32(std::min<uint64>(uint64(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.MaxBuyoutGold", 5000)) * GOLD, MAX_MONEY_AMOUNT));
         cfg.learnPrices         = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Price.LearnFromSales", true);
+        cfg.priceBand           = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Price.Band.Enable", true);
+        cfg.priceBandMinSales   = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.Band.MinSales", 3), 1, 100);
+        cfg.priceBandLowPercent = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.Band.FallbackLowPercent", 80), 10, 100);
+        cfg.priceBandHighPercent = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.Band.FallbackHighPercent", 135), 100, 1000);
+        cfg.priceBandMaxRegularPercent = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.Band.MaxRegularPercent", 300), 100, 2000);
 
         cfg.buyEnabled          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Buy.Enable", true);
         cfg.buyCandidates       = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Buy.ItemsLookedAt", 60), 1, 500);

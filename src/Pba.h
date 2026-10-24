@@ -120,6 +120,11 @@ namespace pba
         float  minVendorFactor = 1.5f;
         uint32 maxBuyout = 5000 * GOLD;        // 0 = no limit
         bool   learnPrices = true;
+        bool   priceBand = true;               // keep asking prices inside a band learned from real sales
+        uint32 priceBandMinSales = 3;           // below this, the fallback band around the usual price is used
+        uint32 priceBandLowPercent = 80;        // fallback low: percent of the usual price
+        uint32 priceBandHighPercent = 135;      // fallback high: percent of the usual price
+        uint32 priceBandMaxRegularPercent = 300; // no band above this percent of the usual price
 
         // buying
         bool   buyEnabled = true;
@@ -241,6 +246,16 @@ namespace pba
     class Market
     {
     public:
+        /// The range a bot may ask for one piece: the low and high it has seen, and the usual price between
+        /// them. Without enough sales the fallback band around the usual price is used.
+        struct Band
+        {
+            double low = 0.0;
+            double median = 0.0;
+            double high = 0.0;
+            bool known = false;         // true when real sales filled it
+        };
+
         /// What the calculation starts from: the vendor value. Things a vendor gives nothing for - dusts,
         /// essences, some gems - get a value from their item level instead, or they could never be traded.
         static uint32 Base(ItemTemplate const* proto);
@@ -250,6 +265,8 @@ namespace pba
         static void ClearMade();
         static double Regular(ItemTemplate const* proto);
         double Value(ItemTemplate const* proto) const;
+        /// The low, usual and high price of one piece; fallback around the usual price until enough sales.
+        Band BandFor(ItemTemplate const* proto) const;
         void RecordSale(uint32 itemId, uint32 price, uint32 count);
         /// An auction ran out and nobody wanted it: it is worth less than was thought.
         void RecordReturn(uint32 itemId);
@@ -279,6 +296,8 @@ namespace pba
         struct Learned
         {
             double each = 0.0;      // price of one piece
+            double low = 0.0;       // the low end of what was seen
+            double high = 0.0;      // the high end of what was seen
             uint32 sales = 0;       // how often it was seen to sell - or to come back
             time_t last = 0;        // when it was last seen; what was learned fades
         };
