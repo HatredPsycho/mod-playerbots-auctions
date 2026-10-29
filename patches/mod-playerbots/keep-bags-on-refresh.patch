@@ -1,12 +1,13 @@
 diff --git a/src/Bot/Factory/PlayerbotFactory.cpp b/src/Bot/Factory/PlayerbotFactory.cpp
-index 72816c9..582b34e 100644
+index a282bb56..ca52fdaf 100644
 --- a/src/Bot/Factory/PlayerbotFactory.cpp
 +++ b/src/Bot/Factory/PlayerbotFactory.cpp
-@@ -1094,7 +1094,26 @@ void PlayerbotFactory::Refresh()
+@@ -1113,8 +1113,26 @@ void PlayerbotFactory::Refresh()
      //     InitEquipment(true);
      // }
      InitAttunementQuests();
--    ClearInventory();
+-    if (!SelfFoundAt(level))
+-        ClearInventory();
 +    // mod-playerbots-auctions: a refresh no longer empties the bags - the bots keep what they looted, bought
 +    // and made. Only food, drink and potions are renewed, because InitFood() and InitPotions() below hand out
 +    // fresh ones every time (potions also ones the bot cannot use, which would pile up).
