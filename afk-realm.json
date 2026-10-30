@@ -14,12 +14,6 @@
       "why": "Random bots picked up every grey item, every food and drink and every configured kind of junk, so their bags filled with vendor trash and they kept walking to vendors. The loot filter keeps those items on the corpse; quest items and the always-loot list still pass."
     },
     {
-      "name": "No crash on level-scaled loot",
-      "target": "mod-playerbots",
-      "file": "patches/mod-playerbots/scaled-item-lookup.patch",
-      "why": "Since CoA core #6403 a bot that loots a level-scaled item ends the server. Left out by itself as soon as mod-playerbots has the fix."
-    },
-    {
       "name": "Bots gather on slopes",
       "target": "mod-playerbots",
       "file": "patches/mod-playerbots/gather-on-slopes.patch",
