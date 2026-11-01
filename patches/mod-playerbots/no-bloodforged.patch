@@ -1,0 +1,69 @@
+diff --git a/src/Ai/Base/Value/ItemUsageValue.cpp b/src/Ai/Base/Value/ItemUsageValue.cpp
+index f7433916..9ba61976 100644
+--- a/src/Ai/Base/Value/ItemUsageValue.cpp
++++ b/src/Ai/Base/Value/ItemUsageValue.cpp
+@@ -233,6 +233,10 @@ ItemUsage ItemUsageValue::QueryItemUsageForLookahead(ItemTemplate const* proto,
+ 
+ ItemUsage ItemUsageValue::QueryItemUsageForEquip(ItemTemplate const* itemProto, int32 randomPropertyId, bool lookahead)
+ {
++    // mod-playerbots-auctions: no Bloodforged gear while the realm has it switched off.
++    if (PlayerbotFactory::IsCoaBloodforgedOff(itemProto))
++        return ITEM_USAGE_NONE;
++
+     // With lookahead, a too-high required level is the one failure allowed.
+     InventoryResult canUse = bot->BotCanUseItem(itemProto);
+     if (canUse != EQUIP_ERR_OK && !(lookahead && canUse == EQUIP_ERR_CANT_EQUIP_LEVEL_I))
+diff --git a/src/Bot/Factory/PlayerbotFactory.cpp b/src/Bot/Factory/PlayerbotFactory.cpp
+index b73ee433..e01be6f1 100644
+--- a/src/Bot/Factory/PlayerbotFactory.cpp
++++ b/src/Bot/Factory/PlayerbotFactory.cpp
+@@ -598,6 +598,16 @@ bool PlayerbotFactory::IsCoaWorldforged(uint32 itemId)
+     return worldforged.contains(itemId);
+ }
+ 
++// mod-playerbots-auctions: Bloodforged items (Conquest of Azeroth; every one is named "Bloodforged ...")
++// while the realm has them switched off (Bloodforged.Enable = 0). That switch only stops the extra world
++// drops; the items stay in some loot tables and in the item store the bots are geared from, so bots wore
++// them on realms without Bloodforged - often with models the client cannot show.
++bool PlayerbotFactory::IsCoaBloodforgedOff(ItemTemplate const* proto)
++{
++    static bool const enabled = sConfigMgr->GetOption<bool>("Bloodforged.Enable", false, false);
++    return !enabled && proto && proto->Name1.rfind("Bloodforged ", 0) == 0;
++}
++
+ void PlayerbotFactory::Init()
+ {
+     if (sPlayerbotAIConfig.randomBotPreQuests)
+@@ -2914,6 +2924,9 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance, int32
+                         if (!proto)
+                             continue;
+ 
++                        if (IsCoaBloodforgedOff(proto))
++                            continue;
++
+                         bool shouldCheckGS = desiredQuality > ITEM_QUALITY_NORMAL;
+ 
+                         if (shouldCheckGS && gearScoreLimit != 0 &&
+@@ -3016,7 +3029,9 @@ void PlayerbotFactory::InitEquipment(bool incremental, bool second_chance, int32
+         bool const oldNoWeapon = oldItem && (IsAscensionCustomClassId(bot->getClass()) || IsWildcardHeroBot(bot)) &&
+                                  oldItem->GetTemplate()->Class == ITEM_CLASS_WEAPON &&
+                                  !CanEquipWeapon(oldItem->GetTemplate());
+-        if (incremental && oldItem && !oldCannotShoot && !oldNoWeapon)
++        // mod-playerbots-auctions: a Bloodforged piece on a realm without Bloodforged always gives way.
++        bool const oldBloodforged = oldItem && IsCoaBloodforgedOff(oldItem->GetTemplate());
++        if (incremental && oldItem && !oldCannotShoot && !oldNoWeapon && !oldBloodforged)
+         {
+             // CoA: an equipped heirloom stays; it scales with the bot and a worldforged piece scoring a bit
+             // higher at this level would leave it in the bags.
+diff --git a/src/Bot/Factory/PlayerbotFactory.h b/src/Bot/Factory/PlayerbotFactory.h
+index bd5e7107..3b99197b 100644
+--- a/src/Bot/Factory/PlayerbotFactory.h
++++ b/src/Bot/Factory/PlayerbotFactory.h
+@@ -101,6 +101,7 @@ public:
+     // that class's spells (Berserker Stance from "The Affray", jealous-sound #5714).
+     static bool IsCoaForeignClassSpell(Player* bot, uint32 spellId);
+     static bool IsCoaWorldforged(uint32 itemId);
++    static bool IsCoaBloodforgedOff(ItemTemplate const* proto);
+     void InitPet();
+     void InitAmmo();
+     static uint32 CalcMixedGearScore(uint32 gs, uint32 quality);
