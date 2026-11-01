@@ -1,48 +1,8 @@
-diff --git a/src/Script/Playerbots.cpp b/src/Script/Playerbots.cpp
---- a/src/Script/Playerbots.cpp
-+++ b/src/Script/Playerbots.cpp
-@@ -97,10 +97,13 @@
-     // What the bots bring back. Only the finds worth a line, and only from bots: a server watching
-     // its bots wants to know what dropped, not to read every piece of linen cloth. The bar is
-     // AiPlayerbot.LootLogMinQuality (3, rare, by default; 4 for epics only).
--    // Off unless worldserver.conf points "playerbots.loot" at an appender.
-+    // Off unless AiPlayerbot.LootLog is on and worldserver.conf points "playerbots.loot" at an
-+    // appender. Check both before touching the item: the hook also runs on servers that never
-+    // asked for loot lines, and the item pointer comes from the loot path.
-     void OnPlayerLootItem(Player* player, Item* item, uint32 count, ObjectGuid /*lootguid*/) override
-     {
--        if (!player || !item || !GET_PLAYERBOT_AI(player))
-+        if (!player || !item || !GET_PLAYERBOT_AI(player) || !sPlayerbotAIConfig.lootLog ||
-+            !sLog->ShouldLog("playerbots.loot", LOG_LEVEL_INFO))
-             return;
- 
-         ItemTemplate const* proto = item->GetTemplate();
-diff --git a/src/PlayerbotAIConfig.h b/src/PlayerbotAIConfig.h
---- a/src/PlayerbotAIConfig.h
-+++ b/src/PlayerbotAIConfig.h
-@@ -469,6 +469,7 @@
-     std::set<uint32> coaExcludedSpecializations;
-     std::set<uint32> coaOffensiveHealerSpecs;
-     std::set<std::string> coaHealsExcluded;
-+    bool lootLog;
-     uint32 lootLogMinQuality;
-     bool autoDoQuests;
-     bool enableNewRpgStrategy;
-diff --git a/src/PlayerbotAIConfig.cpp b/src/PlayerbotAIConfig.cpp
---- a/src/PlayerbotAIConfig.cpp
-+++ b/src/PlayerbotAIConfig.cpp
-@@ -850,6 +850,7 @@
-         for (std::string const& name : names)
-             coaHealsExcluded.insert(name);
-     }
-+    lootLog = sConfigMgr->GetOption<bool>("AiPlayerbot.LootLog", false);
-     lootLogMinQuality = sConfigMgr->GetOption<uint32>("AiPlayerbot.LootLogMinQuality", ITEM_QUALITY_RARE);
-     autoLearnQuestSpells = sConfigMgr->GetOption<bool>("AiPlayerbot.AutoLearnQuestSpells", true);
-     autoTeleportForLevel = sConfigMgr->GetOption<bool>("AiPlayerbot.AutoTeleportForLevel", false);
 diff --git a/conf/playerbots.conf.dist b/conf/playerbots.conf.dist
+index 1660ceae..15858cf5 100644
 --- a/conf/playerbots.conf.dist
 +++ b/conf/playerbots.conf.dist
-@@ -2218,9 +2218,16 @@
+@@ -2385,9 +2385,16 @@ AiPlayerbot.CoaLfgAnnounceMinutes = 10
  
  AiPlayerbot.CoaLfgAnnounceText =
  
@@ -61,3 +21,52 @@ diff --git a/conf/playerbots.conf.dist b/conf/playerbots.conf.dist
  # Epics alone are far too rare to watch: a thousand bots grinding their way to 60
  # find a handful a day, where blues arrive all the time.
  # Default: 3 (rare)
+diff --git a/src/PlayerbotAIConfig.cpp b/src/PlayerbotAIConfig.cpp
+index 2001d315..279b0adf 100644
+--- a/src/PlayerbotAIConfig.cpp
++++ b/src/PlayerbotAIConfig.cpp
+@@ -894,6 +894,7 @@ bool PlayerbotAIConfig::Initialize()
+         for (std::string const& name : names)
+             coaHealsExcluded.insert(name);
+     }
++    lootLog = sConfigMgr->GetOption<bool>("AiPlayerbot.LootLog", false);
+     lootLogMinQuality = sConfigMgr->GetOption<uint32>("AiPlayerbot.LootLogMinQuality", ITEM_QUALITY_RARE);
+     autoLearnQuestSpells = sConfigMgr->GetOption<bool>("AiPlayerbot.AutoLearnQuestSpells", true);
+     autoTeleportForLevel = sConfigMgr->GetOption<bool>("AiPlayerbot.AutoTeleportForLevel", false);
+diff --git a/src/PlayerbotAIConfig.h b/src/PlayerbotAIConfig.h
+index c043713c..18cc1b6d 100644
+--- a/src/PlayerbotAIConfig.h
++++ b/src/PlayerbotAIConfig.h
+@@ -502,6 +502,7 @@ public:
+     std::set<uint32> coaMeleeHealerSpecs;
+     uint32 zoneCrowdLimit;
+     std::set<std::string> coaHealsExcluded;
++    bool lootLog;
+     uint32 lootLogMinQuality;
+     bool autoDoQuests;
+     bool enableNewRpgStrategy;
+diff --git a/src/Script/Playerbots.cpp b/src/Script/Playerbots.cpp
+index cefeed9c..b2b3f896 100644
+--- a/src/Script/Playerbots.cpp
++++ b/src/Script/Playerbots.cpp
+@@ -108,7 +108,9 @@ public:
+     // What the bots bring back. Only the finds worth a line, and only from bots: a server watching
+     // its bots wants to know what dropped, not to read every piece of linen cloth. The bar is
+     // AiPlayerbot.LootLogMinQuality (3, rare, by default; 4 for epics only).
+-    // Off unless worldserver.conf points "playerbots.loot" at an appender.
++    // Off unless AiPlayerbot.LootLog is on and worldserver.conf points "playerbots.loot" at an
++    // appender. Check both before touching the item for the log: the hook also runs on servers that
++    // never asked for loot lines, and the item pointer comes from the loot path.
+     void OnPlayerLootItem(Player* player, Item* item, uint32 count, ObjectGuid lootguid) override
+     {
+         if (!player || !item || !GET_PLAYERBOT_AI(player))
+@@ -117,6 +119,9 @@ public:
+         // What an alt on a gathering mission gathers is mailed to its owner at the end.
+         sCoaMissionMgr.OnLoot(player, item, count, lootguid);
+ 
++        if (!sPlayerbotAIConfig.lootLog || !sLog->ShouldLog("playerbots.loot", LOG_LEVEL_INFO))
++            return;
++
+         ItemTemplate const* proto = item->GetTemplate();
+         if (!proto || proto->Quality < sPlayerbotAIConfig.lootLogMinQuality)
+             return;
