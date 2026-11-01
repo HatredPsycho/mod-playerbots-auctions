@@ -62,6 +62,12 @@
       "why": "The Zyth45 Playerbots 2.7 branch calls AscensionMysticEnchant::ApplyGuide with a third argument that the current CoA core does not have. The module passes the build's enchant list with the core's own signature instead, so Warcraft Reborn bots keep their Mystic Enchants and the server compiles."
     },
     {
+      "name": "No Bloodforged gear while it is switched off",
+      "target": "mod-playerbots",
+      "file": "patches/mod-playerbots/no-bloodforged.patch",
+      "why": "Bloodforged.Enable = 0 only stops CoA's extra Bloodforged drops; the items stay in some loot tables and in the item store the bots are geared from. Bots wore them on realms without Bloodforged, often with models the client cannot show. While the switch is off, bots are not geared with them, do not put them on, and a re-gear replaces the ones they wear."
+    },
+    {
       "name": "Loot hooks only see an item that is really stored",
       "target": "core",
       "file": "patches/core/loot-hook-only-stored-item.patch",

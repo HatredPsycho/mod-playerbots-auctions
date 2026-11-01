@@ -143,6 +143,10 @@ are not sent anywhere and only do their business when they happen to pass an auc
   - **crashing-races.patch** - a shorter `AiPlayerbot.CrashingBotRaces` value in a server config replaced the
     module author's list, so a race known to crash clients could be chosen again for random bots. The patch
     always adds `32,72,77,97`; the option can add more races.
+  - **no-bloodforged.patch** - `Bloodforged.Enable = 0` in `coa.conf` only stops the extra Bloodforged drops
+    of CoA; the items (all named "Bloodforged ...") stay in some loot tables and in the item store the bots
+    are geared from. While the switch is off, bots are not geared with them, do not put them on, and a
+    re-gear (`.playerbots coa regear`) replaces the ones they wear.
 - The core patch, in `patches/core`:
   - **loot-hook-only-stored-item.patch** - the core passes the raw `Item*` from `StoreNewItem` to every
     `OnPlayerLootItem` hook. A bot loot can leave that pointer stale when the stack is merged or the item is
