@@ -1,9 +1,9 @@
 diff --git a/src/Mgr/Item/LootObjectStack.cpp b/src/Mgr/Item/LootObjectStack.cpp
-index a449f0a..625053e 100644
+index 3682da3b..ad642a18 100644
 --- a/src/Mgr/Item/LootObjectStack.cpp
 +++ b/src/Mgr/Item/LootObjectStack.cpp
-@@ -294,7 +294,14 @@ bool LootObject::IsLootPossible(Player* bot)
-     if (reqItem && !bot->HasItemCount(reqItem, 1))
+@@ -357,7 +357,14 @@ bool LootObject::IsLootPossible(Player* bot)
+         !sCoaMissionMgr.IsOnMission(bot))
          return false;
  
 -    if (abs(worldObj->GetPositionZ() - bot->GetPositionZ()) > INTERACTION_DISTANCE - 2.0f)

@@ -1,8 +1,8 @@
 diff --git a/conf/playerbots.conf.dist b/conf/playerbots.conf.dist
-index 1660ceae..15858cf5 100644
+index 6a08246b..b9269454 100644
 --- a/conf/playerbots.conf.dist
 +++ b/conf/playerbots.conf.dist
-@@ -2385,9 +2385,16 @@ AiPlayerbot.CoaLfgAnnounceMinutes = 10
+@@ -2435,9 +2435,16 @@ AiPlayerbot.CoaLfgAnnounceMinutes = 10
  
  AiPlayerbot.CoaLfgAnnounceText =
  
@@ -22,10 +22,10 @@ index 1660ceae..15858cf5 100644
  # find a handful a day, where blues arrive all the time.
  # Default: 3 (rare)
 diff --git a/src/PlayerbotAIConfig.cpp b/src/PlayerbotAIConfig.cpp
-index 2001d315..279b0adf 100644
+index 9da9c1f0..f2b5db96 100644
 --- a/src/PlayerbotAIConfig.cpp
 +++ b/src/PlayerbotAIConfig.cpp
-@@ -894,6 +894,7 @@ bool PlayerbotAIConfig::Initialize()
+@@ -947,6 +947,7 @@ bool PlayerbotAIConfig::Initialize()
          for (std::string const& name : names)
              coaHealsExcluded.insert(name);
      }
@@ -34,11 +34,11 @@ index 2001d315..279b0adf 100644
      autoLearnQuestSpells = sConfigMgr->GetOption<bool>("AiPlayerbot.AutoLearnQuestSpells", true);
      autoTeleportForLevel = sConfigMgr->GetOption<bool>("AiPlayerbot.AutoTeleportForLevel", false);
 diff --git a/src/PlayerbotAIConfig.h b/src/PlayerbotAIConfig.h
-index c043713c..18cc1b6d 100644
+index 1a48c72f..6f4db0a3 100644
 --- a/src/PlayerbotAIConfig.h
 +++ b/src/PlayerbotAIConfig.h
-@@ -502,6 +502,7 @@ public:
-     std::set<uint32> coaMeleeHealerSpecs;
+@@ -509,6 +509,7 @@ public:
+     bool coaBotDamageVsPlayers = false;
      uint32 zoneCrowdLimit;
      std::set<std::string> coaHealsExcluded;
 +    bool lootLog;
@@ -46,7 +46,7 @@ index c043713c..18cc1b6d 100644
      bool autoDoQuests;
      bool enableNewRpgStrategy;
 diff --git a/src/Script/Playerbots.cpp b/src/Script/Playerbots.cpp
-index cefeed9c..b2b3f896 100644
+index c641a929..bece23c7 100644
 --- a/src/Script/Playerbots.cpp
 +++ b/src/Script/Playerbots.cpp
 @@ -108,7 +108,9 @@ public:
