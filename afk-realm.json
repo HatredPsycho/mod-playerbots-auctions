@@ -5,7 +5,8 @@
       "name": "Bots keep their bags",
       "target": "mod-playerbots",
       "file": "patches/mod-playerbots/keep-bags-on-refresh.patch",
-      "why": "mod-playerbots empties the bags of every random bot every 10 to 40 minutes and after every death. Without this change the bots never have anything to sell. Food, drink and potions are still renewed."
+      "notNeededWhen": "src/CoaRefreshRules.h|CoaRefreshClearsInventory",
+      "why": "mod-playerbots empties the bags of every random bot every 10 to 40 minutes and after every death. Without this change the bots never have anything to sell. Food, drink and potions are still renewed. Once mod-playerbots has AiPlayerbot.RefreshClearsInventory (November 2026), the setting below does the same and this patch is left out."
     },
     {
       "name": "Bots leave junk and food on the corpse",
@@ -17,7 +18,8 @@
       "name": "Bots gather on slopes",
       "target": "mod-playerbots",
       "file": "patches/mod-playerbots/gather-on-slopes.patch",
-      "why": "mod-playerbots ignores every vein and herb that lies more than 3.5 yards above or below the bot. Veins are in hillsides, so miners never mined. Now the height may grow with the distance."
+      "notNeededWhen": "src/CoaLootRules.h|LootHeightReachable",
+      "why": "mod-playerbots ignores every vein and herb that lies more than 3.5 yards above or below the bot. Veins are in hillsides, so miners never mined. Now the height may grow with the distance. Since November 2026 mod-playerbots lets the height grow with the distance itself (LootHeightReachable), and this patch is left out."
     },
     {
       "name": "Bots go for the veins and herbs they see",
@@ -75,6 +77,12 @@
     }
   ],
   "settings": [
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.RefreshClearsInventory",
+      "value": "0",
+      "why": "The bots keep their bags at each refresh, so they have something to sell; food, drink and potions are only topped up. (mod-playerbots emptied them every 10 to 40 minutes.)"
+    },
     {
       "file": "playerbots.conf",
       "key": "AiPlayerbot.LootDistance",
