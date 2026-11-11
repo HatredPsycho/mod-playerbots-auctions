@@ -107,6 +107,13 @@ market, how thrifty, how keen on trading, how serious about its profession. Ever
   more than it should (`PlayerbotsAuctions.Chatter.EasterEggs`, 0 switches that off). mod-playerbots' own
   chatter is switched off for it. *New, compiled and not yet tried on a server.*
 
+**With mod-ollama-chat-coa** (a language model for the bots' chat): the whispers of a deal are said in the bot's
+own words - its people, its temperament, what it thinks of you - while every item, amount and price stays exactly
+as the deal has it; where the model loses one, the line from the catalog is sent instead. Every deal becomes part
+of the bot's memory ("You sold Chris 20 Linen Cloth for 1g 20s, hand to hand."), and the bot knows how it deals
+(a trader who lives at the auction house, a careful saver, a crafter who sells what it makes). The two modules meet
+through `src/CoaChatBridge.h` and need each other neither to build nor to run.
+
 All auction business is done standing at an auctioneer. Bots that travel with a real player neither sell nor buy.
 
 The travelling uses the city visits of the CoA Playerbots fork. With other versions of mod-playerbots the bots

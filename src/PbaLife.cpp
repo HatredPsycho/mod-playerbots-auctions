@@ -4,6 +4,7 @@
  */
 
 #include "Pba.h"
+#include "CoaChatBridge.h"
 #include "TradeStatusAction.h"
 
 namespace pba
@@ -2107,6 +2108,32 @@ public:
             pba::LoadDealNames();
         pba::LoadChatter();
         pba::LoadPost();
+
+        // mod-ollama-chat-coa, if it is there, learns how a bot deals: only what stands out.
+        CoaChatBridge::Personas().push_back([](Player* bot) -> std::string
+        {
+            if (!pba::cfg.enabled || !bot)
+                return "";
+            std::string out;
+            float const trading = pba::TraitOf(bot, pba::TRAIT_TRADING);
+            float const thrift = pba::TraitOf(bot, pba::TRAIT_THRIFT);
+            float const crafting = pba::TraitOf(bot, pba::TRAIT_CRAFTING);
+            float const greed = pba::TraitOf(bot, pba::TRAIT_GREED);
+            if (trading > 0.75f)
+                out += "You practically live at the auction house: you buy cheap and sell on, and you know what things are worth.";
+            else if (trading < 0.2f)
+                out += "You hardly bother with the auction house.";
+            if (crafting > 0.75f)
+                out += std::string(out.empty() ? "" : " ") + "You craft with purpose and sell what you make.";
+            if (thrift > 0.8f)
+                out += std::string(out.empty() ? "" : " ") + "You are careful with money and always keep a reserve.";
+            else if (thrift < 0.15f)
+                out += std::string(out.empty() ? "" : " ") + "Money slips through your fingers.";
+            if (greed > 0.85f)
+                out += std::string(out.empty() ? "" : " ") + "You always ask a little more than others.";
+            return out;
+        });
+
         if (pba::cfg.enabled)
             LOG_INFO("server.loading", ">> PlayerbotsAuctions: the bots use the auction house.");
     }

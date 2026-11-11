@@ -9,6 +9,7 @@
  */
 
 #include "Pba.h"
+#include "CoaChatBridge.h"
 
 #include <cstdlib>
 #include <set>
@@ -1102,7 +1103,24 @@ namespace
 
         static void Tell(Player* bot, Player* player, std::string const& text)
         {
+            // With mod-ollama-chat-coa the bot says it in its own words; items, amounts and prices stay as they are.
+            if (CoaChatBridge::Speak(bot, player, text, CoaChatBridge::CHANNEL_WHISPER, CoaChatBridge::MODE_EXACT,
+                    "You are trading with " + std::string(player->GetName()) + " in whispers."))
+                return;
             bot->Whisper(text, LANG_UNIVERSAL, player);
+        }
+
+        /// For the bot's memory, when mod-ollama-chat-coa is there to keep it.
+        static void RememberDeal(Player* bot, Player* player, Deal const& deal, ItemTemplate const* proto, uint32 count,
+                                 uint64 price, char const* how)
+        {
+            if (!bot || !player || !proto)
+                return;
+            std::string const goods = Goods(count, proto);
+            std::string const who = player->GetName();
+            CoaChatBridge::Remember(bot, player, deal.botSells
+                    ? "You sold " + who + " " + goods + " for " + MoneyText(price) + how + "."
+                    : "You bought " + goods + " from " + who + " for " + MoneyText(price) + how + ".", 3, 1);
         }
 
         static std::string Goods(uint32 count, ItemTemplate const* proto)
@@ -1929,6 +1947,7 @@ namespace
                 {
                     _bought[bot->GetGUID().GetCounter()][deal.item] = now;
                     market.RecordSale(deal.item, deal.price, deal.count);
+                    RememberDeal(bot, player, deal, proto, deal.count, deal.price, ", hand to hand");
                     Tell(bot, player, Pick(bot, Lines::MeetDone));
                     if (cfg.debug)
                         LOG_INFO("module", "PlayerbotsAuctions: {} traded {} x{} with {} for {} copper, hand to hand.", bot->GetName(), proto->Name1, deal.count,
@@ -2153,6 +2172,7 @@ namespace
             // The money comes back by mail when the player takes the goods; unpaid, the parcel returns after three days.
             _awaiting[bot->GetGUID()] = now + delay + 4 * DAY;
             std::string const when = delay >= 50 * MINUTE ? "in about an hour" : delay >= 2 * MINUTE ? "in a few minutes" : "now";
+            RememberDeal(bot, player, deal, proto, deal.count - left, due, " by mail, cash on delivery");
             Tell(bot, player, Fill(Pick(bot, Lines::Shipped), "", MoneyText(due), when));
             if (cfg.debug)
                 LOG_INFO("module", "PlayerbotsAuctions: {} mailed {} x{} to {}, {} copper on delivery.", bot->GetName(), proto->Name1, deal.count - left, player->GetName(), due);
@@ -2615,9 +2635,9 @@ namespace
                 market.RecordSale(deal.item, cost, count - back);
                 if (player && player->IsInWorld())
                 {
-                    Tell(bot, player, paid);
-                    if (back)
-                        Tell(bot, player, tooMuch);
+                    RememberDeal(bot, player, deal, proto, count - back, cost, ", sent by mail");
+                    // One message: two would race each other through the language model.
+                    Tell(bot, player, back ? paid + " " + tooMuch : paid);
                 }
                 if (cfg.debug)
                     LOG_INFO("module", "PlayerbotsAuctions: {} paid {} copper for a parcel with {} x{} from a player.", bot->GetName(), cost, proto->Name1, count);
