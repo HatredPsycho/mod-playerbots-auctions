@@ -48,6 +48,21 @@ namespace pba
         cfg.saveMemory          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.SaveMemory", true);
         cfg.pauseOffline        = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.PauseAuctionsWhileOffline", true);
 
+        // The CoA Playerbots fork brought its own economy (November 2026). Where it runs beside this module, the bots
+        // would list, buy, craft, keep the clock and chatter twice; AFK Realm switches those parts off (afk-realm.json).
+        // Without it: the auction clock steps aside here (two clocks add the off time twice), the rest is logged.
+        auto forkOn = [](char const* key) { return sConfigMgr->GetOption<bool>(key, false, false); };
+        if (cfg.pauseOffline && forkOn("AiPlayerbot.CoaEconomy.AuctionClock.Enable"))
+        {
+            cfg.pauseOffline = false;
+            LOG_WARN("module", "PlayerbotsAuctions: mod-playerbots' AiPlayerbot.CoaEconomy.AuctionClock.Enable is on, so this module does not add the server's off time to auctions as well. Set it to 0 to use this module's clock.");
+        }
+        for (char const* key : { "AiPlayerbot.CoaEconomy.BotAuctions.Enable", "AiPlayerbot.CoaEconomy.Artisans.Enable",
+                                 "AiPlayerbot.CoaEconomy.RpgSell.Enable", "AiPlayerbot.CoaEconomy.AHBot.Enable",
+                                 "AiPlayerbot.CoaEconomy.Chatter.TradeWindow.Enable", "AiPlayerbot.CoaLive.Chat.Enable" })
+            if (forkOn(key))
+                LOG_WARN("module", "PlayerbotsAuctions: {} = 1 in playerbots.conf runs mod-playerbots' own version of what this module does; set it to 0 (AFK Realm does that) or the bots do it twice.", key);
+
         cfg.maxAuctionsPerHouse = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MaxAuctionsPerHouse", 20000);
         cfg.minQualityEquipment = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MinQuality.Equipment", ITEM_QUALITY_UNCOMMON);
         cfg.minQualityOther     = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MinQuality.Other", ITEM_QUALITY_NORMAL);
