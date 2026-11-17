@@ -59,7 +59,8 @@ namespace pba
         }
         for (char const* key : { "AiPlayerbot.CoaEconomy.BotAuctions.Enable", "AiPlayerbot.CoaEconomy.Artisans.Enable",
                                  "AiPlayerbot.CoaEconomy.RpgSell.Enable", "AiPlayerbot.CoaEconomy.AHBot.Enable",
-                                 "AiPlayerbot.CoaEconomy.Chatter.TradeWindow.Enable", "AiPlayerbot.CoaLive.Chat.Enable" })
+                                 "AiPlayerbot.CoaEconomy.Chatter.TradeWindow.Enable", "AiPlayerbot.CoaLive.Chat.Enable",
+                                 "AiPlayerbot.CoaLive.Enable" })
             if (forkOn(key))
                 LOG_WARN("module", "PlayerbotsAuctions: {} = 1 in playerbots.conf runs mod-playerbots' own version of what this module does; set it to 0 (AFK Realm does that) or the bots do it twice.", key);
 

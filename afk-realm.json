@@ -190,6 +190,90 @@
       "key": "AiPlayerbot.CoaEconomy.BotStartGoldPercent",
       "value": "50",
       "why": "mod-playerbots now creates random bots without gold. This module's bots buy with their own money, so without any they could only sell. Half the usual gold, and a bot keeps what it earns."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaLive.Enable",
+      "value": "0",
+      "why": "CoA Live: the bots' reactions with lines and emotes around real players (greetings, cheers, bows, thanks, answers to whispers, channel lines). This module's personalities do that, mod-ollama-chat-coa answers whispers; both at once made every hello, ding and wave come twice."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaLive.NightBank.Enable",
+      "value": "0",
+      "why": "CoA Live's night bank: extra zone and world chatter and bot conversations. mod-playerbots' CoA Live talks and emotes beside this module's personalities."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaLive.Social.Enable",
+      "value": "0",
+      "why": "CoA Live's social bots (raise, help, buff, group invite, thanks) are part of CoA Live and go with it."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Chatter.BgEnd",
+      "value": "0",
+      "why": "mod-playerbots' remarks on the world (gg after a battleground). mod-playerbots' CoA Live talks and emotes beside this module's personalities."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Chatter.WorldBoss",
+      "value": "0",
+      "why": "mod-playerbots' remarks on the world (world boss calls). mod-playerbots' CoA Live talks and emotes beside this module's personalities."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Chatter.RareSeen",
+      "value": "0",
+      "why": "mod-playerbots' remarks on the world (a rare seen). mod-playerbots' CoA Live talks and emotes beside this module's personalities."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Chatter.Season",
+      "value": "0",
+      "why": "mod-playerbots' remarks on the world (holidays in General). mod-playerbots' CoA Live talks and emotes beside this module's personalities."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Chatter.Night",
+      "value": "0",
+      "why": "mod-playerbots' remarks on the world (late words in guild chat). mod-playerbots' CoA Live talks and emotes beside this module's personalities."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Chatter.Weather",
+      "value": "0",
+      "why": "mod-playerbots' remarks on the world (rain, snow, storm). mod-playerbots' CoA Live talks and emotes beside this module's personalities."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Chatter.Fishing",
+      "value": "0",
+      "why": "mod-playerbots' remarks on the world (a player fishing). mod-playerbots' CoA Live talks and emotes beside this module's personalities."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Guilds.Chat",
+      "value": "0",
+      "why": "Bots telling their guild about their round in guild chat: this module's personalities and mod-ollama-chat-coa speak there."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Guilds.Greetings",
+      "value": "0",
+      "why": "Guildmates answering a player's hello in guild chat: this module's personalities greet."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Guilds.Motd",
+      "value": "0",
+      "why": "Bot guilds writing a new message of the day now and then, in mod-playerbots' words."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.DungeonSim.Announce",
+      "value": "0",
+      "why": "Bot-only dungeon runs called in LookingForGroup with mod-playerbots' lines. The runs themselves go on."
     }
   ]
 }
