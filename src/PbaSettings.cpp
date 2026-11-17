@@ -152,6 +152,7 @@ namespace pba
         cfg.chatterSay          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chatter.Nearby", true);
         cfg.chatterWorld        = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chatter.WorldChannel", true);
         cfg.chatterMixed        = std::min<uint32>(100, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chatter.Mixed", 65));
+        cfg.coaSoul             = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Character.CoaSoul", true);
         cfg.chatterEggs         = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chatter.EasterEggs", 300);
         cfg.post                = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.TradingPost.Enable", true);
         cfg.postScarce          = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.ScarceBelow", 1);
@@ -190,8 +191,38 @@ namespace pba
         hash ^= hash >> 13;
         hash *= 3266489917u;
         hash ^= hash >> 16;
-        return float(hash & 0xFFFF) / 65535.0f;
+        float const own = float(hash & 0xFFFF) / 65535.0f;
+#ifdef PBA_COA_SOUL
+        if (CoaSoul::Soul const* soul = SoulOf(bot))
+        {
+            int32 base = -1;
+            switch (which)
+            {
+                case TRAIT_TRADING:
+                case TRAIT_GREED:    base = soul->greed; break;
+                case TRAIT_TALK:     base = soul->sociability; break;
+                case TRAIT_PATIENCE: base = 100 - soul->pace; break;     // fast levellers sell at once
+                case TRAIT_KNOWLEDGE: base = soul->archetype == CoaSoul::TRADER ? 75 : -1; break;
+                default: break;
+            }
+            // The soul sets the level, the bot's own number keeps two traders from being twins.
+            if (base >= 0)
+                return std::clamp(float(base) / 100.0f + (own - 0.5f) * 0.3f, 0.0f, 1.0f);
+        }
+#endif
+        return own;
     }
+
+#ifdef PBA_COA_SOUL
+    CoaSoul::Soul const* SoulOf(Player* bot)
+    {
+        thread_local CoaSoul::Soul soul;
+        if (!cfg.coaSoul || !bot || !CoaSoul::Enabled() || !sRandomPlayerbotMgr.IsRandomBot(bot))
+            return nullptr;
+        soul = CoaSoul::Get(bot);
+        return &soul;
+    }
+#endif
 
     bool AvoidsAuctionHouse(Player* bot)
     {

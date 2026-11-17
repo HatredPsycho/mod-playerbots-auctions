@@ -1013,6 +1013,20 @@ PlayerbotsAuctions.Chatter.WorldChannel = 1
 PlayerbotsAuctions.Chatter.Mixed = 65
 
 #
+#    PlayerbotsAuctions.Character.CoaSoul
+#        Description: With the CoA Playerbots fork and its souls on (AiPlayerbot.CoaSoul.Enable), a random
+#                     bot's character here grows out of its soul: the trader lives at the auction house and
+#                     knows its prices, the greedy ask more, the sociable talk more, the fast levellers sell
+#                     at once. A bot that gets a personality now gets one that fits its soul (the lazy one a
+#                     sleepy, a glutton or a tavern regular; the PvP one a hothead or a sergeant). Bots that
+#                     have a personality already keep it, and the names are the same, so Ollama Chat reads
+#                     them as before.
+#        Default:     1 - Enabled
+#                     0 - Disabled (this module's own numbers, as before)
+
+PlayerbotsAuctions.Character.CoaSoul = 1
+
+#
 #    PlayerbotsAuctions.Chatter.EasterEggs
 #        Description: Once in a very long while a bot says something that winks at where all this
 #                     comes from: the realm that sleeps at night, the day the bots started talking,

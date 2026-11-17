@@ -199,6 +199,21 @@ namespace
             } while (result->NextRow());
     }
 
+#ifdef PBA_COA_SOUL
+    std::vector<char const*> const& SoulPersonas(uint8 archetype)
+    {
+        static std::vector<char const*> const lists[CoaSoul::ARCHETYPE_COUNT] =
+        {
+            { "sleepy", "glutton", "dreamer", "tavernregular", "grumbler", "quiet", "hypochondriac", "farmer" },
+            { "veteran", "newbie", "knowitall", "lorenerd", "optimist", "polite", "hero", "unlucky", "roleplayer" },
+            { "explorer", "dreamer", "angler", "animalfriend", "poet", "herbalist", "prospector", "pirate", "gossip" },
+            { "trader", "miser", "collector", "craftsman", "braggart", "fashionista", "knowitall", "gossip", "grandparent" },
+            { "hothead", "braggart", "sergeant", "hero", "pirate", "doomsayer", "veteran", "joker" },
+        };
+        return lists[archetype < CoaSoul::ARCHETYPE_COUNT ? archetype : CoaSoul::QUESTER];
+    }
+#endif
+
     Self& SelfOf(Player* bot)
     {
         ObjectGuid::LowType const low = bot->GetGUID().GetCounter();
@@ -208,6 +223,18 @@ namespace
         {
             Self self;
             self.main = uint16(std::min<size_t>(Personas.size() - 1, size_t(TraitOf(bot, TRAIT_PERSONA) * float(Personas.size()))));
+#ifdef PBA_COA_SOUL
+            // A new bot's personality fits its soul; the names stay ours, so the table and Ollama read the same.
+            if (CoaSoul::Soul const* soul = SoulOf(bot))
+            {
+                std::vector<int16> fitting;
+                for (char const* name : SoulPersonas(soul->archetype))
+                    if (int16 const index = PersonaNamed(name); index >= 0)
+                        fitting.push_back(index);
+                if (!fitting.empty())
+                    self.main = uint16(fitting[std::min<size_t>(fitting.size() - 1, size_t(TraitOf(bot, TRAIT_PERSONA) * float(fitting.size())))]);
+            }
+#endif
             found = assigned.insert_or_assign(low, self).first;
             write = true;
         }

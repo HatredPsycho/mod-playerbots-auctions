@@ -60,6 +60,10 @@
 #include "CoaGearScore.h"
 #define PBA_COA_GEARSCORE 1
 #endif
+#if __has_include("CoaSoul.h")
+#include "CoaSoul.h"
+#define PBA_COA_SOUL 1
+#endif
 
 #if __has_include("MailMgr.h")
 #include "MailMgr.h"
@@ -184,7 +188,8 @@ namespace pba
         bool   chatterReplies = true;          // bots answer a hello, a ding, a request for a joke
         bool   chatterSay = true;              // bots near a player say something aloud or make a gesture
         bool   chatterWorld = true;            // with no bot in the player's zone, the channel of the whole realm is used
-        uint32 chatterMixed = 65;              // percent of the bots that are a mix of two personalities
+        uint32 chatterMixed = 65;
+        bool   coaSoul = true;                 // traits and personality grow out of the CoA soul when it is on              // percent of the bots that are a mix of two personalities
         uint32 chatterEggs = 300;              // one in so many things said out of the blue winks at the tools behind it; 0: never
 
         // trading post
@@ -229,6 +234,10 @@ namespace pba
     };
 
     float TraitOf(Player* bot, Trait which);
+#ifdef PBA_COA_SOUL
+    /// The CoA soul of a random bot while CoaSoul and Character.CoaSoul are on, else nullptr. Per thread.
+    CoaSoul::Soul const* SoulOf(Player* bot);
+#endif
     bool AvoidsAuctionHouse(Player* bot);
 
     /// How much is going on at this time of the day and week, from 0.25 (dead of night) to 1 (evening).
