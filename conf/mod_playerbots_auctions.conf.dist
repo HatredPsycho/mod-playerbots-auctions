@@ -239,10 +239,11 @@ PlayerbotsAuctions.Sell.MaxQuality = 5
 #                     0 consumable, 1 container, 2 weapon, 3 gem, 4 armor, 5 reagent, 6 projectile,
 #                     7 trade goods, 9 recipe, 11 quiver, 13 key, 15 miscellaneous, 16 glyph
 #                     12 quest (only what can be traded - most of it cannot), 15 includes companion
-#                     pets and mounts. Projectiles are left out: bots are handed their ammunition.
-#        Default:     "0,1,2,3,4,5,7,9,11,12,13,15,16"
+#                     pets and mounts. Projectiles and quivers are left out: on Conquest of Azeroth
+#                     ranged weapons need no ammunition.
+#        Default:     "0,1,2,3,4,5,7,9,12,13,15,16"
 
-PlayerbotsAuctions.Sell.ItemClasses = "0,1,2,3,4,5,7,9,11,12,13,15,16"
+PlayerbotsAuctions.Sell.ItemClasses = "0,1,2,3,4,5,7,9,12,13,15,16"
 
 #
 #    PlayerbotsAuctions.Sell.ExcludedItemIDs
@@ -384,6 +385,18 @@ PlayerbotsAuctions.Price.Epic = 25
 PlayerbotsAuctions.Price.Legendary = 50
 
 #
+#    PlayerbotsAuctions.Price.CoaScanPercent
+#        Description: The usual price of an item is what it fetched on the official CoA auction house
+#                     (scans the CoA Playerbots fork carries: 17,000 items, the rest by quality and item
+#                     level), in percent. So an empty auction house still knows its prices, and bots
+#                     selling to bots do not drag them down to the vendor's. The bots' own sales move
+#                     the price band from there. Gear is scaled by its quality, goods stay goods. Without
+#                     the fork's scans, or at 0, the vendor value times the factors above is used.
+#        Default:     60 - a fresh realm's scarce gold (the scans are of a 7 months old server)
+
+PlayerbotsAuctions.Price.CoaScanPercent = 60
+
+#
 #    PlayerbotsAuctions.Price.LearnFromSales
 #        Description: What auctions really sold for moves what the bots consider the usual price of
 #                     an item, for selling and for buying. Only sales a bot took part in count, an
@@ -504,6 +517,23 @@ PlayerbotsAuctions.Buy.PlaceBids = 1
 #                     0 - Disabled (bots always have enough money; this brings new gold into the world)
 
 PlayerbotsAuctions.Buy.UseBotMoney = 1
+
+#
+#    PlayerbotsAuctions.Buy.CoaGearScore
+#        Description: Gear upgrades are weighed by the CoA gear score of the CoA Playerbots fork: the
+#                     clearer the upgrade, the more a bot wants it and pays for it.
+#        Default:     1 - Enabled (without the fork's gear score it does nothing)
+#                     0 - Disabled (any upgrade the bot's item usage names is wanted alike)
+
+PlayerbotsAuctions.Buy.CoaGearScore = 1
+
+#
+#    PlayerbotsAuctions.Buy.MinUpgradePercent
+#        Description: With the CoA gear score: an upgrade smaller than this, in percent of the piece
+#                     worn, is not bought (an empty slot always counts).
+#        Default:     2
+
+PlayerbotsAuctions.Buy.MinUpgradePercent = 2
 
 #
 #    PlayerbotsAuctions.Buy.MinVendorFactor

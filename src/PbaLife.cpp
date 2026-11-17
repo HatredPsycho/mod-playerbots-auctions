@@ -1230,6 +1230,16 @@ namespace
                     case ITEM_USAGE_EQUIP:
                     case ITEM_USAGE_REPLACE:
                         interest = 1.5;         // an upgrade for itself
+#ifdef PBA_COA_GEARSCORE
+                        // The CoA gear score says how much better: a clear upgrade is wanted more, a crumb not at all.
+                        if (cfg.coaGearScore)
+                        {
+                            bool emptySlot = false;
+                            float const gain = CoaGearScore::UpgradePct(bot, itemId, 0, emptySlot);
+                            if (!emptySlot)
+                                interest = gain < float(cfg.minUpgradePercent) ? 0.0 : std::clamp(1.2 + gain / 50.0, 1.2, 2.0);
+                        }
+#endif
                         break;
                     case ITEM_USAGE_USE:
                     case ITEM_USAGE_SKILL:

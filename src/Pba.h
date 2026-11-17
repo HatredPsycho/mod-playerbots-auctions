@@ -51,6 +51,16 @@
 #include "AscensionCoAConfig.h"
 #endif
 
+// The CoA Playerbots fork (November 2026): the real CoA auction house's prices and the CoA gear score. Read only.
+#if __has_include("CoaRealPrices.h")
+#include "CoaRealPrices.h"
+#define PBA_COA_PRICES 1
+#endif
+#if __has_include("CoaGearScore.h")
+#include "CoaGearScore.h"
+#define PBA_COA_GEARSCORE 1
+#endif
+
 #if __has_include("MailMgr.h")
 #include "MailMgr.h"
 #define PBA_MAIL_DELETED(guid) sMailMgr->OnMailDeleted((guid).GetCounter())
@@ -120,6 +130,9 @@ namespace pba
         float  minVendorFactor = 1.5f;
         uint32 maxBuyout = 5000 * GOLD;        // 0 = no limit
         bool   learnPrices = true;
+        uint32 coaScanPercent = 60;             // the real CoA house's prices as the usual price, in percent; 0 = off
+        bool   coaGearScore = true;             // weigh gear upgrades by the CoA gear score
+        uint32 minUpgradePercent = 2;           // smaller upgrades are not worth a trip to the auctioneer
         bool   priceBand = true;               // keep asking prices inside a band learned from real sales
         uint32 priceBandMinSales = 3;           // below this, the fallback band around the usual price is used
         uint32 priceBandLowPercent = 80;        // fallback low: percent of the usual price

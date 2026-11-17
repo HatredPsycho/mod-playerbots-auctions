@@ -68,7 +68,7 @@ namespace pba
         cfg.minQualityEquipment = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MinQuality.Equipment", ITEM_QUALITY_UNCOMMON);
         cfg.minQualityOther     = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MinQuality.Other", ITEM_QUALITY_NORMAL);
         cfg.maxQuality          = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MaxQuality", ITEM_QUALITY_LEGENDARY);
-        LoadNumbers(sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.Sell.ItemClasses", "0,1,2,3,4,5,7,9,11,12,13,15,16"), cfg.itemClasses);
+        LoadNumbers(sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.Sell.ItemClasses", "0,1,2,3,4,5,7,9,12,13,15,16"), cfg.itemClasses);
         LoadNumbers(sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.Sell.ExcludedItemIDs", ""), cfg.excludedItems);
         cfg.excludedNameParts.clear();
         std::string const names = sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.Sell.ExcludedNameParts",
@@ -99,6 +99,9 @@ namespace pba
         cfg.priceMultiplier[ITEM_QUALITY_LEGENDARY] = sConfigMgr->GetOption<float>("PlayerbotsAuctions.Price.Legendary", 50.0f);
         cfg.priceMultiplier[ITEM_QUALITY_ARTIFACT]  = cfg.priceMultiplier[ITEM_QUALITY_LEGENDARY];
         cfg.priceMultiplier[ITEM_QUALITY_HEIRLOOM]  = cfg.priceMultiplier[ITEM_QUALITY_EPIC];
+        cfg.coaScanPercent      = std::min<uint32>(500, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.CoaScanPercent", 60));
+        cfg.coaGearScore        = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Buy.CoaGearScore", true);
+        cfg.minUpgradePercent   = std::min<uint32>(100, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Buy.MinUpgradePercent", 2));
         for (float& factor : cfg.priceMultiplier)
             factor = std::max(factor, 0.1f);
         cfg.minVendorFactor     = std::max(1.0f, sConfigMgr->GetOption<float>("PlayerbotsAuctions.Price.MinVendorFactor", 1.5f));
