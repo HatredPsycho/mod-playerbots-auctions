@@ -57,8 +57,7 @@ namespace pba
             cfg.pauseOffline = false;
             LOG_WARN("module", "PlayerbotsAuctions: mod-playerbots' AiPlayerbot.CoaEconomy.AuctionClock.Enable is on, so this module does not add the server's off time to auctions as well. Set it to 0 to use this module's clock.");
         }
-        for (char const* key : { "AiPlayerbot.CoaEconomy.BotAuctions.Enable", "AiPlayerbot.CoaEconomy.Artisans.Enable",
-                                 "AiPlayerbot.CoaEconomy.RpgSell.Enable", "AiPlayerbot.CoaEconomy.AHBot.Enable",
+        for (char const* key : { "AiPlayerbot.CoaEconomy.BotAuctions.Enable", "AiPlayerbot.CoaEconomy.RpgSell.Enable", "AiPlayerbot.CoaEconomy.AHBot.Enable",
                                  "AiPlayerbot.CoaEconomy.Chatter.TradeWindow.Enable", "AiPlayerbot.CoaLive.Chat.Enable",
                                  "AiPlayerbot.CoaLive.Enable" })
             if (forkOn(key))

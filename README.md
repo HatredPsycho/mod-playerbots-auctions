@@ -125,10 +125,12 @@ Since November 2026 the CoA Playerbots fork has an economy of its own (`AiPlayer
 own (`AiPlayerbot.CoaLive.Chat`). Beside this module the bots would do everything twice. This module is the
 roleplay one - bots with a character, deals by chat, the trading post, the personalities in chat - so where both
 are installed the fork's overlapping parts are switched off. AFK Realm does that by itself (`afk-realm.json`);
-without it, set these to 0 in `playerbots.conf`: `AiPlayerbot.CoaEconomy.BotAuctions.Enable`, `.Artisans.Enable`,
+without it, set these to 0 in `playerbots.conf`: `AiPlayerbot.CoaEconomy.BotAuctions.Enable`,
 `.RpgSell.Enable`, `.AuctionClock.Enable`, `.AHBot.Enable`, `.Chatter.AhSold.Enable`, `.Chatter.TradeWindow.Enable`
 `AiPlayerbot.CoaLive.Chat.Enable` and `AiPlayerbot.CoaLive.Enable` (its lines and emotes), the night bank, `AiPlayerbot.CoaWorld.Chatter.*`, the guild chat, greetings and message of the day of `AiPlayerbot.CoaWorld.Guilds.*` and `AiPlayerbot.CoaWorld.DungeonSim.Announce`, and give the bots some gold (`AiPlayerbot.CoaEconomy.BotStartGoldPercent`, 50).
-The worldserver log names every one still on. Two auction clocks never run: while the fork's is on, this module's
+Its artisans stay on: with `BotAuctions` off they craft only on order (the SquidBots Manager add-on, guild
+orders), never for the auction house; their adverts and Trade offers are off (`.CraftOrders.AdvertiseMinutes`,
+`.CraftOrders.TradeOfferPercent`, 0). The worldserver log names every one still on. Two auction clocks never run: while the fork's is on, this module's
 stands aside.
 
 ## Requirements

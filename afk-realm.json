@@ -146,8 +146,26 @@
     {
       "file": "playerbots.conf",
       "key": "AiPlayerbot.CoaEconomy.Artisans.Enable",
+      "value": "1",
+      "why": "mod-playerbots' artisans take craft orders from the SquidBots Manager add-on and from guild orders. With its BotAuctions off they never craft for the auction house; that stays this module's."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaEconomy.CraftOrders.Enable",
+      "value": "1",
+      "why": "Quotes and orders of the artisans in the SquidBots Manager add-on."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaEconomy.CraftOrders.AdvertiseMinutes",
       "value": "0",
-      "why": "mod-playerbots' artisans would craft for the auction house beside this module's crafters. Off; its craft orders by whisper need it and go with it."
+      "why": "No artisan adverts in Trade: the bots' talk is this module's."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaEconomy.CraftOrders.TradeOfferPercent",
+      "value": "0",
+      "why": "Artisans offer no fresh pieces in Trade: the bots' deals by chat are this module's."
     },
     {
       "file": "playerbots.conf",
