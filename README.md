@@ -131,7 +131,9 @@ without it, set these to 0 in `playerbots.conf`: `AiPlayerbot.CoaEconomy.BotAuct
 Its artisans stay on: with `BotAuctions` off they craft only on order (the SquidBots Manager add-on, guild
 orders), never for the auction house; their adverts and Trade offers are off (`.CraftOrders.AdvertiseMinutes`,
 `.CraftOrders.TradeOfferPercent`, 0). Players can also whisper a bot "can you make [item]?": a bot that knows the recipe names its price and,
-after a yes, crafts the order and mails it cash on delivery (`PlayerbotsAuctions.Chat.CraftOrders`); the add-on's
+after a yes, crafts the order and mails it cash on delivery (`PlayerbotsAuctions.Chat.CraftOrders`); "LF blacksmith" or
+"anyone can make [item]?" in a trade channel brings whispers from bots of that craft, and "what can you make?" a few
+of their recipes as links; the add-on's
 orders get the same whispers when they are taken, sent and paid. The worldserver log names every one still on. Two auction clocks never run: while the fork's is on, this module's
 stands aside.
 

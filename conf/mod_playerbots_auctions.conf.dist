@@ -719,7 +719,10 @@ PlayerbotsAuctions.Chat.Enable = 1
 #    PlayerbotsAuctions.Chat.CraftOrders
 #        Description: A player whispers a bot "can you make [item]?" (also "make me 5 [item]",
 #                     "kannst du mir [item] herstellen?"). A bot that knows the recipe names its price;
-#                     after a yes it crafts the order and mails it cash on delivery. The artisans of
+#                     after a yes it crafts the order and mails it cash on delivery. Asked in a deal
+#                     channel ("LF blacksmith", "anyone can make [item]?", "ist ein Schmied da?"), up to
+#                     Chat.Answers bots of that craft whisper back: with a price for the item, or with
+#                     their profession's link; "what can you make?" lists a few of their recipes. The artisans of
 #                     the SquidBots Manager add-on get the same whispers when an order is taken, sent
 #                     and paid. Needs the CoA Playerbots fork with AiPlayerbot.CoaEconomy.Artisans.Enable
 #                     and .CraftOrders.Enable (AFK Realm sets both).
