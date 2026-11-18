@@ -130,7 +130,9 @@ without it, set these to 0 in `playerbots.conf`: `AiPlayerbot.CoaEconomy.BotAuct
 `AiPlayerbot.CoaLive.Chat.Enable` and `AiPlayerbot.CoaLive.Enable` (its lines and emotes), the night bank, `AiPlayerbot.CoaWorld.Chatter.*`, the guild chat, greetings and message of the day of `AiPlayerbot.CoaWorld.Guilds.*` and `AiPlayerbot.CoaWorld.DungeonSim.Announce`, and give the bots some gold (`AiPlayerbot.CoaEconomy.BotStartGoldPercent`, 50).
 Its artisans stay on: with `BotAuctions` off they craft only on order (the SquidBots Manager add-on, guild
 orders), never for the auction house; their adverts and Trade offers are off (`.CraftOrders.AdvertiseMinutes`,
-`.CraftOrders.TradeOfferPercent`, 0). The worldserver log names every one still on. Two auction clocks never run: while the fork's is on, this module's
+`.CraftOrders.TradeOfferPercent`, 0). Players can also whisper a bot "can you make [item]?": a bot that knows the recipe names its price and,
+after a yes, crafts the order and mails it cash on delivery (`PlayerbotsAuctions.Chat.CraftOrders`); the add-on's
+orders get the same whispers when they are taken, sent and paid. The worldserver log names every one still on. Two auction clocks never run: while the fork's is on, this module's
 stands aside.
 
 ## Requirements

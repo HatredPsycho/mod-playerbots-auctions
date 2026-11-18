@@ -141,6 +141,7 @@ namespace pba
         cfg.glyphs              = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Crafting.Glyphs", false);
 
         cfg.deals               = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chat.Enable", true);
+        cfg.craftOrders         = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chat.CraftOrders", true);
         cfg.dealAnswers         = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chat.Answers", 3), 1, 10);
         cfg.dealMeet            = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chat.Meet", true);
         cfg.dealMeetDistance    = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chat.MeetDistance", 150), 10, 5000);

@@ -60,6 +60,11 @@
 #include "CoaGearScore.h"
 #define PBA_COA_GEARSCORE 1
 #endif
+// Its artisans: a craft order whispered to a bot uses their recipes, prices and cooldown.
+#if __has_include("CoaCraftOrders.h")
+#include "CoaCraftOrders.h"
+#define PBA_COA_ARTISANS 1
+#endif
 #if __has_include("CoaSoul.h")
 #include "CoaSoul.h"
 #define PBA_COA_SOUL 1
@@ -179,6 +184,7 @@ namespace pba
         uint32 dealAnswers = 3;                // how many bots answer one line at the most
         bool   dealMeet = true;                // a bot that is close offers to come over and trade hand to hand
         uint32 dealMeetDistance = 150;         // how close, in yards
+        bool   craftOrders = true;             // "can you make [item]?": a bot that knows the recipe takes the order
         int32  dealMailDelay = -1;             // seconds a bot's parcel travels; -1: as long as the server's mail
         std::vector<std::string> dealChannels; // parts of channel names that are listened to; empty: every channel
 
