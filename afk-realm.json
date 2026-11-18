@@ -136,6 +136,144 @@
       "key": "AiPlayerbot.ThunderfuryRepliesChance",
       "value": "0",
       "why": "mod-playerbots' own chatter - a report of every quest and kill, dungeon suggestions, canned replies - is replaced by the personalities of this module."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaEconomy.BotAuctions.Enable",
+      "value": "0",
+      "why": "mod-playerbots' own auction house visits (since November 2026) would list and buy beside this module's bots, twice per bot and with other prices. This module's bots go to the auction house by their own character."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaEconomy.Artisans.Enable",
+      "value": "0",
+      "why": "mod-playerbots' artisans would craft for the auction house beside this module's crafters. Off; its craft orders by whisper need it and go with it."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaEconomy.RpgSell.Enable",
+      "value": "0",
+      "why": "mod-playerbots would sell the bots' loot at vendors between quests, also what this module's bots keep for the auction house or for their professions."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaEconomy.AuctionClock.Enable",
+      "value": "0",
+      "why": "This module already gives every auction back the time the server was off. Two clocks would add it twice."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaEconomy.AHBot.Enable",
+      "value": "0",
+      "why": "A house that sells and buys by itself: on this module's realms the auction house is filled by bots with a character of their own. (Read at start-up.)"
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaEconomy.Chatter.AhSold.Enable",
+      "value": "0",
+      "why": "This module's personalities talk about their trade themselves."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaEconomy.Chatter.TradeWindow.Enable",
+      "value": "0",
+      "why": "A deal agreed by chat can be traded in person; mod-playerbots would whisper into that trade window."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaLive.Chat.Enable",
+      "value": "0",
+      "why": "mod-playerbots' CoA Live chat (greetings, replies, channel lines, night bank) would talk beside this module's personalities, so every hello and ding got answered twice. Bot commands and group invites stay."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaEconomy.BotStartGoldPercent",
+      "value": "50",
+      "why": "mod-playerbots now creates random bots without gold. This module's bots buy with their own money, so without any they could only sell. Half the usual gold, and a bot keeps what it earns."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaLive.Enable",
+      "value": "0",
+      "why": "CoA Live: the bots' reactions with lines and emotes around real players (greetings, cheers, bows, thanks, answers to whispers, channel lines). This module's personalities do that, mod-ollama-chat-coa answers whispers; both at once made every hello, ding and wave come twice."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaLive.NightBank.Enable",
+      "value": "0",
+      "why": "CoA Live's night bank: extra zone and world chatter and bot conversations. mod-playerbots' CoA Live talks and emotes beside this module's personalities."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaLive.Social.Enable",
+      "value": "0",
+      "why": "CoA Live's social bots (raise, help, buff, group invite, thanks) are part of CoA Live and go with it."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Chatter.BgEnd",
+      "value": "0",
+      "why": "mod-playerbots' remarks on the world (gg after a battleground). mod-playerbots' CoA Live talks and emotes beside this module's personalities."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Chatter.WorldBoss",
+      "value": "0",
+      "why": "mod-playerbots' remarks on the world (world boss calls). mod-playerbots' CoA Live talks and emotes beside this module's personalities."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Chatter.RareSeen",
+      "value": "0",
+      "why": "mod-playerbots' remarks on the world (a rare seen). mod-playerbots' CoA Live talks and emotes beside this module's personalities."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Chatter.Season",
+      "value": "0",
+      "why": "mod-playerbots' remarks on the world (holidays in General). mod-playerbots' CoA Live talks and emotes beside this module's personalities."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Chatter.Night",
+      "value": "0",
+      "why": "mod-playerbots' remarks on the world (late words in guild chat). mod-playerbots' CoA Live talks and emotes beside this module's personalities."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Chatter.Weather",
+      "value": "0",
+      "why": "mod-playerbots' remarks on the world (rain, snow, storm). mod-playerbots' CoA Live talks and emotes beside this module's personalities."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Chatter.Fishing",
+      "value": "0",
+      "why": "mod-playerbots' remarks on the world (a player fishing). mod-playerbots' CoA Live talks and emotes beside this module's personalities."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Guilds.Chat",
+      "value": "0",
+      "why": "Bots telling their guild about their round in guild chat: this module's personalities and mod-ollama-chat-coa speak there."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Guilds.Greetings",
+      "value": "0",
+      "why": "Guildmates answering a player's hello in guild chat: this module's personalities greet."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.Guilds.Motd",
+      "value": "0",
+      "why": "Bot guilds writing a new message of the day now and then, in mod-playerbots' words."
+    },
+    {
+      "file": "playerbots.conf",
+      "key": "AiPlayerbot.CoaWorld.DungeonSim.Announce",
+      "value": "0",
+      "why": "Bot-only dungeon runs called in LookingForGroup with mod-playerbots' lines. The runs themselves go on."
     }
   ]
 }

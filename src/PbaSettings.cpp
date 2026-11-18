@@ -48,11 +48,27 @@ namespace pba
         cfg.saveMemory          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.SaveMemory", true);
         cfg.pauseOffline        = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.PauseAuctionsWhileOffline", true);
 
+        // The CoA Playerbots fork brought its own economy (November 2026). Where it runs beside this module, the bots
+        // would list, buy, craft, keep the clock and chatter twice; AFK Realm switches those parts off (afk-realm.json).
+        // Without it: the auction clock steps aside here (two clocks add the off time twice), the rest is logged.
+        auto forkOn = [](char const* key) { return sConfigMgr->GetOption<bool>(key, false, false); };
+        if (cfg.pauseOffline && forkOn("AiPlayerbot.CoaEconomy.AuctionClock.Enable"))
+        {
+            cfg.pauseOffline = false;
+            LOG_WARN("module", "PlayerbotsAuctions: mod-playerbots' AiPlayerbot.CoaEconomy.AuctionClock.Enable is on, so this module does not add the server's off time to auctions as well. Set it to 0 to use this module's clock.");
+        }
+        for (char const* key : { "AiPlayerbot.CoaEconomy.BotAuctions.Enable", "AiPlayerbot.CoaEconomy.Artisans.Enable",
+                                 "AiPlayerbot.CoaEconomy.RpgSell.Enable", "AiPlayerbot.CoaEconomy.AHBot.Enable",
+                                 "AiPlayerbot.CoaEconomy.Chatter.TradeWindow.Enable", "AiPlayerbot.CoaLive.Chat.Enable",
+                                 "AiPlayerbot.CoaLive.Enable" })
+            if (forkOn(key))
+                LOG_WARN("module", "PlayerbotsAuctions: {} = 1 in playerbots.conf runs mod-playerbots' own version of what this module does; set it to 0 (AFK Realm does that) or the bots do it twice.", key);
+
         cfg.maxAuctionsPerHouse = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MaxAuctionsPerHouse", 20000);
         cfg.minQualityEquipment = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MinQuality.Equipment", ITEM_QUALITY_UNCOMMON);
         cfg.minQualityOther     = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MinQuality.Other", ITEM_QUALITY_NORMAL);
         cfg.maxQuality          = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Sell.MaxQuality", ITEM_QUALITY_LEGENDARY);
-        LoadNumbers(sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.Sell.ItemClasses", "0,1,2,3,4,5,7,9,11,12,13,15,16"), cfg.itemClasses);
+        LoadNumbers(sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.Sell.ItemClasses", "0,1,2,3,4,5,7,9,12,13,15,16"), cfg.itemClasses);
         LoadNumbers(sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.Sell.ExcludedItemIDs", ""), cfg.excludedItems);
         cfg.excludedNameParts.clear();
         std::string const names = sConfigMgr->GetOption<std::string>("PlayerbotsAuctions.Sell.ExcludedNameParts",
@@ -83,6 +99,9 @@ namespace pba
         cfg.priceMultiplier[ITEM_QUALITY_LEGENDARY] = sConfigMgr->GetOption<float>("PlayerbotsAuctions.Price.Legendary", 50.0f);
         cfg.priceMultiplier[ITEM_QUALITY_ARTIFACT]  = cfg.priceMultiplier[ITEM_QUALITY_LEGENDARY];
         cfg.priceMultiplier[ITEM_QUALITY_HEIRLOOM]  = cfg.priceMultiplier[ITEM_QUALITY_EPIC];
+        cfg.coaScanPercent      = std::min<uint32>(500, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Price.CoaScanPercent", 60));
+        cfg.coaGearScore        = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Buy.CoaGearScore", true);
+        cfg.minUpgradePercent   = std::min<uint32>(100, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Buy.MinUpgradePercent", 2));
         for (float& factor : cfg.priceMultiplier)
             factor = std::max(factor, 0.1f);
         cfg.minVendorFactor     = std::max(1.0f, sConfigMgr->GetOption<float>("PlayerbotsAuctions.Price.MinVendorFactor", 1.5f));
@@ -133,6 +152,7 @@ namespace pba
         cfg.chatterSay          = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chatter.Nearby", true);
         cfg.chatterWorld        = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chatter.WorldChannel", true);
         cfg.chatterMixed        = std::min<uint32>(100, sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chatter.Mixed", 65));
+        cfg.coaSoul             = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Character.CoaSoul", true);
         cfg.chatterEggs         = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chatter.EasterEggs", 300);
         cfg.post                = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.TradingPost.Enable", true);
         cfg.postScarce          = sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.TradingPost.ScarceBelow", 1);
@@ -171,8 +191,38 @@ namespace pba
         hash ^= hash >> 13;
         hash *= 3266489917u;
         hash ^= hash >> 16;
-        return float(hash & 0xFFFF) / 65535.0f;
+        float const own = float(hash & 0xFFFF) / 65535.0f;
+#ifdef PBA_COA_SOUL
+        if (CoaSoul::Soul const* soul = SoulOf(bot))
+        {
+            int32 base = -1;
+            switch (which)
+            {
+                case TRAIT_TRADING:
+                case TRAIT_GREED:    base = soul->greed; break;
+                case TRAIT_TALK:     base = soul->sociability; break;
+                case TRAIT_PATIENCE: base = 100 - soul->pace; break;     // fast levellers sell at once
+                case TRAIT_KNOWLEDGE: base = soul->archetype == CoaSoul::TRADER ? 75 : -1; break;
+                default: break;
+            }
+            // The soul sets the level, the bot's own number keeps two traders from being twins.
+            if (base >= 0)
+                return std::clamp(float(base) / 100.0f + (own - 0.5f) * 0.3f, 0.0f, 1.0f);
+        }
+#endif
+        return own;
     }
+
+#ifdef PBA_COA_SOUL
+    CoaSoul::Soul const* SoulOf(Player* bot)
+    {
+        thread_local CoaSoul::Soul soul;
+        if (!cfg.coaSoul || !bot || !CoaSoul::Enabled() || !sRandomPlayerbotMgr.IsRandomBot(bot))
+            return nullptr;
+        soul = CoaSoul::Get(bot);
+        return &soul;
+    }
+#endif
 
     bool AvoidsAuctionHouse(Player* bot)
     {

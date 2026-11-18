@@ -119,6 +119,18 @@ All auction business is done standing at an auctioneer. Bots that travel with a 
 The travelling uses the city visits of the CoA Playerbots fork. With other versions of mod-playerbots the bots
 are not sent anywhere and only do their business when they happen to pass an auctioneer.
 
+## Next to mod-playerbots' own economy
+
+Since November 2026 the CoA Playerbots fork has an economy of its own (`AiPlayerbot.CoaEconomy.*`) and a chat of its
+own (`AiPlayerbot.CoaLive.Chat`). Beside this module the bots would do everything twice. This module is the
+roleplay one - bots with a character, deals by chat, the trading post, the personalities in chat - so where both
+are installed the fork's overlapping parts are switched off. AFK Realm does that by itself (`afk-realm.json`);
+without it, set these to 0 in `playerbots.conf`: `AiPlayerbot.CoaEconomy.BotAuctions.Enable`, `.Artisans.Enable`,
+`.RpgSell.Enable`, `.AuctionClock.Enable`, `.AHBot.Enable`, `.Chatter.AhSold.Enable`, `.Chatter.TradeWindow.Enable`
+`AiPlayerbot.CoaLive.Chat.Enable` and `AiPlayerbot.CoaLive.Enable` (its lines and emotes), the night bank, `AiPlayerbot.CoaWorld.Chatter.*`, the guild chat, greetings and message of the day of `AiPlayerbot.CoaWorld.Guilds.*` and `AiPlayerbot.CoaWorld.DungeonSim.Announce`, and give the bots some gold (`AiPlayerbot.CoaEconomy.BotStartGoldPercent`, 50).
+The worldserver log names every one still on. Two auction clocks never run: while the fork's is on, this module's
+stands aside.
+
 ## Requirements
 
 - AzerothCore with **mod-playerbots** installed (this module does not build without it)

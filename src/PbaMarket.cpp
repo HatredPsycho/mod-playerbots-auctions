@@ -60,7 +60,19 @@ namespace pba
 
     double Market::Regular(ItemTemplate const* proto)
     {
-        return double(Base(proto)) * cfg.priceMultiplier[proto->Quality];
+        double const formula = double(Base(proto)) * cfg.priceMultiplier[proto->Quality];
+#ifdef PBA_COA_PRICES
+        // What it really fetched on the official CoA house (scans the fork carries), so an empty house still knows
+        // prices; the bots' own sales move the band from there. Gear by its quality, goods as goods.
+        if (cfg.coaScanPercent && formula > 0.0)
+        {
+            static CoaEconomy::RealPrices::Multipliers const factors{};
+            uint64 const scan = CoaEconomy::RealPrices::Scaled(CoaEconomy::RealPrices::Reference(proto), proto, factors);
+            if (scan)
+                return std::max(double(scan) * cfg.coaScanPercent / 100.0, double(proto->SellPrice) * cfg.minVendorFactor);
+        }
+#endif
+        return formula;
     }
 
     double Market::Value(ItemTemplate const* proto) const
