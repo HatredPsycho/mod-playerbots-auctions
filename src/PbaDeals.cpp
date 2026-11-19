@@ -10,8 +10,12 @@
 
 #include "Pba.h"
 #include "CoaChatBridge.h"
+#ifdef PBA_COA_ARTISANS
+#include "DatabaseEnv.h"
+#endif
 
 #include <cstdlib>
+#include <regex>
 #include <set>
 #include <unordered_set>
 
@@ -411,6 +415,68 @@ namespace
             "ah sorry, i don't have it anymore", "sorry, just sold it", "damn, it's gone already. sorry", "oh, too late, someone else got it",
             "sorry, used it up myself a minute ago", "argh, sold it in the ah just now. sorry", "sorry mate, it's gone", "i was too slow, don't have it now. sorry"
         } };
+        // A bot that knows the recipe names its price for a craft order ({g} the pieces, {m} the price).
+        Pool const CraftQuote = { "craft.quote", {
+            "i can make {g} for you. {m}, sent COD. want it?",
+            "{g}? sure, i know that one. {m} and it's yours, by mail COD",
+            "can do {g}. {m} with the mats, cash on delivery. say yes and i start",
+            "yeah i craft {g}. {m}, i mail it COD. deal?",
+            "{g} for {m}, made fresh and sent COD. ok?"
+        } };
+        Pool const CraftBusy = { "craft.busy", {
+            "just finished an order, give me a few minutes",
+            "busy with another order right now, ask me again in a bit",
+            "my hands are full, try me in a few minutes"
+        } };
+        Pool const CraftCannot = { "craft.cannot", {
+            "sorry, i don't know how to make that",
+            "can't make that one, don't have the recipe",
+            "not my craft, sorry. ask someone else"
+        } };
+        Pool const CraftTaken = { "craft.taken", {
+            "on it! {g} will be in your mailbox {when}, COD {m}",
+            "deal. making {g} now, mail comes {when}. {m} cash on delivery",
+            "got it, crafting {g}. look in your mail {when}, {m} COD"
+        } };
+        Pool const CraftDeclined = { "craft.declined", {
+            "no problem, just ask if you change your mind",
+            "ok, maybe another time",
+            "alright. i'm around if you need something made"
+        } };
+        Pool const CraftNoMats = { "craft.no_mats", {
+            "hm, i'm short of materials for that right now, sorry",
+            "can't get the mats together for that at the moment"
+        } };
+        // Asked in a channel for a profession ({p} the profession's link, {s} its skill).
+        Pool const CraftOffer = { "craft.offer", {
+            "saw you're looking for a crafter. i'm {p} ({s}). tell me what you need, or ask what i can make",
+            "i do {p}, {s} skill. whisper me the item, or ask 'what can you make'",
+            "{p} here ({s}). what do you need made?",
+            "i can help, {p} {s}. name the item or ask what i make"
+        } };
+        Pool const CraftList = { "craft.list", {
+            "i can make for example: {g}",
+            "some of what i make: {g}",
+            "things i craft: {g}"
+        } };
+
+        // The SquidBots Manager add-on's orders: taken, sent, paid.
+        Pool const CraftOrderTaken = { "craft.order_taken", {
+            "got your order for {g}, starting now",
+            "saw your order: {g}. on it!",
+            "thanks for the order, making {g} right away"
+        } };
+        Pool const CraftOrderSent = { "craft.order_sent", {
+            "{g} is in the mail, {m} COD. enjoy!",
+            "sent you {g}, cash on delivery {m}",
+            "your {g} is on its way, {m} COD"
+        } };
+        Pool const CraftOrderPaid = { "craft.order_paid", {
+            "got your payment, thanks! come back anytime",
+            "thanks for paying, pleasure doing business",
+            "money arrived, thank you. need anything else made, just ask"
+        } };
+
         Pool const BagTrouble = { "trade.bag_trouble", {
             "sorry, something's wrong with my bags. another time", "hm, can't send it right now, sorry", "the mail won't take it right now, sorry. later maybe"
         } };
@@ -819,7 +885,7 @@ namespace
                     continue;
                 if (one.bot)
                     Answered(player, one.bot, one.text, now);
-                else
+                else if (!CraftAsked(player, one.text, now))
                     Asked(player, one.text, now);
             }
 
@@ -839,6 +905,8 @@ namespace
                     _deals.erase(_deals.begin() + i);
                 }
             }
+
+            CraftUpkeep(now);
 
             // Parcels a player sent to a bot that buys, and the money of parcels a bot sent.
             if (++_mailTicks >= 20)
@@ -1405,7 +1473,8 @@ namespace
             auto found = std::find_if(_deals.begin(), _deals.end(), [&](Deal const& deal) { return deal.bot == botGuid && deal.player == player->GetGUID() && deal.stage == 1; });
             if (found == _deals.end())
             {
-                ChatterHeard(player, msg, 5, botGuid);       // no deal between them: small talk
+                if (!CraftHeard(player, botGuid, msg, now))
+                    ChatterHeard(player, msg, 5, botGuid);   // no deal between them: small talk
                 return;
             }
             Deal& deal = *found;
@@ -2648,6 +2717,424 @@ namespace
                 "nothing from this player has arrived");
             return false;
         }
+
+        // ------------------------------------------------------------------------------------- craft orders
+
+        struct CraftQuote
+        {
+            ObjectGuid bot, player;
+            uint32 item = 0;
+            uint32 crafts = 0;          // casts of the recipe
+            uint32 count = 0;           // pieces they make
+            uint64 price = 0;
+            time_t until = 0;
+        };
+
+#ifdef PBA_COA_ARTISANS
+        static bool FindRecipe(Player* bot, uint32 itemId, std::string const& lowered, CoaEconomy::Artisans::Recipe& out)
+        {
+            size_t best = 0;
+            for (auto const& recipe : CoaEconomy::Artisans::KnownRecipes(bot))
+            {
+                if (itemId)
+                {
+                    if (recipe.itemId == itemId) { out = recipe; return true; }
+                    continue;
+                }
+                ItemTemplate const* proto = sObjectMgr->GetItemTemplate(recipe.itemId);
+                if (!proto)
+                    continue;
+                std::string const name = Lower(proto->Name1);
+                if (name.size() > best && name.size() >= 4 && lowered.find(name) != std::string::npos)
+                {
+                    best = name.size();
+                    out = recipe;
+                }
+            }
+            return best > 0;
+        }
+#endif
+
+        /// "can you make [item]?" to a bot, and the yes or no to its price. False: not about a craft order.
+        bool CraftHeard(Player* player, ObjectGuid botGuid, std::string const& msg, time_t now)
+        {
+#ifdef PBA_COA_ARTISANS
+            if (!cfg.craftOrders || !CoaEconomy::Artisans::IsEnabled() || !CoaEconomy::CraftOrders::IsEnabled())
+                return false;
+            Player* bot = ObjectAccessor::FindConnectedPlayer(botGuid);
+            if (!bot || !GET_PLAYERBOT_AI(bot))
+                return false;
+
+            // The link goes before the words are read, so its numbers are not taken for a count.
+            static std::regex const link(R"(\|c[0-9a-fA-F]{8}\|Hitem:(\d+)[^|]*\|h\[[^\]]*\]\|h\|r)");
+            std::smatch m;
+            uint32 linked = std::regex_search(msg, m, link) ? uint32(std::stoul(m[1].str())) : 0;
+            std::string const plain = std::regex_replace(msg, link, " it ");
+            std::string const lowered = " " + Lower(plain) + " ";
+            bool const asks = Said(lowered, { "can you make", "could you make", "can u make", "can you craft", "could you craft",
+                "can u craft", "make me", "craft me", "do you make", "do you craft", "herstellen", "craften", "anfertigen",
+                "machst du mir", "kannst du mir" });
+
+            if (Said(lowered, { "what can you make", "what can you craft", "what do you make", "what do you craft", "what can u make",
+                    "was kannst du herstellen", "was kannst du craften", "was stellst du her" }))
+            {
+                CraftListFor(bot, player);
+                return true;
+            }
+
+            auto pending = std::find_if(_crafts.begin(), _crafts.end(), [&](CraftQuote const& q) { return q.bot == botGuid && q.player == player->GetGUID(); });
+            if (asks)
+            {
+                CoaEconomy::Artisans::Recipe recipe;
+                if (!FindRecipe(bot, linked, lowered, recipe))
+                {
+                    if (!linked)
+                        return false;           // no item it knows by name: the talk goes on as small talk
+                    CraftSay(bot, player, Pick(bot, Lines::CraftCannot), "");
+                    return true;
+                }
+                if (CoaEconomy::CraftOrders::IsBusy(bot))
+                {
+                    CraftSay(bot, player, Pick(bot, Lines::CraftBusy), "");
+                    return true;
+                }
+                Reply const reply = ReadReply(plain);
+                return MakeQuote(bot, player, recipe, reply.count, reply.stacks, now, "");
+            }
+
+            if (pending == _crafts.end() || pending->until < now)
+                return false;
+            Reply const reply = ReadReply(msg);
+            if (reply.no)
+            {
+                CraftSay(bot, player, Pick(bot, Lines::CraftDeclined), "");
+                _crafts.erase(pending);
+                return true;
+            }
+            if (!reply.yes)
+                return false;
+            CraftQuote const quote = *pending;
+            _crafts.erase(pending);
+            CraftDeliver(bot, player, quote, now);
+            return true;
+#else
+            (void)player; (void)botGuid; (void)msg; (void)now;
+            return false;
+#endif
+        }
+
+        void CraftSay(Player* bot, Player* player, std::string const& text, std::string const& context)
+        {
+            std::string const about = context.empty() ? "You are a craftsman taking an order from " + std::string(player->GetName()) +
+                " in whispers." : context;
+            if (CoaChatBridge::Speak(bot, player, text, CoaChatBridge::CHANNEL_WHISPER, CoaChatBridge::MODE_EXACT, about))
+                return;
+            bot->Whisper(text, LANG_UNIVERSAL, player);
+        }
+
+#ifdef PBA_COA_ARTISANS
+        void CraftDeliver(Player* bot, Player* player, CraftQuote const& quote, time_t now)
+        {
+            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(quote.item);
+            CoaEconomy::Artisans::Recipe recipe;
+            if (!proto || !FindRecipe(bot, quote.item, "", recipe))
+            {
+                CraftSay(bot, player, Pick(bot, Lines::CraftCannot), "");
+                return;
+            }
+            if (CoaEconomy::CraftOrders::IsBusy(bot))
+            {
+                CraftSay(bot, player, Pick(bot, Lines::CraftBusy), "");
+                return;
+            }
+            // The missing reagents are paid by the cash on delivery, as the add-on's orders do.
+            if (!CoaEconomy::Artisans::Consume(bot, recipe, quote.crafts, true))
+            {
+                CraftSay(bot, player, Pick(bot, Lines::CraftNoMats), "");
+                return;
+            }
+            CoaEconomy::CraftOrders::MarkBusy(bot);
+
+            MailDraft draft(proto->Name1, "Made for you. Thanks for the order!");
+            CharacterDatabaseTransaction trans = CharacterDatabase.BeginTransaction();
+            uint32 left = quote.count, parcels = 0;
+            uint32 const stack = std::max<uint32>(1, proto->GetMaxStackSize());
+            while (left && parcels < MAX_MAIL_ITEMS)
+            {
+                uint32 const n = std::min(left, stack);
+                Item* made = Item::CreateItem(quote.item, n, bot);
+                if (!made)
+                    break;
+                made->SetOwnerGUID(player->GetGUID());
+                made->SaveToDB(trans);
+                draft.AddItem(made);
+                left -= n;
+                ++parcels;
+            }
+            uint32 const delay = cfg.dealMailDelay < 0 ? sWorld->getIntConfig(CONFIG_MAIL_DELIVERY_DELAY) : uint32(cfg.dealMailDelay);
+            draft.AddCOD(uint32(std::min<uint64>(quote.price, MAX_MONEY_AMOUNT)))
+                .SendMailTo(trans, MailReceiver(player, player->GetGUID().GetCounter()), MailSender(bot), MAIL_CHECK_MASK_HAS_BODY, delay);
+            bot->SaveInventoryAndGoldToDB(trans);
+            CharacterDatabase.CommitTransaction(trans);
+
+            _awaiting[bot->GetGUID()] = now + delay + 4 * DAY;     // the payment comes back by mail
+            std::string const when = delay >= 50 * MINUTE ? "in about an hour" : delay >= 2 * MINUTE ? "in a few minutes" : "now";
+            CraftSay(bot, player, Fill(Pick(bot, Lines::CraftTaken), Goods(quote.count, proto), MoneyText(quote.price), when), "");
+            CoaChatBridge::Remember(bot, player, "You crafted " + Goods(quote.count, proto) + " for " + std::string(player->GetName()) +
+                " and mailed it cash on delivery for " + MoneyText(quote.price) + ".", 3, 1);
+            if (cfg.debug)
+                LOG_INFO("module", "PlayerbotsAuctions: {} crafts {} x{} for {} ({} copper COD).", bot->GetName(), proto->Name1, quote.count,
+                    player->GetName(), quote.price);
+        }
+#else
+        void CraftDeliver(Player*, Player*, CraftQuote const&, time_t) { }
+#endif
+
+#ifdef PBA_COA_ARTISANS
+        /// The bot names its price for `count` pieces (0: one craft) and waits five minutes for a yes.
+        bool MakeQuote(Player* bot, Player* player, CoaEconomy::Artisans::Recipe const& recipe, uint32 count, bool stacks, time_t now,
+                       std::string const& hello)
+        {
+            ItemTemplate const* proto = sObjectMgr->GetItemTemplate(recipe.itemId);
+            if (!proto)
+                return false;
+            uint32 const stack = std::max<uint32>(1, proto->GetMaxStackSize());
+            uint32 const perCraft = std::max<uint32>(1, recipe.count);
+            uint32 const wanted = count ? count * (stacks ? stack : 1) : perCraft;
+            uint32 const most = std::max<uint32>(1, std::min<uint32>(20, MAX_MAIL_ITEMS * stack / perCraft));
+            CraftQuote quote;
+            quote.bot = bot->GetGUID();
+            quote.player = player->GetGUID();
+            quote.item = recipe.itemId;
+            quote.crafts = std::min<uint32>(most, (wanted + perCraft - 1) / perCraft);
+            quote.count = quote.crafts * perCraft;
+            quote.price = std::max<uint64>(1, HumanPrice(double(CoaEconomy::CraftOrders::QuoteFor(bot, recipe)) * quote.crafts));
+            quote.until = now + 5 * MINUTE;
+            auto pending = std::find_if(_crafts.begin(), _crafts.end(), [&](CraftQuote const& q) { return q.bot == quote.bot && q.player == quote.player; });
+            if (pending != _crafts.end())
+                *pending = quote;
+            else
+                _crafts.push_back(quote);
+            CraftSay(bot, player, hello + Fill(Pick(bot, Lines::CraftQuote), Goods(quote.count, proto), MoneyText(quote.price)), "");
+            return true;
+        }
+
+        /// A few of the bot's recipes as item links, those near the player's level and the best first.
+        void CraftListFor(Player* bot, Player* player)
+        {
+            std::vector<ItemTemplate const*> made;
+            for (auto const& recipe : CoaEconomy::Artisans::KnownRecipes(bot))
+                if (ItemTemplate const* proto = sObjectMgr->GetItemTemplate(recipe.itemId))
+                    if (proto->RequiredLevel <= player->GetLevel() + 5 &&
+                        std::none_of(made.begin(), made.end(), [&](ItemTemplate const* p) { return p->ItemId == proto->ItemId; }))
+                        made.push_back(proto);
+            if (made.empty())
+            {
+                bot->Whisper(Pick(bot, Lines::CraftCannot), LANG_UNIVERSAL, player);
+                return;
+            }
+            std::sort(made.begin(), made.end(), [](ItemTemplate const* a, ItemTemplate const* b)
+                { return a->Quality != b->Quality ? a->Quality > b->Quality : a->ItemLevel > b->ItemLevel; });
+            std::string list;
+            size_t const shown = std::min<size_t>(made.size(), 6);
+            for (size_t i = 0; i < shown; ++i)
+                list += (i ? " " : "") + ChatHelper::FormatItem(made[i]);
+            if (made.size() > shown)
+                list += " and " + std::to_string(made.size() - shown) + " more, ask me for one by name";
+            // Links go out as they are: the voice could break them.
+            bot->Whisper(Fill(Pick(bot, Lines::CraftList), list, ""), LANG_UNIVERSAL, player);
+        }
+
+        static uint32 ProfessionAsked(std::string const& lowered)
+        {
+            static std::pair<uint32, std::vector<char const*>> const words[] = {
+                { SKILL_BLACKSMITHING, { " blacksmith", " bs ", " schmied", " weaponsmith", " armorsmith" } },
+                { SKILL_LEATHERWORKING, { " leatherwork", " lw ", " lederer", " lederverarbeit" } },
+                { SKILL_TAILORING, { " tailor", " schneider" } },
+                { SKILL_ENGINEERING, { " engineer", " ingenieur" } },
+                { SKILL_ALCHEMY, { " alchemist", " alchemy", " alchi", " alchemie" } },
+                { SKILL_JEWELCRAFTING, { " jewelcraft", " jc ", " juwelier", " juwe" } },
+                { SKILL_INSCRIPTION, { " scribe", " inscription", " inschrift" } },
+                { SKILL_COOKING, { " cook ", " cooking", " koch ", " kochkunst" } },
+                { SKILL_FIRST_AID, { " first aid", " erste hilfe" } },
+                { SKILL_ENCHANTING, { " enchanter", " enchanting", " verzauberer" } } };
+            for (auto const& entry : words)
+                for (char const* word : entry.second)
+                    if (lowered.find(word) != std::string::npos)
+                        return entry.first;
+            return 0;
+        }
+#endif
+
+        struct CraftReply
+        {
+            ObjectGuid bot, player;
+            uint32 skill = 0, item = 0, count = 0;
+            bool stacks = false;
+            time_t at = 0;
+        };
+
+        /// "LF blacksmith", "anyone can make [item]?", "ist ein Schmied da?" in a channel: a few bots of that craft answer
+        /// by whisper. False: not about crafting (the WTB and WTS reading goes on).
+        bool CraftAsked(Player* player, std::string const& text, time_t now)
+        {
+#ifdef PBA_COA_ARTISANS
+            if (!cfg.craftOrders || !CoaEconomy::Artisans::IsEnabled() || !CoaEconomy::CraftOrders::IsEnabled())
+                return false;
+            static std::regex const link(R"(\|c[0-9a-fA-F]{8}\|Hitem:(\d+)[^|]*\|h\[[^\]]*\]\|h\|r)");
+            std::smatch m;
+            uint32 const linked = std::regex_search(text, m, link) ? uint32(std::stoul(m[1].str())) : 0;
+            std::string const plain = std::regex_replace(text, link, " it ");
+            std::string const lowered = " " + Lower(plain) + " ";
+            uint32 const skill = ProfessionAsked(lowered);
+            bool const verb = Said(lowered, { " craft", " make ", " made ", " herstell", " anfertig", " crafter" });
+            bool const asking = plain.find('?') != std::string::npos || Said(lowered, { " lf ", " lfm ", " looking for", " any ", " anyone",
+                " anybody", " someone", " somebody", " who can", " need ", " suche", " gibt es", " jemand", " wer kann", " ist ein",
+                " is there", " can i get" });
+            if (!asking || (!skill && !(verb && linked)))
+                return false;
+            time_t& last = _lastCraftAsk[player->GetGUID().GetCounter()];
+            if (last + 10 > now)
+                return true;
+            last = now;
+
+            Reply const reply = ReadReply(plain);
+            std::vector<std::pair<Player*, uint32>> willing;     // the bot, and the item it can make (0: its craft only)
+            PlayerBotMap const bots = sRandomPlayerbotMgr.GetAllBots();
+            for (auto const& entry : bots)
+            {
+                Player* bot = entry.second;
+                if (!bot || !bot->IsInWorld() || bot->IsBeingTeleported() || bot->GetTeamId() != player->GetTeamId() || bot->GetLevel() < cfg.minLevel)
+                    continue;
+                PlayerbotAI* botAI = GET_PLAYERBOT_AI(bot);
+                if (!botAI || botAI->GetMaster() || bot->IsInCombat() || (skill && !bot->HasSkill(skill)))
+                    continue;
+                CoaEconomy::Artisans::Recipe recipe;
+                bool const knows = FindRecipe(bot, linked, linked ? "" : lowered, recipe);
+                if (linked && !knows)
+                    continue;
+                if (!knows && !skill)
+                    continue;
+                willing.push_back({ bot, knows ? recipe.itemId : 0 });
+            }
+            if (willing.empty())
+                return true;
+            // Those who can make the very item first.
+            Acore::Containers::RandomShuffle(willing);
+            std::stable_sort(willing.begin(), willing.end(), [](auto const& a, auto const& b) { return a.second && !b.second; });
+            if (willing.size() > cfg.dealAnswers)
+                willing.resize(cfg.dealAnswers);
+            time_t at = now + urand(4, 12);
+            for (auto const& one : willing)
+            {
+                _craftReplies.push_back({ one.first->GetGUID(), player->GetGUID(), skill, one.second, reply.count, reply.stacks, at });
+                at += urand(5, 20);
+            }
+            return true;
+#else
+            (void)player; (void)text; (void)now;
+            return false;
+#endif
+        }
+
+        void CraftReplies(time_t now)
+        {
+#ifdef PBA_COA_ARTISANS
+            for (size_t i = 0; i < _craftReplies.size();)
+            {
+                CraftReply const r = _craftReplies[i];
+                if (r.at > now)
+                {
+                    ++i;
+                    continue;
+                }
+                _craftReplies.erase(_craftReplies.begin() + i);
+                Player* bot = ObjectAccessor::FindConnectedPlayer(r.bot);
+                Player* player = ObjectAccessor::FindConnectedPlayer(r.player);
+                if (!bot || !player)
+                    continue;
+                CoaEconomy::Artisans::Recipe recipe;
+                if (r.item && FindRecipe(bot, r.item, "", recipe))
+                {
+                    if (!CoaEconomy::CraftOrders::IsBusy(bot))
+                        MakeQuote(bot, player, recipe, r.count, r.stacks, now, Hello());
+                    continue;
+                }
+                uint32 const skill = r.skill;
+                if (!skill || !bot->HasSkill(skill))
+                    continue;
+                std::string text = Pick(bot, Lines::CraftOffer);
+                std::string const skillText = std::to_string(bot->GetSkillValue(skill));
+                for (size_t pos; (pos = text.find("{p}")) != std::string::npos;)
+                    text.replace(pos, 3, CoaEconomy::Artisans::ProfessionLink(bot, skill));
+                for (size_t pos; (pos = text.find("{s}")) != std::string::npos;)
+                    text.replace(pos, 3, skillText);
+                // The profession's link goes out as it is: the voice could break it.
+                bot->Whisper(Hello() + text, LANG_UNIVERSAL, player);
+            }
+#else
+            (void)now;
+#endif
+        }
+
+        /// Old quotes go; the add-on's orders get the artisan's whispers when they are taken, sent and paid.
+        void CraftUpkeep(time_t now)
+        {
+            _crafts.erase(std::remove_if(_crafts.begin(), _crafts.end(), [&](CraftQuote const& q) { return q.until < now; }), _crafts.end());
+            CraftReplies(now);
+#ifdef PBA_COA_ARTISANS
+            if (!cfg.craftOrders || ++_orderTicks < 10)
+                return;
+            _orderTicks = 0;
+            if (!_ordersLooked)
+            {
+                _ordersLooked = true;
+                _ordersTable = PlayerbotsDatabase.Query("SHOW TABLES LIKE 'coa_economy_orders'") != nullptr;
+                _ordersSince = now - 30;
+            }
+            if (!_ordersTable)
+                return;
+            QueryResult result = PlayerbotsDatabase.Query("SELECT id, player, bot, item, qty, copper, state FROM coa_economy_orders WHERE changed >= {}",
+                uint64(_ordersSince));
+            bool const first = _orderStates.empty() && !_ordersSeen;
+            _ordersSeen = true;
+            _ordersSince = now - 15;
+            if (!result)
+                return;
+            if (_orderStates.size() > 5000)
+                _orderStates.clear();
+            do
+            {
+                Field* f = result->Fetch();
+                uint32 const id = f[0].Get<uint32>();
+                std::string const state = f[6].Get<std::string>();
+                auto known = _orderStates.find(id);
+                bool const changed = known == _orderStates.end() || known->second != state;
+                _orderStates[id] = state;
+                if (first || !changed)
+                    continue;
+                Lines::Pool const* pool = state == "preparing" ? &Lines::CraftOrderTaken : state == "sent" ? &Lines::CraftOrderSent :
+                                          state == "paid" ? &Lines::CraftOrderPaid : nullptr;
+                if (!pool)
+                    continue;
+                Player* player = ObjectAccessor::FindConnectedPlayer(ObjectGuid::Create<HighGuid::Player>(f[1].Get<uint32>()));
+                Player* bot = ObjectAccessor::FindConnectedPlayer(ObjectGuid::Create<HighGuid::Player>(f[2].Get<uint32>()));
+                ItemTemplate const* proto = sObjectMgr->GetItemTemplate(f[3].Get<uint32>());
+                if (!player || !bot || !proto)
+                    continue;
+                CraftSay(bot, player, Fill(Pick(bot, *pool), Goods(f[4].Get<uint32>(), proto), MoneyText(f[5].Get<uint32>())),
+                    "You are a craftsman; " + std::string(player->GetName()) + " ordered from you through the artisans' list.");
+            } while (result->NextRow());
+#endif
+        }
+
+        std::vector<CraftQuote> _crafts;
+        std::vector<CraftReply> _craftReplies;
+        std::unordered_map<ObjectGuid::LowType, time_t> _lastCraftAsk;
+        std::unordered_map<uint32, std::string> _orderStates;  // the add-on's orders: id -> state last seen
+        uint32 _orderTicks = 0;
+        time_t _ordersSince = 0;
+        bool _ordersLooked = false, _ordersTable = false, _ordersSeen = false;
 
         std::mutex _lock;
         std::vector<Heard> _heard;

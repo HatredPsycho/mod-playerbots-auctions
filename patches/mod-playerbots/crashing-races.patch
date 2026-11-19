@@ -1,7 +1,8 @@
 diff --git a/src/PlayerbotAIConfig.cpp b/src/PlayerbotAIConfig.cpp
+index 937e709..c5841ab 100644
 --- a/src/PlayerbotAIConfig.cpp
 +++ b/src/PlayerbotAIConfig.cpp
-@@ -767,8 +767,11 @@
+@@ -864,8 +864,11 @@ bool PlayerbotAIConfig::Initialize()
      excludedBotRaces.clear();
      LoadList<std::vector<uint32>>(sConfigMgr->GetOption<std::string>("AiPlayerbot.ExcludedBotRaces", "", false),
                                    excludedBotRaces);
@@ -13,4 +14,4 @@ diff --git a/src/PlayerbotAIConfig.cpp b/src/PlayerbotAIConfig.cpp
 +        sConfigMgr->GetOption<std::string>("AiPlayerbot.CrashingBotRaces", "", false),
          excludedBotRaces);
      customRacesForBots = sConfigMgr->GetOption<bool>("CoACustomRaces.BotsEnable", false, false);
-     coaSpecRotations = sConfigMgr->GetOption<bool>("AiPlayerbot.CoaSpecRotations", true);
+     // How bots use each race, written by the server for the races it adds (AiPlayerbot.BotRace.<id>, CoaBotRaces.h).

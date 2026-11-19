@@ -57,8 +57,7 @@ namespace pba
             cfg.pauseOffline = false;
             LOG_WARN("module", "PlayerbotsAuctions: mod-playerbots' AiPlayerbot.CoaEconomy.AuctionClock.Enable is on, so this module does not add the server's off time to auctions as well. Set it to 0 to use this module's clock.");
         }
-        for (char const* key : { "AiPlayerbot.CoaEconomy.BotAuctions.Enable", "AiPlayerbot.CoaEconomy.Artisans.Enable",
-                                 "AiPlayerbot.CoaEconomy.RpgSell.Enable", "AiPlayerbot.CoaEconomy.AHBot.Enable",
+        for (char const* key : { "AiPlayerbot.CoaEconomy.BotAuctions.Enable", "AiPlayerbot.CoaEconomy.RpgSell.Enable", "AiPlayerbot.CoaEconomy.AHBot.Enable",
                                  "AiPlayerbot.CoaEconomy.Chatter.TradeWindow.Enable", "AiPlayerbot.CoaLive.Chat.Enable",
                                  "AiPlayerbot.CoaLive.Enable" })
             if (forkOn(key))
@@ -142,6 +141,7 @@ namespace pba
         cfg.glyphs              = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Crafting.Glyphs", false);
 
         cfg.deals               = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chat.Enable", true);
+        cfg.craftOrders         = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chat.CraftOrders", true);
         cfg.dealAnswers         = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chat.Answers", 3), 1, 10);
         cfg.dealMeet            = sConfigMgr->GetOption<bool>("PlayerbotsAuctions.Chat.Meet", true);
         cfg.dealMeetDistance    = std::clamp<uint32>(sConfigMgr->GetOption<uint32>("PlayerbotsAuctions.Chat.MeetDistance", 150), 10, 5000);
