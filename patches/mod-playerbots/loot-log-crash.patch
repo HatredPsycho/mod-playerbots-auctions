@@ -1,8 +1,8 @@
 diff --git a/conf/playerbots.conf.dist b/conf/playerbots.conf.dist
-index b5d2f39..7dda1f2 100644
+index 6c14d1e2..8bd8ea01 100644
 --- a/conf/playerbots.conf.dist
 +++ b/conf/playerbots.conf.dist
-@@ -3426,9 +3426,16 @@ AiPlayerbot.CoaWorld.Guilds.PlayerGuildProfessions = 1
+@@ -3442,9 +3442,16 @@ AiPlayerbot.CoaWorld.Guilds.PlayerGuildProfessions = 1
  AiPlayerbot.CoaWorld.Guilds.PlayerGuildTeach = 1
  AiPlayerbot.CoaWorld.Events.Addon = 1
  
@@ -22,7 +22,7 @@ index b5d2f39..7dda1f2 100644
  # find a handful a day, where blues arrive all the time.
  # Default: 3 (rare)
 diff --git a/src/PlayerbotAIConfig.cpp b/src/PlayerbotAIConfig.cpp
-index 937e709..b3b20fe 100644
+index e19b7e90..27c9c5f9 100644
 --- a/src/PlayerbotAIConfig.cpp
 +++ b/src/PlayerbotAIConfig.cpp
 @@ -979,6 +979,7 @@ bool PlayerbotAIConfig::Initialize()
@@ -34,7 +34,7 @@ index 937e709..b3b20fe 100644
      autoLearnQuestSpells = sConfigMgr->GetOption<bool>("AiPlayerbot.AutoLearnQuestSpells", true);
      autoTeleportForLevel = sConfigMgr->GetOption<bool>("AiPlayerbot.AutoTeleportForLevel", false);
 diff --git a/src/PlayerbotAIConfig.h b/src/PlayerbotAIConfig.h
-index 79c587e..b73282b 100644
+index 64dca873..fb88bb27 100644
 --- a/src/PlayerbotAIConfig.h
 +++ b/src/PlayerbotAIConfig.h
 @@ -523,6 +523,7 @@ public:
@@ -46,7 +46,7 @@ index 79c587e..b73282b 100644
      bool autoDoQuests;
      bool enableNewRpgStrategy;
 diff --git a/src/Script/Playerbots.cpp b/src/Script/Playerbots.cpp
-index 9bb9748..ae0e591 100644
+index 3561f4be..1331e12a 100644
 --- a/src/Script/Playerbots.cpp
 +++ b/src/Script/Playerbots.cpp
 @@ -115,7 +115,9 @@ public:

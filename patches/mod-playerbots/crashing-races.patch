@@ -1,5 +1,5 @@
 diff --git a/src/PlayerbotAIConfig.cpp b/src/PlayerbotAIConfig.cpp
-index 937e709..c5841ab 100644
+index e19b7e90..a1fba41c 100644
 --- a/src/PlayerbotAIConfig.cpp
 +++ b/src/PlayerbotAIConfig.cpp
 @@ -864,8 +864,11 @@ bool PlayerbotAIConfig::Initialize()
